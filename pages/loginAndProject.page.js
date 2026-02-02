@@ -10,7 +10,7 @@ class LoginAndProjectPage {
 
     await this.page.fill(
       'input[placeholder="Enter your email"]',
-      'sameer@logycent.com'
+      'sameer.l@logycent.com'
     );
     await this.page.fill(
       'input[placeholder="Enter your password"]',
