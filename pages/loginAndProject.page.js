@@ -1,31 +1,256 @@
+// class LoginAndProjectPage {
+//   constructor(page) {
+//     this.page = page;
+//     this.url = 'https://d6nchqu50azsp.cloudfront.net';
+
+//     // Actual credentials
+//     this.correctEmail = 'sameer.l@logycent.com';
+//     this.correctPassword = 'Sameer.l&5542';
+//   }
+
+//   // Utility: small mutation for username
+//   getWrongEmail() {
+//     return this.correctEmail.replace('.l@', '@'); 
+//     // sameer@logycent.com
+//   }
+
+//   // Utility: small mutation for password
+//   getWrongPassword() {
+//     return this.correctPassword.replace('&', '');
+//     // Sameer.l5542
+//   }
+
+//   async attemptLogin(email, password, attemptNo) {
+//     console.log(`Attempt ${attemptNo}: ${email} | ${password}`);
+
+//     await this.page.goto(this.url, { waitUntil: 'networkidle' });
+
+//     await this.page.fill('input[placeholder="Enter your email"]', email);
+//     await this.page.fill('input[placeholder="Enter your password"]', password);
+
+//     // Click checkbox if present
+//     const checkbox = this.page.locator('input[type="checkbox"]');
+//     if (await checkbox.isVisible().catch(() => false)) {
+//       await checkbox.check();
+//     }
+
+//     await this.page.click('button:has-text("Login")');
+
+//     // Wait for either:
+//     // 1. Projects page
+//     // 2. Error message
+//     // 3. Login page remains
+//     const result = await Promise.race([
+//       this.page.locator('text=Projects').waitFor({ timeout: 8000 }).then(() => 'SUCCESS'),
+//       this.page.locator('text=/error|invalid|failed|network|something went wrong/i')
+//         .waitFor({ timeout: 8000 })
+//         .then(() => 'ERROR'),
+//       this.page.waitForTimeout(8000).then(() => 'NO_CHANGE'),
+//     ]);
+
+//     // Capture visible errors
+//     const errors = await this.page
+//       .locator('text=/error|invalid|failed|network|something went wrong/i')
+//       .allTextContents();
+
+//     if (errors.length > 0) {
+//       console.warn('Captured errors:', errors.join(' | '));
+//     }
+
+//     return result;
+//   }
+
+//   async loginAndOpenProject() {
+//     const scenarios = [
+//       {
+//         name: 'Wrong Password',
+//         email: this.correctEmail,
+//         password: this.getWrongPassword(),
+//         retries: 3,
+//       },
+//       {
+//         name: 'Wrong Username',
+//         email: this.getWrongEmail(),
+//         password: this.correctPassword,
+//         retries: 3,
+//       },
+//       {
+//         name: 'Wrong Username & Password',
+//         email: this.getWrongEmail(),
+//         password: this.getWrongPassword(),
+//         retries: 3,
+//       },
+//       {
+//         name: 'Correct Credentials',
+//         email: this.correctEmail,
+//         password: this.correctPassword,
+//         retries: 1,
+//       },
+//     ];
+
+//     for (const scenario of scenarios) {
+//       console.log(`\nScenario: ${scenario.name}`);
+
+//       for (let i = 1; i <= scenario.retries; i++) {
+//         const result = await this.attemptLogin(
+//           scenario.email,
+//           scenario.password,
+//           i
+//         );
+
+//         if (result === 'SUCCESS') {
+//           console.log('Login successful 🎉');
+
+//           // Post-login navigation
+//           await this.page.getByText('weldNumEdit').first().click();
+//           await this.page.getByRole('tab', { name: 'Production' }).click();
+//           await this.page.waitForSelector('table tbody tr', { timeout: 60000 });
+
+//           return; // Stop execution after success
+//         }
+//       }
+//     }
+
+//     throw new Error('Login failed after all scenarios');
+//   }
+// }
+
+// module.exports = LoginAndProjectPage;
+
+
 class LoginAndProjectPage {
   constructor(page) {
     this.page = page;
+    this.url = 'https://d6nchqu50azsp.cloudfront.net/login'
+
+    // Actual credentials
+    this.correctEmail = 'sameer.l@logycent.com';
+    this.correctPassword = 'Sameer.l&5542';
   }
 
+  // Utility: small mutation for username
+  getWrongEmail() {
+    return this.correctEmail.replace('.l@', '@'); // sameer@logycent.com
+  }
+
+  // Utility: small mutation for password
+  getWrongPassword() {
+    return this.correctPassword.replace('&', ''); // Sameer.l5542
+  }
+
+async attemptLogin(email, password, attemptNo) {
+  console.log(`Attempt ${attemptNo}: ${email || '(empty)'} | ${password || '(empty)'}`);
+
+  await this.page.goto(this.url, { waitUntil: 'networkidle' });
+
+  // Fill inputs
+  await this.page.fill('input[placeholder="Enter your email"]', email || '');
+  await this.page.fill('input[placeholder="Enter your password"]', password || '');
+
+  // Eye icon click
+  const eyeIcon = this.page.locator('button[aria-label="Show password"], button:has-text("👁")');
+  if (await eyeIcon.isVisible().catch(() => false)) {
+    await eyeIcon.click();
+  }
+
+  // Click checkbox if present
+  const checkbox = this.page.locator('input[type="checkbox"]');
+  if (await checkbox.isVisible().catch(() => false)) {
+    await checkbox.check();
+  }
+
+  // Click Login
+  await this.page.click('button:has-text("Login")');
+
+  // Short wait for page updates
+  await this.page.waitForTimeout(2000);
+
+  // Check for empty fields
+  const invalidCount = await this.page.locator('input:invalid').count();
+  if (invalidCount > 0) {
+    console.warn('Captured HTML5 validation: Please fill in the required fields.');
+    return 'EMPTY_FIELD';
+  }
+
+  // Check for error messages
+  const errors = await this.page.locator('text=/error|invalid|failed|network|something went wrong/i').allTextContents();
+  if (errors.length > 0) {
+    console.warn('Captured errors:', errors.join(' | '));
+    return 'ERROR';
+  }
+
+  // ✅ Robust Projects detection
+  try {
+    await this.page.locator('text=Projects').waitFor({ timeout: 20000 }); // wait up to 20s
+    return 'SUCCESS';
+  } catch {
+    return 'NO_CHANGE';
+  }
+}
+
+
+
   async loginAndOpenProject() {
-    await this.page.goto('https://d6nchqu50azsp.cloudfront.net', {
-      waitUntil: 'networkidle',
-    });
+    const scenarios = [
+      // {
+      //   name: 'Empty Email & Password',
+      //   email: '',
+      //   password: '',
+      //   retries: 1,
+      // },
+      // {
+      //   name: 'Wrong Password',
+      //   email: this.correctEmail,
+      //   password: this.getWrongPassword(),
+      //   retries: 1,
+      // },
+      // {
+      //   name: 'Wrong Username',
+      //   email: this.getWrongEmail(),
+      //   password: this.correctPassword,
+      //   retries: 1,
+      // },
+      // {
+      //   name: 'Wrong Username & Password',
+      //   email: this.getWrongEmail(),
+      //   password: this.getWrongPassword(),
+      //   retries: 1,
+      // },
+      {
+        name: 'Correct Credentials',
+        email: this.correctEmail,
+        password: this.correctPassword,
+        retries: 1,
+      },
+    ];
 
-    await this.page.fill(
-      'input[placeholder="Enter your email"]',
-      'sameer.l@logycent.com'
-    );
-    await this.page.fill(
-      'input[placeholder="Enter your password"]',
-      'Sameer.l&5542'
-    );
+    for (const scenario of scenarios) {
+      console.log(`\nScenario: ${scenario.name}`);
 
-    await this.page.click('button:has-text("Login")');
+      for (let i = 1; i <= scenario.retries; i++) {
+        const result = await this.attemptLogin(scenario.email, scenario.password, i);
 
-    await this.page.getByText('Projects').waitFor({ timeout: 60000 });
+        if (result === 'SUCCESS') {
+          console.log('Login successful 🎉');
 
-    await this.page.getByText('weldNumEdit').first().click();
-    await this.page.getByRole('tab', { name: 'Production' }).click();
+          // Post-login navigation
+          await this.page.getByText('weldNumEdit').first().click();
+          await this.page.getByRole('tab', { name: 'Production' }).click();
+          await this.page.waitForSelector('table tbody tr', { timeout: 60000 });
 
-    await this.page.waitForSelector('table tbody tr', { timeout: 60000 });
+          return; // Stop execution after successful login
+        } else if (result === 'EMPTY_FIELD') {
+          console.log('Skipped attempt due to empty required fields.');
+          break; // Skip retries for empty fields
+        } else {
+          console.log(`Attempt ${i} result: ${result}`);
+        }
+      }
+    }
+
+    throw new Error('Login failed after all scenarios');
   }
 }
 
 module.exports = LoginAndProjectPage;
+

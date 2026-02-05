@@ -1,23 +1,23 @@
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './tests',
-  workers: 1,
+  // 1. Increase the overall test timeout (e.g., to 5 or 10 minutes)
+  // because clicking every eye-icon takes significant time.
+  timeout: 600000, 
 
-  timeout: 0,
-
-  reporter: [
-    ['list'],
-    ['html', { open: 'always' }]
-  ],
+  expect: {
+    timeout: 10000,
+  },
 
   use: {
     headless: false,
-    viewport: { width: 1280, height: 720 },
-
-    // ✅ correct place
+    viewport: null, 
     launchOptions: {
-      slowMo: 500,
+      slowMo: 300, // Reduced slightly from 500 to speed up extraction
+      args: ["--start-maximized"], 
     },
+    // 2. Action timeout for individual clicks/navigation
+    actionTimeout: 30000,
+    navigationTimeout: 30000,
   },
 });

@@ -1,24 +1,39 @@
-async function autoScroll(container) {
-  // Get scroll limits
-  const { maxScrollTop, maxScrollLeft } = await container.evaluate(el => ({
-    maxScrollTop: el.scrollHeight - el.clientHeight,
-    maxScrollLeft: el.scrollWidth - el.clientWidth,
-  }));
+// utils/scroll.util.js
+async function autoScroll(locator) {
+  if (!(await locator.isVisible())) return;
 
-  // Vertical scroll
-  for (let y = 0; y <= maxScrollTop; y += 300) {
-    await container.evaluate((el, y) => el.scrollTo(0, y), y);
-    await new Promise(r => setTimeout(r, 300));
-  }
+  await locator.evaluate(async (el) => {
+    await new Promise((resolve) => {
+      let lastScrollTop = -1;
+      let stableCount = 0;
+      const maxStable = 5;
+      const distance = 150;
 
-  // Horizontal scroll
-  for (let x = 0; x <= maxScrollLeft; x += 300) {
-    await container.evaluate((el, x) => el.scrollTo(x, 0), x);
-    await new Promise(r => setTimeout(r, 300));
-  }
+      const timer = setInterval(() => {
+        el.scrollBy(0, distance);
 
-  // Reset view (important)
-  await container.evaluate(el => el.scrollTo(0, 0));
+        // If scrollTop stops changing, assume bottom reached
+        if (el.scrollTop === lastScrollTop) {
+          stableCount++;
+        } else {
+          stableCount = 0;
+          lastScrollTop = el.scrollTop;
+        }
+
+        // Stop after stability
+        if (stableCount >= maxStable) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, 200);
+
+      // 🛑 Absolute safety timeout
+      setTimeout(() => {
+        clearInterval(timer);
+        resolve();
+      }, 15000);
+    });
+  });
 }
 
 module.exports = { autoScroll };

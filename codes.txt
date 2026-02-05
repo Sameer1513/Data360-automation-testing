@@ -1,0 +1,478 @@
+// class ProductionPassAnalysisPage {
+//   constructor(page) {
+//     this.page = page;
+//     this.allRedValues = [];
+//   }
+
+//   /* ===================== UTIL ===================== */
+
+//   async pause(ms) {
+//     await this.page.waitForTimeout(ms);
+//   }
+
+//   /* ===================== COLUMN HELPERS ===================== */
+
+//   async getColumnIndexByName(columnName) {
+//     const headers = this.page.locator('table thead th');
+//     const count = await headers.count();
+
+//     for (let i = 0; i < count; i++) {
+//       const text = (await headers.nth(i).innerText()).toLowerCase();
+//       if (text.includes(columnName.toLowerCase())) {
+//         console.log(`✅ Column "${columnName}" found at index ${i + 1}`);
+//         return i + 1;
+//       }
+//     }
+
+//     throw new Error(`❌ Column "${columnName}" not found`);
+//   }
+
+//  async getActionsColumnIndexFromRow() {
+//   const firstRow = this.page.locator('table tbody tr').first();
+//   const cells = firstRow.locator('td');
+//   const count = await cells.count();
+
+//   for (let i = 0; i < count; i++) {
+//     const hasButton = await cells.nth(i).locator('button').count();
+//     if (hasButton) {
+//       console.log(`✅ Actions column detected at index ${i + 1}`);
+//       return i + 1;
+//     }
+//   }
+
+//   throw new Error('❌ Actions column not detected');
+// }
+
+
+//   /* ===================== PRODUCTION → EYE-1 (UNCHANGED LOGIC) ===================== */
+
+//   async openProductionEye() {
+//     await this.page.waitForSelector('table tbody tr', { timeout: 60000 });
+
+//     const weldDataCol = await this.getColumnIndexByName('Weld Data');
+//     const firstRow = this.page.locator('table tbody tr').first();
+
+//     await firstRow.scrollIntoViewIfNeeded();
+
+//     const eye = firstRow.locator(
+//       `td:nth-child(${weldDataCol}) button`
+//     ).first();
+
+//     console.log('👁 Eye-1 → Production (Weld Data)');
+//     await eye.click({ force: true });
+
+//     // ✅ wait for Pass tab and switch
+//     const passTab = this.page.getByRole('tab', { name: 'Pass' });
+//     await passTab.waitFor({ state: 'visible', timeout: 60000 });
+//     await passTab.click();
+
+//     // ✅ lock Pass view
+//     await this.page.waitForSelector(
+//       'table thead th',
+//       { timeout: 60000 }
+//     );
+
+//     console.log('✅ Pass view locked');
+//   }
+
+/* data analysis is clicked */
+// async PassdataEye() {
+//   console.log('🔍 Starting Targeted Eye-2 Detection');
+
+//   // 1. Wait for "Loading weld passes..." spinner to finish
+//   await this.page.waitForSelector('text=Loading weld passes...', { state: 'hidden', timeout: 60000 });
+
+//   // 2. STRICTOR SELECTOR: Target only rows inside the data tbody
+//   // This prevents detecting filter inputs as rows
+//   const rows = this.page.locator('table tbody tr');
+//   await rows.first().waitFor({ state: 'visible', timeout: 30000 });
+  
+//   const rowCount = await rows.count();
+//   console.log(`📋 Found ${rowCount} actual data rows.`);
+
+//   for (let i = 0; i < rowCount; i++) {
+//     const currentRow = rows.nth(i);
+    
+//     // Skip row if it doesn't contain a Sl.no (identifies it as a real data row)
+//     const slNo = await currentRow.locator('td').first().innerText();
+//     if (!slNo || isNaN(slNo.trim())) {
+//         console.log(`⏭ Skipping non-data row at index ${i}`);
+//         continue;
+//     }
+
+//     console.log(`➡ Processing Data Row ${slNo.trim()}`);
+
+//     // 3. Perform the Hover sequence
+//     await currentRow.scrollIntoViewIfNeeded();
+//     await currentRow.hover(); 
+//     await this.page.waitForTimeout(600); // Wait for the "Actions" icons to render
+
+//     // 4. Locate the Eye Icon specifically in the 'Actions' column area
+//     const eyeIcon = currentRow.locator('svg.lucide-eye, button:has(svg.lucide-eye)').first();
+
+//     if (await eyeIcon.isVisible()) {
+//       // 5. Physical hover on the icon itself as seen in the video
+//       await eyeIcon.hover();
+//       await this.page.waitForTimeout(300);
+
+//       console.log(`👁 Clicking Eye icon on row ${slNo.trim()}`);
+//       await eyeIcon.click({ force: true });
+
+//       // 6. Monitor for transition states
+//       try {
+//         await this.page.waitForSelector('text=Loading pass view details...', { state: 'visible', timeout: 10000 });
+//         console.log('⏳ Transitioning to Data Analysis...');
+
+//         // Final confirmation: The "Back" button
+//         await this.page.locator('button[aria-label="Back"]').first().waitFor({ state: 'visible', timeout: 30000 });
+        
+//         console.log('✅ Success: Data Analysis View Loaded');
+//         return; // Success - Exit function
+//       } catch (e) {
+//         console.log(`❌ Row ${slNo.trim()} failed to navigate. Checking next...`);
+//       }
+//     }
+//   }
+//   throw new Error('❌ Eye-2 failed: Could not find or click a valid Eye icon.');
+// }
+
+
+// const ExcelJS = require('exceljs');
+// const fs = require('fs');
+// const path = require('path');
+// const { autoScroll } = require('../utils/scroll.util');
+
+// class ProductionPassAnalysisPage {
+//   constructor(page) {
+//     this.page = page;
+//     this.exportDir = path.join(process.cwd(), 'exports');
+//     if (!fs.existsSync(this.exportDir)) fs.mkdirSync(this.exportDir, { recursive: true });
+//   }
+
+//   /**
+//    * Main Entry Point - Executes the sequence for each Production Row
+//    */
+//   async runFlow(prodLimit = null) {
+//     // FIRST: Create Weld Summary Excel (Point 2.1)
+//     await this.generateWeldSummaryExcel();
+
+//     const rows = this.page.locator('table tbody tr');
+//     const total = await rows.count();
+//     const iterations = prodLimit ? Math.min(prodLimit, total) : total;
+
+//     for (let i = 0; i < iterations; i++) {
+//       console.log(`\n📂 Starting Production Row ${i + 1}`);
+      
+//       // Step 1: Open Weld Data Eye-1
+//       const prodRowData = await rows.nth(i).locator('td').allInnerTexts();
+//       const prodHeaders = await this.page.locator('table thead th').allInnerTexts();
+//       await this.WelddataEye(i);
+
+//       // Step 2: Process PASS Tab
+//       await this.processTabView('Pass', i + 1, prodHeaders, prodRowData);
+
+//       // Step 3: Process ZONE Tab
+//       await this.page.getByRole('tab', { name: 'Zone' }).click();
+//       await this.processTabView('Zone', i + 1, prodHeaders, prodRowData);
+
+//       // Step 4: Process TILT Tab
+//       await this.page.getByRole('tab', { name: 'Tilt' }).click();
+//       await this.processTabView('Tilt', i + 1, prodHeaders, prodRowData);
+
+//       // Step 5: Back to main Weld Data View
+//       await this.page.locator('button:has(svg.lucide-arrow-left), button:has(svg)').first().click();
+//     }
+//   }
+
+//   async generateWeldSummaryExcel() {
+//     const workbook = new ExcelJS.Workbook();
+//     const sheet = workbook.addWorksheet('WeldSummary');
+//     const headers = await this.page.locator('table thead th').allInnerTexts();
+//     sheet.addRow(headers);
+//     const rows = await this.page.locator('table tbody tr').all();
+//     for (const row of rows) {
+//       sheet.addRow(await row.locator('td').allInnerTexts());
+//     }
+//     sheet.addRow(['Total Welds', rows.length]);
+//     await workbook.xlsx.writeFile(path.join(this.exportDir, 'WeldSummary.xlsx'));
+//     console.log('✅ WeldSummary.xlsx generated');
+//   }
+
+//   async processTabView(viewName, prodIdx, prodHeaders, prodRowData) {
+//     console.log(`🔍 Processing ${viewName} View...`);
+//     await this.page.waitForSelector('table tbody tr', { state: 'visible' });
+//     const rows = this.page.locator('table tbody tr');
+//     const rowCount = await rows.count();
+
+//     for (let i = 0; i < rowCount; i++) {
+//       const currentRow = this.page.locator('table tbody tr').nth(i);
+//       const viewRowData = await currentRow.locator('td').allInnerTexts();
+//       const slNo = viewRowData[0]?.trim();
+//       if (!slNo || isNaN(slNo)) continue;
+
+//       await currentRow.scrollIntoViewIfNeeded();
+//       await currentRow.hover();
+//       await this.page.waitForTimeout(600);
+
+//       const eyeIcon = currentRow.locator('svg.lucide-eye, button:has(svg.lucide-eye)').first();
+//       if (await eyeIcon.isVisible()) {
+//         await eyeIcon.click({ force: true });
+//         try {
+//           await this.page.locator('button:has(svg.lucide-arrow-left), button[aria-label="Back"]').first().waitFor({ state: 'visible' });
+          
+//           const fileName = `${viewName}View_Row${prodIdx}_${slNo}.xlsx`;
+//           await this.scanDataAnalysis(fileName, prodHeaders, prodRowData, viewRowData, viewName);
+          
+//           await this.page.waitForSelector(`text=${viewName} View Filters`, { state: 'visible' });
+//         } catch (e) {
+//           console.error(`❌ ${viewName} Row ${slNo} failed: ${e.message}`);
+//         }
+//       }
+//     }
+//   }
+
+//   async scanDataAnalysis(fileName, prodHeaders, prodRowData, viewRowData, viewName) {
+//     const workbook = new ExcelJS.Workbook();
+//     const sheet = workbook.addWorksheet('DataAnalysis');
+
+//     // Add Context Headers (Point 2.2)
+//     sheet.addRow([`--- ${viewName} ANALYSIS CONTEXT ---`]);
+//     sheet.addRow(prodHeaders);
+//     sheet.addRow(prodRowData);
+//     sheet.addRow([]);
+//     sheet.addRow([`${viewName} Row Details`]);
+//     sheet.addRow(viewRowData);
+//     sheet.addRow([]);
+
+//     // Data Analysis Table
+//     const headerCols = await this.page.locator('table thead th').all();
+//     let headers = [];
+//     let wireSpeedIdx = -1, statusIdx = -1;
+//     for (let i = 0; i < headerCols.length; i++) {
+//       const text = (await headerCols[i].innerText()).trim();
+//       headers.push(text);
+//       if (text.toLowerCase().includes('wire speed')) wireSpeedIdx = i;
+//       if (text.toLowerCase().includes('status')) statusIdx = i;
+//     }
+//     sheet.addRow(headers);
+
+//     // Scroll Logic
+//     const scroller = this.page.locator('div.relative.overflow-auto, [role="region"]').first();
+//     await autoScroll(scroller);
+
+//     // Extraction with Icon Mapping (Thumbs Up/Down)
+//     const dataRows = await this.page.locator('table tbody tr').all();
+//     for (const row of dataRows) {
+//       const cells = await row.locator('td').all();
+//       let rowData = [];
+//       for (let j = 0; j < cells.length; j++) {
+//         if (j === statusIdx) {
+//           const html = await cells[j].innerHTML();
+//           if (html.includes('lucide-thumbs-up')) rowData.push("true");
+//           else if (html.includes('lucide-thumbs-down')) rowData.push("false");
+//           else if (html.includes('lucide-alert-circle')) rowData.push("exclamatory");
+//           else rowData.push(await cells[j].innerText());
+//         } else {
+//           rowData.push(await cells[j].innerText());
+//         }
+//       }
+//       if (rowData[0] && !isNaN(rowData[0])) {
+//         const newRow = sheet.addRow(rowData);
+//         if (wireSpeedIdx !== -1 && parseFloat(rowData[wireSpeedIdx]) >= 301) {
+//             newRow.getCell(wireSpeedIdx + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } };
+//         }
+//       }
+//     }
+//     sheet.addRow(['Total Data Points', dataRows.length]);
+//     await workbook.xlsx.writeFile(path.join(this.exportDir, fileName));
+//     await this.page.locator('button:has(svg.lucide-arrow-left), button[aria-label="Back"]').first().click();
+//   }
+
+//   async WelddataEye(index) {
+//     const weldDataCol = await this.getColumnIndexByName('Weld Data');
+//     const targetRow = this.page.locator('table tbody tr').nth(index);
+//     await targetRow.locator(`td:nth-child(${weldDataCol}) button`).first().click();
+//     await this.page.getByRole('tab', { name: 'Pass' }).click();
+//     await this.page.waitForSelector('text=Loading weld passes...', { state: 'hidden', timeout: 60000 });
+//   }
+
+//   async getColumnIndexByName(name) {
+//     const headers = this.page.locator('table thead th');
+//     for (let i = 0; i < await headers.count(); i++) {
+//         if ((await headers.nth(i).innerText()).toLowerCase().includes(name.toLowerCase())) return i + 1;
+//     }
+//     throw new Error(`Column ${name} not found`);
+//   }
+// }
+
+// module.exports = ProductionPassAnalysisPage;
+
+
+// const ExcelJS = require('exceljs');
+// const fs = require('fs');
+// const path = require('path');
+// const { autoScroll } = require('../utils/scroll.util');
+
+// class ProductionPassAnalysisPage {
+//   constructor(page) {
+//     this.page = page;
+//     this.exportDir = path.join(process.cwd(), 'exports');
+//     if (!fs.existsSync(this.exportDir)) {
+//       fs.mkdirSync(this.exportDir, { recursive: true });
+//     }
+//   }
+
+//   async runFlow(prodLimit = null) {
+//     const rows = this.page.locator('table tbody tr');
+//     const total = await rows.count();
+//     const iterations = prodLimit ? Math.min(prodLimit, total) : total;
+//     const prodHeaders = await this.page.locator('table thead th').allInnerTexts();
+
+//     for (let i = 0; i < iterations; i++) {
+//       console.log(`\n📂 PRODUCTION ROW ${i + 1}`);
+//       const workbook = new ExcelJS.Workbook();
+      
+//       // Step 1: Weld Summary (Initial Page)
+//       await this.generateWeldSummarySheet(workbook);
+//       const prodRowData = await rows.nth(i).locator('td').allInnerTexts();
+
+//       // Step 2: Click Eye on Main Table to enter Pass/Zone/Tilt
+//       await this.WelddataEye(i);
+
+//       const tabs = ['Pass', 'Zone', 'Tilt'];
+//       for (const tabName of tabs) {
+//         console.log(`--- Processing ${tabName} Tab ---`);
+//         await this.page.getByRole('tab', { name: tabName }).click();
+//         // Wait for tab content to load
+//         await this.page.waitForSelector('table tbody tr', { state: 'visible' });
+        
+//         await this.processTabView(workbook, tabName, prodHeaders, prodRowData);
+//       }
+
+//       await workbook.xlsx.writeFile(path.join(this.exportDir, `Production_Row_${i + 1}.xlsx`));
+
+//       // Go back to main Production Table
+//       await this.goBackSafe();
+//     }
+//   }
+
+//   async processTabView(workbook, viewName, prodHeaders, prodRowData) {
+//     const viewSheet = workbook.addWorksheet(`${viewName}_View`);
+//     const analysisSheet = workbook.addWorksheet(`${viewName}_DataAnalysis`);
+
+//     // 1. SCROLL & CAPTURE ENTIRE VIEW TABLE
+//     const viewScroller = this.page.locator('div.relative.overflow-auto, [role="region"]').first();
+//     if (await viewScroller.isVisible()) await autoScroll(viewScroller);
+
+//     const headers = await this.page.locator('table thead th').allInnerTexts();
+//     viewSheet.addRow(headers);
+
+//     const rowsLocator = this.page.locator('table tbody tr');
+//     const rowCount = await rowsLocator.count();
+
+//     // Store row data first so we don't lose it during navigation
+//     const capturedRows = [];
+
+//     for (let i = 0; i < rowCount; i++) {
+//       const cells = await rowsLocator.nth(i).locator('td').all();
+//       const rowData = [];
+//       for (const cell of cells) {
+//         const html = await cell.innerHTML();
+//         if (html.includes('lucide-thumbs-up')) rowData.push('true');
+//         else if (html.includes('lucide-thumbs-down')) rowData.push('false');
+//         else rowData.push((await cell.innerText()).trim());
+//       }
+//       if (rowData[0] && !isNaN(rowData[0].trim())) {
+//         viewSheet.addRow(rowData);
+//         capturedRows.push({ index: i, data: rowData });
+//       }
+//     }
+
+//     // 2. CLICK EYE FOR EACH VALID ROW
+//     for (const item of capturedRows) {
+//       const row = rowsLocator.nth(item.index);
+//       const eye = row.locator('button:has(svg.lucide-eye), svg.lucide-eye').first();
+
+//       if (await eye.count() > 0) {
+//         console.log(`   🔍 Row ${item.data[0]}: Opening Data Analysis`);
+//         await row.hover(); // Important for revealing icons
+//         await eye.click({ force: true });
+
+//         // Scan the deep view
+//         await this.scanDataAnalysis(analysisSheet, viewName, prodHeaders, prodRowData, item.data);
+
+//         // VERIFY RETURN: Wait until the tab table is visible again before next iteration
+//         await this.page.waitForSelector(`table tbody tr`, { state: 'visible' });
+//         await this.page.waitForTimeout(1000); // 1s wait as requested
+//       }
+//     }
+//   }
+
+//   async scanDataAnalysis(sheet, viewName, prodHeaders, prodRowData, viewRowData) {
+//     sheet.addRow([`${viewName} ANALYSIS - ROW ${viewRowData[0]}`]);
+//     sheet.addRow(['Production Headers:', ...prodHeaders]);
+//     sheet.addRow(['Production Data:', ...prodRowData]);
+//     sheet.addRow(['Row Context:', ...viewRowData]);
+//     sheet.addRow([]);
+
+//     // Get Data Analysis Table Headers
+//     const subHeaders = await this.page.locator('table thead th').allInnerTexts();
+//     sheet.addRow(subHeaders);
+
+//     const scroller = this.page.locator('div.relative.overflow-auto, [role="region"]').first();
+//     if (await scroller.isVisible()) await autoScroll(scroller);
+
+//     const rows = await this.page.locator('table tbody tr').all();
+//     for (const row of rows) {
+//       const cells = await row.locator('td').all();
+//       const rowData = [];
+//       for (const cell of cells) {
+//         const html = await cell.innerHTML();
+//         if (html.includes('lucide-thumbs-up')) rowData.push('true');
+//         else if (html.includes('lucide-thumbs-down')) rowData.push('false');
+//         else rowData.push((await cell.innerText()).trim());
+//       }
+//       if (rowData[0] && !isNaN(rowData[0].trim())) sheet.addRow(rowData);
+//     }
+//     sheet.addRow([]); // Gap
+
+//     await this.goBackSafe();
+//   }
+
+//   async goBackSafe() {
+//     const backBtn = this.page.locator('button:has(svg.lucide-arrow-left), button[aria-label="Back"]').first();
+//     if (await backBtn.isVisible()) {
+//       await backBtn.click();
+//       await this.page.waitForLoadState('networkidle');
+//     }
+//   }
+
+//   async WelddataEye(index) {
+//     const weldDataCol = await this.getColumnIndexByName('Weld Data');
+//     const row = this.page.locator('table tbody tr').nth(index);
+//     await row.locator(`td:nth-child(${weldDataCol}) button`).first().click();
+//     await this.page.waitForSelector('button[role="tab"]', { state: 'visible' });
+//   }
+
+//   async getColumnIndexByName(name) {
+//     const headers = this.page.locator('table thead th');
+//     for (let i = 0; i < (await headers.count()); i++) {
+//       const txt = await headers.nth(i).innerText();
+//       if (txt.toLowerCase().includes(name.toLowerCase())) return i + 1;
+//     }
+//     throw new Error(`Column "${name}" not found`);
+//   }
+
+//   async generateWeldSummarySheet(workbook) {
+//     const sheet = workbook.addWorksheet('WeldSummary');
+//     const headers = await this.page.locator('table thead th').allInnerTexts();
+//     sheet.addRow(headers);
+//     const rows = await this.page.locator('table tbody tr').all();
+//     for (const row of rows) {
+//       sheet.addRow(await row.locator('td').allInnerTexts());
+//     }
+//   }
+// }
+
+// module.exports = ProductionPassAnalysisPage;
+

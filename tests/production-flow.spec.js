@@ -1,17 +1,17 @@
 const { test } = require('@playwright/test');
-
 const LoginAndProjectPage = require('../pages/loginAndProject.page');
 const ProductionPassAnalysisPage = require('../pages/productionPassAnalysis.page');
-const StatusConfigPage = require('../pages/statusConfig.page');
 
-test('FULL PRODUCTION → PASS → DATA ANALYSIS → STATUS CONFIG', async ({ page }) => {
+test('FULL PRODUCTION → TABS (PASS, ZONE, TILT) → DATA ANALYSIS FLOW', async ({ page }) => {
   const login = new LoginAndProjectPage(page);
   const analysis = new ProductionPassAnalysisPage(page);
-  const status = new StatusConfigPage(page);
 
   await login.loginAndOpenProject();
-  const redValues = await analysis.collectRedValues();
-  await status.applyStatusConfig(redValues);
+  
+  // This will handle Weld Summary, then iterate through each Production row,
+  // scanning Pass, Zone, and Tilt tabs for each.
+  await analysis.runFlow(1); // Set limit to 1 for initial testing
 
   console.log('🎉 FULL FLOW COMPLETED SUCCESSFULLY');
 });
+

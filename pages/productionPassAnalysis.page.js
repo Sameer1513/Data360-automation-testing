@@ -1,195 +1,266 @@
+
+const ExcelJS = require('exceljs');
+const fs = require('fs');
+const path = require('path');
+const { autoScroll } = require('../utils/scroll.util');
+
 class ProductionPassAnalysisPage {
   constructor(page) {
     this.page = page;
-    this.allRedValues = [];
-  }
-
-  /* ===================== UTIL ===================== */
-
-  async pause(ms) {
-    await this.page.waitForTimeout(ms);
-  }
-
-  /* ===================== COLUMN HELPERS ===================== */
-
-  async getColumnIndexByName(columnName) {
-    const headers = this.page.locator('table thead th');
-    const count = await headers.count();
-
-    for (let i = 0; i < count; i++) {
-      const text = (await headers.nth(i).innerText()).toLowerCase();
-      if (text.includes(columnName.toLowerCase())) {
-        console.log(`✅ Column "${columnName}" found at index ${i + 1}`);
-        return i + 1;
-      }
-    }
-
-    throw new Error(`❌ Column "${columnName}" not found`);
-  }
-
-  async getActionsColumnIndexFromRow() {
-    const firstRow = this.page.locator('table tbody tr').first();
-    const cells = firstRow.locator('td');
-    const count = await cells.count();
-
-    for (let i = 0; i < count; i++) {
-      const hasButton = await cells.nth(i).locator('button').count();
-      if (hasButton) {
-        console.log(`✅ Actions column detected at index ${i + 1}`);
-        return i + 1;
-      }
-    }
-
-    throw new Error('❌ Actions column not detected');
-  }
-
-  /* ===================== PRODUCTION → EYE-1 (UNCHANGED LOGIC) ===================== */
-
-  async openProductionEye() {
-    await this.page.waitForSelector('table tbody tr', { timeout: 60000 });
-
-    const weldDataCol = await this.getColumnIndexByName('Weld Data');
-    const firstRow = this.page.locator('table tbody tr').first();
-
-    await firstRow.scrollIntoViewIfNeeded();
-
-    const eye = firstRow.locator(
-      `td:nth-child(${weldDataCol}) button`
-    ).first();
-
-    console.log('👁 Eye-1 → Production (Weld Data)');
-    await eye.click({ force: true });
-
-    // ✅ wait for Pass tab and switch
-    const passTab = this.page.getByRole('tab', { name: 'Pass' });
-    await passTab.waitFor({ state: 'visible', timeout: 60000 });
-    await passTab.click();
-
-    // ✅ lock Pass view
-    await this.page.waitForSelector(
-      'table thead th',
-      { timeout: 60000 }
-    );
-
-    console.log('✅ Pass view locked');
-  }
-
-
-async getColumnIndexIgnoringIcons(columnName) {
-  const headers = this.page.locator('table thead th');
-  const count = await headers.count();
-
-  for (let i = 0; i < count; i++) {
-    const rawText = await headers.nth(i).innerText();
-
-    const cleanText = rawText
-      .replace(/[^\w\s]/gi, '') // remove icons/symbols
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase();
-
-    if (cleanText.includes(columnName.toLowerCase())) {
-      console.log(`✅ Column "${columnName}" matched as "${rawText}" at index ${i + 1}`);
-      return i + 1;
+    this.exportDir = path.join(process.cwd(), 'exports');
+    if (!fs.existsSync(this.exportDir)) {
+      fs.mkdirSync(this.exportDir, { recursive: true });
     }
   }
 
-  throw new Error(`❌ Column "${columnName}" not found (icons ignored)`);
-}
-
-/* ===================== PASS → EYE-2 (FINAL, FIXED) ===================== */
-
-async openPassEyes() {
-  await this.page.waitForSelector('table tbody tr', { timeout: 60000 });
-
-  // 🔥 EXACTLY like Eye-1
-  const eyeCol = await this.getColumnIndexIgnoringIcons('Actions');
-
+  async runFlow(prodLimit = null) {
   const rows = this.page.locator('table tbody tr');
-  const totalRows = await rows.count();
+  const total = await rows.count();
+  const iterations = prodLimit ? Math.min(prodLimit, total) : total;
+  const prodHeaders = await this.page.locator('table thead th').allInnerTexts();
 
-  console.log(`📋 REAL rows detected: ${totalRows}`);
+  for (let i = 0; i < iterations; i++) {
+    console.log(`\n📂 PRODUCTION ROW ${i + 1}`);
+    const workbook = new ExcelJS.Workbook();
+    
+    try {
+      
+      // Step 2: Click Eye on Main Table to enter Pass/Zone/Tilt
+      await this.WelddataEye(i);
 
-  // Start from row 2
-  for (let i = 1; i < totalRows; i++) {
-    const row = rows.nth(i);
-    const eyeCell = row.locator(`td:nth-child(${eyeCol})`);
-
-    console.log(`👁 Eye-2 → Row ${i + 1}`);
-
-    await eyeCell.scrollIntoViewIfNeeded();
-    await this.page.waitForTimeout(300);
-
-    // 🔥 CLICK THE CELL (NOT ICON)
-    await eyeCell.click({ force: true });
-
-    // ✅ REAL navigation check
-    await this.page.waitForLoadState('domcontentloaded');
-    await this.page.waitForSelector('table', { timeout: 60000 });
-
-    console.log('✅ Data Analysis opened');
-
-    await this.scanDataAnalysis(this.page);
-
-    // 🔙 Return EXACTLY like user
-    await this.page.goBack();
-    await this.page.waitForSelector('table tbody tr', { timeout: 60000 });
-    await this.page.waitForTimeout(500);
-  }
-
-  console.log('✅ All Eye-2 rows processed');
-}
+      // Step 1: Weld Summary (Initial Page)
+      await this.generateWeldSummarySheet(workbook);
+      const prodRowData = await rows.nth(i).locator('td').allInnerTexts();
 
 
-
-  /* ===================== DATA ANALYSIS ===================== */
-
-  async scanDataAnalysis(container) {
-    if (!container) {
-    container = this.page;
-  }
-    const rows = container.locator('table tbody tr');
-    const rowCount = await rows.count();
-
-    for (let r = 0; r < rowCount; r++) {
-      const row = rows.nth(r);
-      await row.scrollIntoViewIfNeeded();
-      await this.pause(100);
-
-      const cells = row.locator('td');
-      const cellCount = await cells.count();
-
-      for (let c = 0; c < cellCount; c++) {
-        const data = await cells.nth(c).evaluate(el => {
-          const bg = getComputedStyle(el).backgroundColor;
-          const value = el.innerText.trim();
-          return {
-            isRed: bg.includes('255, 0, 0'),
-            value,
-          };
-        });
-
-        if (data.isRed && data.value && !isNaN(data.value)) {
-          this.allRedValues.push(Number(data.value));
+      const tabs = ['Pass', 'Zone', 'Tilt'];
+      for (const tabName of tabs) {
+        try {
+          console.log(`--- Processing ${tabName} Tab ---`);
+          await this.page.getByRole('tab', { name: tabName }).click();
+          await this.page.waitForSelector('table tbody tr', { state: 'visible' });
+          
+          await this.processTabView(workbook, tabName, prodHeaders, prodRowData);
+        } catch (tabError) {
+          console.warn(`⚠️  ${tabName} Tab failed:`, tabError.message);
+          // ✅ CONTINUE to next tab even if one fails
         }
       }
+
+    } catch (rowError) {
+      console.error(`❌ Row ${i + 1} processing failed:`, rowError.message);
+      // ✅ CONTINUE to save what we have
+    } finally {
+      // ✅ ALWAYS SAVE - even if error occurred
+      try {
+        const timestamp = Date.now();
+        const filename = `Production_Row_${i + 1}_${timestamp}.xlsx`;
+        const filepath = path.join(this.exportDir, filename);
+        await workbook.xlsx.writeFile(filepath);
+        console.log(`✅ SAVED (${Object.keys(workbook.worksheets).length} sheets):`, filename);
+      } catch (saveError) {
+        console.error(`❌ Failed to save Excel for Row ${i + 1}:`, saveError.message);
+      }
+
+      // Go back to main table
+      try {
+        await this.goBackSafe();
+      } catch (backError) {
+        console.warn(`⚠️  goBack failed:`, backError.message);
+      }
+    }
+  }
+}
+
+
+  async processTabView(workbook, viewName, prodHeaders, prodRowData) {
+    const viewSheet = workbook.addWorksheet(`${viewName}_View`);
+    const analysisSheet = workbook.addWorksheet(`${viewName}_DataAnalysis`);
+
+    // 1. SCROLL & CAPTURE ENTIRE VIEW TABLE
+    const viewScroller = this.page.locator('div.relative.overflow-auto, [role="region"]').first();
+    if (await viewScroller.isVisible()) await autoScroll(viewScroller);
+
+   // ✅ Get ONLY the View table headers (2nd table), skip production table
+// TRY multiple selectors to find the RIGHT table
+let headers = [];
+let attempts = 0;
+
+// 1️⃣ Try main table first (most reliable)
+try {
+  headers = await this.page.locator('table:has(tbody tr)').locator('thead th').allInnerTexts();
+  if (headers.length > 10) console.log(`✅ Found ${headers.length} headers`);
+} catch(e) {}
+
+// 2️⃣ Fallback to any table with data
+if (headers.length < 5) {
+  try {
+    headers = await this.page.locator('table tbody tr:first-child td').allInnerTexts();
+    // Use FIRST data row as headers if no thead found
+    console.log(`✅ Used data row as headers: ${headers.length} columns`);
+  } catch(e) {}
+}
+
+if (headers.length === 0) {
+  // 3️⃣ LAST RESORT - hardcoded common headers
+  headers = ['Sl.no', 'Status', 'Station', 'Welder ID', 'Direction', 'Action', 'Mode', 
+             'Start Time', 'Duration', 'Auto?', 'Current(A)', 'Voltage(V)', 'Travel Speed', 
+             'Heat Input', 'Wire Speed'];
+  console.log('⚠️ Used hardcoded headers');
+}
+
+viewSheet.addRow(headers);
+
+
+
+    const rowsLocator = this.page.locator('table tbody tr');
+    const rowCount = await rowsLocator.count();
+
+    // Store row data first so we don't lose it during navigation
+    const capturedRows = [];
+
+    for (let i = 0; i < rowCount; i++) {
+      const cells = await rowsLocator.nth(i).locator('td').all();
+      const rowData = [];
+      for (const cell of cells) {
+        const html = await cell.innerHTML();
+        if (html.includes('lucide-thumbs-up')) rowData.push('true');
+        else if (html.includes('lucide-thumbs-down')) rowData.push('false');
+        else rowData.push((await cell.innerText()).trim());
+      }
+      if (rowData[0] && !isNaN(rowData[0].trim())) {
+        viewSheet.addRow(rowData);
+        capturedRows.push({ index: i, data: rowData });
+      }
+    }
+
+    // 2. CLICK EYE FOR EACH VALID ROW
+    for (const item of capturedRows) {
+      const row = rowsLocator.nth(item.index);
+      const eye = row.locator('button:has(svg.lucide-eye), svg.lucide-eye').first();
+
+      if (await eye.count() > 0) {
+        console.log(`   🔍 Row ${item.data[0]}: Opening Data Analysis`);
+        await row.hover(); // Important for revealing icons
+        await eye.click({ force: true });
+
+        // Scan the deep view
+        await this.scanDataAnalysis(analysisSheet, viewName, prodHeaders, prodRowData, item.data);
+
+        // VERIFY RETURN: Wait until the tab table is visible again before next iteration
+        await this.page.waitForSelector(`table tbody tr`, { state: 'visible' });
+        await this.page.waitForTimeout(1000); // 1s wait as requested
+      }
     }
   }
 
-  /* ===================== MAIN FLOW ===================== */
+async scanDataAnalysis(sheet, viewName, prodHeaders, prodRowData, viewRowData) {
+  sheet.addRow([`${viewName} ANALYSIS - ROW ${viewRowData[0]}`]);
+  sheet.addRow(['Production Headers:', ...prodHeaders]);
+  sheet.addRow(['Production Data:', ...prodRowData]);
+  sheet.addRow(['Row Context:', ...viewRowData]);
+  sheet.addRow([]);
 
-  async collectRedValues() {
-    await this.openProductionEye(); // Eye-1 (stable)
-    await this.openPassEyes();      // Eye-2 (now stable)
+  let dataHeaders = [];
+  
+  // 🚨 CRITICAL: Wait for DataAnalysis page to fully load
+  await this.page.waitForTimeout(2000);
+  
+  // 1️⃣ MOST SPECIFIC: Target DEEPEST table (DataAnalysis has more columns)
+  try {
+    const deepTable = this.page.locator('table tbody tr td:has-text("Pulse")').first().locator('..').locator('..').locator('..');
+    dataHeaders = await deepTable.locator('thead th, tbody tr:first-child td').allInnerTexts();
+    if (dataHeaders.length > 15) {
+      console.log(`✅ DataAnalysis: Found ${dataHeaders.length} DEEP headers`);
+    }
+  } catch(e) {}
 
-    console.log(
-      this.allRedValues.length
-        ? `🚨 Collected ${this.allRedValues.length} red values`
-        : '✅ No red values found'
-    );
+  // 2️⃣ Target table with Weld ID column (DataAnalysis specific)
+  if (dataHeaders.length < 10) {
+    try {
+      const analysisTable = this.page.locator('table:has(td:has-text("363466"))').first();
+      dataHeaders = await analysisTable.locator('thead th, tbody tr:first-child td').allInnerTexts();
+      console.log(`✅ DataAnalysis: Found WeldID table (${dataHeaders.length} cols)`);
+    } catch(e) {}
+  }
 
-    return this.allRedValues;
+  // 3️⃣ LAST RESORT: Most recent table
+  if (dataHeaders.length < 10) {
+    try {
+      dataHeaders = await this.page.locator('table tbody tr:first-child td').allInnerTexts();
+      console.log(`✅ DataAnalysis: Fallback first row headers (${dataHeaders.length})`);
+    } catch(e) {}
+  }
+
+  if (dataHeaders.length === 0) {
+    dataHeaders = ['Sl.no','Status','Weld ID','Time','Pass No','Mode','Program','Position','Distance','Travel Speed','Voltage','Current','Wire Feed Speed','Ext1','Ext2','Ext3','Ext4','Ext5','Ext6','Ext7','Ext8','Ext9'];
+  }
+
+  sheet.addRow(dataHeaders);
+
+  // Scroll & capture (unchanged)
+  const scroller = this.page.locator('div.relative.overflow-auto, [role="region"]').first();
+  if (await scroller.isVisible()) await autoScroll(scroller);
+
+  const rows = await this.page.locator('table tbody tr').all();
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const cells = await row.locator('td').all();
+    const rowData = [];
+    for (const cell of cells) {
+      const html = await cell.innerHTML();
+      if (html.includes('lucide-thumbs-up')) rowData.push('true');
+      else if (html.includes('lucide-thumbs-down')) rowData.push('false');
+      else rowData.push((await cell.innerText()).trim());
+    }
+    if (rowData[0] && !isNaN(rowData[0].trim())) sheet.addRow(rowData);
+  }
+  
+  sheet.addRow([]);
+  await this.goBackSafe();
+}
+
+    
+    
+
+  async goBackSafe() {
+    const backBtn = this.page.locator('button:has(svg.lucide-arrow-left), button[aria-label="Back"]').first();
+    if (await backBtn.isVisible()) {
+      await backBtn.click();
+      await this.page.waitForLoadState('networkidle');
+    }
+  }
+
+  async WelddataEye(index) {
+    const weldDataCol = await this.getColumnIndexByName('Weld Data');
+    const row = this.page.locator('table tbody tr').nth(index);
+    await row.locator(`td:nth-child(${weldDataCol}) button`).first().click();
+    await this.page.waitForSelector('button[role="tab"]', { state: 'visible' });
+  }
+
+  async getColumnIndexByName(name) {
+    const headers = this.page.locator('table thead th');
+    for (let i = 0; i < (await headers.count()); i++) {
+      const txt = await headers.nth(i).innerText();
+      if (txt.toLowerCase().includes(name.toLowerCase())) return i + 1;
+    }
+    throw new Error(`Column "${name}" not found`);
+  }
+
+  async generateWeldSummarySheet(workbook) {
+    const sheet = workbook.addWorksheet('WeldSummary');
+    const headers = await this.page.locator('table thead th').allInnerTexts();
+    sheet.addRow(headers);
+    const rows = await this.page.locator('table tbody tr').all();
+    for (const row of rows) {
+      sheet.addRow(await row.locator('td').allInnerTexts());
+    }
   }
 }
 
 module.exports = ProductionPassAnalysisPage;
+
+
+
+
+

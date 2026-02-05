@@ -1,0 +1,238 @@
+const ExcelJS = require('exceljs');
+const fs = require('fs');
+const path = require('path');
+const { autoScroll } = require('../utils/scroll.util');
+
+class ProductionPassAnalysisPage {
+  constructor(page) {
+    this.page = page;
+    this.exportDir = path.join(process.cwd(), 'exports');
+    if (!fs.existsSync(this.exportDir)) fs.mkdirSync(this.exportDir, { recursive: true });
+
+    this.workbook = new ExcelJS.Workbook();
+    this.sheets = {
+      summary: this.workbook.addWorksheet('WeldSummary'),
+      passView: this.workbook.addWorksheet('PassView'),
+      passAnalysis: this.workbook.addWorksheet('PassAnalysis'),
+      zoneView: this.workbook.addWorksheet('ZoneView'),
+      zoneAnalysis: this.workbook.addWorksheet('ZoneAnalysis'),
+      tiltView: this.workbook.addWorksheet('TiltView'),
+      tiltAnalysis: this.workbook.addWorksheet('TiltAnalysis')
+    };
+  }
+
+  /* ========================================================= */
+  /* ======================== MAIN FLOW ======================= */
+  /* ========================================================= */
+
+  async runFlow(prodLimit = null) {
+    await this.generateWeldSummaryExcel();
+
+    const rowCount = await this.page.locator('table tbody tr').count();
+    const iterations = prodLimit ? Math.min(prodLimit, rowCount) : rowCount;
+
+    for (let i = 0; i < iterations; i++) {
+      console.log(`\n📂 [PRODUCTION ROW ${i + 1}]`);
+
+      const currentRow = this.page.locator('table tbody tr').nth(i);
+      const prodRowData = await currentRow.locator('td').allInnerTexts();
+      const prodHeaders = await this.page.locator('table thead th').allInnerTexts();
+
+      await this.WelddataEye(i);
+
+      const tabs = ['Pass', 'Zone', 'Tilt'];
+      const viewSheets = [this.sheets.passView, this.sheets.zoneView, this.sheets.tiltView];
+      const analysisSheets = [this.sheets.passAnalysis, this.sheets.zoneAnalysis, this.sheets.tiltAnalysis];
+
+      for (let j = 0; j < tabs.length; j++) {
+        await this.ensureCorrectTab(i, tabs[j]);
+
+        const processed = await this.processByHardSlNo(
+          tabs[j],
+          viewSheets[j],
+          analysisSheets[j],
+          prodHeaders,
+          prodRowData,
+          i
+        );
+
+        if (!processed) {
+          console.warn(`⚠️ ${tabs[j]} View had no rows`);
+        }
+      }
+
+      /* 🔒 SAFE BACK TO PRODUCTION (ONLY ONCE) */
+      console.log(`🔙 Row ${i + 1} fully analyzed. Returning to Production List.`);
+      await this.backToProductionList();
+      await this.page.waitForSelector('th:has-text("Weld Data")', { state: 'visible' });
+    }
+
+    await this.workbook.xlsx.writeFile(
+      path.join(this.exportDir, 'Production_Consolidated_Report.xlsx')
+    );
+  }
+
+  /* ========================================================= */
+  /* ================= PASS / ZONE / TILT FLOW ================ */
+  /* ========================================================= */
+
+  async processByHardSlNo(viewName, viewSheet, analysisSheet, prodHeaders, prodRowData, prodIndex) {
+    let currentTargetSl = 1;
+    let processedAnyRow = false;
+
+    const headers = await this.page.locator('table thead th').allInnerTexts();
+    if (viewSheet.rowCount === 0) viewSheet.addRow(headers);
+
+    while (true) {
+      // If somehow navigated out, recover
+      if (await this.page.locator('th:has-text("Weld Data")').isVisible()) {
+        await this.ensureCorrectTab(prodIndex, viewName);
+      }
+
+      const rowSelector = `table tbody tr:has(td:first-child:text-is("${currentTargetSl}"))`;
+      const targetRow = this.page.locator(rowSelector).first();
+
+      if (await targetRow.count()) {
+        console.log(`✅ ${viewName} Sl.No ${currentTargetSl}`);
+
+        processedAnyRow = true;
+
+        const rowData = await targetRow.locator('td').allInnerTexts();
+        await targetRow.scrollIntoViewIfNeeded();
+        viewSheet.addRow(rowData);
+
+        const eyeIcon = targetRow.locator('svg.lucide-eye').first();
+        await eyeIcon.click({ force: true });
+
+        await this.waitForAnalysisTable();
+        await this.scanDataAnalysis(analysisSheet, prodHeaders, prodRowData, rowData);
+
+        /* ⬅ BACK FROM ANALYSIS TO LIST */
+        await this.backFromAnalysis();
+        await this.waitForListTable();
+
+        currentTargetSl++;
+      } else {
+        /* No more sequential Sl.No → exit safely */
+        console.log(`🏁 ${viewName} completed at Sl.No ${currentTargetSl - 1}`);
+        break;
+      }
+    }
+
+    return processedAnyRow;
+  }
+
+  /* ========================================================= */
+  /* ===================== ANALYSIS SCAN ===================== */
+  /* ========================================================= */
+
+  async scanDataAnalysis(sheet, prodHeaders, prodRowData, viewRowData) {
+    const headers = await this.page.locator('table thead th').allInnerTexts();
+    if (sheet.rowCount === 0) sheet.addRow(['Source_SlNo', ...headers]);
+
+    const scroller = this.page.locator('table').locator('..').locator('..');
+    await autoScroll(scroller);
+
+    const rows = await this.page.locator('table tbody tr').all();
+    const statusIdx = headers.findIndex(h => h.toLowerCase().includes('status'));
+
+    for (const row of rows) {
+      let rowData = await row.locator('td').allInnerTexts();
+
+      if (statusIdx !== -1) {
+        const html = await row.locator('td').nth(statusIdx).innerHTML();
+        if (html.includes('lucide-thumbs-up')) rowData[statusIdx] = 'true';
+        else if (html.includes('lucide-thumbs-down')) rowData[statusIdx] = 'false';
+      }
+
+      if (rowData[0] && !isNaN(rowData[0])) {
+        sheet.addRow([viewRowData[0], ...rowData]);
+      }
+    }
+  }
+
+  /* ========================================================= */
+  /* ======================= TAB CONTROL ===================== */
+  /* ========================================================= */
+
+  async ensureCorrectTab(prodIndex, tabName) {
+    if (await this.page.locator('th:has-text("Weld Data")').isVisible()) {
+      await this.WelddataEye(prodIndex);
+    }
+
+    const tab = this.page.getByRole('tab', { name: `${tabName} View` });
+    await tab.click();
+    await this.waitForListTable();
+  }
+
+  /* ========================================================= */
+  /* ====================== NAV HELPERS ====================== */
+  /* ========================================================= */
+
+  async backFromAnalysis() {
+    const backBtn = this.page
+      .locator('main')
+      .locator('button')
+      .filter({ has: this.page.locator('svg.lucide-arrow-left') })
+      .first();
+
+    await backBtn.click({ force: true });
+  }
+
+  async backToProductionList() {
+    const backBtn = this.page
+      .locator('header')
+      .locator('button')
+      .filter({ has: this.page.locator('svg.lucide-arrow-left') })
+      .first();
+
+    await backBtn.click({ force: true });
+  }
+
+  async waitForListTable() {
+    await this.page.waitForSelector('table tbody tr', { state: 'visible' });
+    await this.page.waitForTimeout(800);
+  }
+
+  async waitForAnalysisTable() {
+    await this.page.waitForSelector('table tbody tr', { state: 'visible' });
+  }
+
+  /* ========================================================= */
+  /* ======================= WELD LIST ======================= */
+  /* ========================================================= */
+
+  async generateWeldSummaryExcel() {
+    const sheet = this.sheets.summary;
+    const headers = await this.page.locator('table thead th').allInnerTexts();
+    if (sheet.rowCount === 0) sheet.addRow(headers);
+
+    const rows = await this.page.locator('table tbody tr').all();
+    for (const row of rows) {
+      sheet.addRow(await row.locator('td').allInnerTexts());
+    }
+  }
+
+  async WelddataEye(index) {
+    const weldDataCol = await this.getColumnIndexByName('Weld Data');
+    const targetRow = this.page.locator('table tbody tr').nth(index);
+
+    await targetRow
+      .locator(`td:nth-child(${weldDataCol}) button`)
+      .first()
+      .click();
+
+    await this.page.waitForSelector('[role="tablist"]', { state: 'visible' });
+  }
+
+  async getColumnIndexByName(name) {
+    const headers = this.page.locator('table thead th');
+    for (let i = 0; i < await headers.count(); i++) {
+      const text = await headers.nth(i).innerText();
+      if (text.toLowerCase().includes(name.toLowerCase())) return i + 1;
+    }
+    throw new Error(`Column ${name} not found`);
+  }
+}
+
+module.exports = ProductionPassAnalysisPage;
