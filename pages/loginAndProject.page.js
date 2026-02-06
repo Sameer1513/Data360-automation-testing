@@ -234,7 +234,7 @@ async attemptLogin(email, password, attemptNo) {
           console.log('Login successful 🎉');
 
           // Post-login navigation
-          await this.page.getByText('weldNumEdit').first().click();
+          await this.page.getByText('test').first().click();
           await this.page.getByRole('tab', { name: 'Production' }).click();
           await this.page.waitForSelector('table tbody tr', { timeout: 60000 });
 
