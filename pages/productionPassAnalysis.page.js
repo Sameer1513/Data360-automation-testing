@@ -72,10 +72,24 @@ class ProductionPassAnalysisPage {
   }
 }
 
+async parseCellValue(cell) {
+  return await cell.evaluate(el => {
+    if (el.querySelector('svg.lucide-thumbs-up')) return 'true';
+    if (el.querySelector('svg.lucide-thumbs-down')) return 'false';
+    if (el.querySelector('svg.lucide-alert-circle')) return '!';
+    if (el.querySelector('svg.lucide-minus')) return '-';
+    if (el.querySelector('svg.lucide-x')) return 'x';
+    return el.innerText.trim();
+  });
+}
 
   async processTabView(workbook, viewName, prodHeaders, prodRowData) {
     const viewSheet = workbook.addWorksheet(`${viewName}_View`);
     const analysisSheet = workbook.addWorksheet(`${viewName}_DataAnalysis`);
+    // ✅ Freeze header row BEFORE any data is written
+      analysisSheet.views = [{ state: 'frozen', ySplit: 1 }];
+      analysisSheet._headersWritten = false;
+ 
 
     // 1. SCROLL & CAPTURE ENTIRE VIEW TABLE
     const viewScroller = this.page.locator('div.relative.overflow-auto, [role="region"]').first();
@@ -123,11 +137,8 @@ viewSheet.addRow(headers);
       const cells = await rowsLocator.nth(i).locator('td').all();
       const rowData = [];
       for (const cell of cells) {
-        const html = await cell.innerHTML();
-        if (html.includes('lucide-thumbs-up')) rowData.push('true');
-        else if (html.includes('lucide-thumbs-down')) rowData.push('false');
-        else rowData.push((await cell.innerText()).trim());
-      }
+       rowData.push(await this.parseCellValue(cell));
+       }
       if (rowData[0] && !isNaN(rowData[0].trim())) {
         viewSheet.addRow(rowData);
         capturedRows.push({ index: i, data: rowData });
@@ -151,15 +162,14 @@ viewSheet.addRow(headers);
         await this.page.waitForSelector(`table tbody tr`, { state: 'visible' });
         await this.page.waitForTimeout(1000); // 1s wait as requested
       }
+      // ✅ FREEZE DATA ANALYSIS HEADER (ADD HERE)
+
     }
   }
 
 async scanDataAnalysis(sheet, viewName, prodHeaders, prodRowData, viewRowData) {
-  sheet.addRow([`${viewName} ANALYSIS - ROW ${viewRowData[0]}`]);
-  sheet.addRow(['Production Headers:', ...prodHeaders]);
-  sheet.addRow(['Production Data:', ...prodRowData]);
-  sheet.addRow(['Row Context:', ...viewRowData]);
-  sheet.addRow([]);
+  sheet._headersWritten = sheet._headersWritten ?? false;
+
 
   let dataHeaders = [];
   
@@ -196,31 +206,34 @@ async scanDataAnalysis(sheet, viewName, prodHeaders, prodRowData, viewRowData) {
     dataHeaders = ['Sl.no','Status','Weld ID','Time','Pass No','Mode','Program','Position','Distance','Travel Speed','Voltage','Current','Wire Feed Speed','Ext1','Ext2','Ext3','Ext4','Ext5','Ext6','Ext7','Ext8','Ext9'];
   }
 
-  sheet.addRow(dataHeaders);
+  
+ if (!sheet._headersWritten) {
+  sheet.addRow(dataHeaders);   // becomes row 1
+  sheet._headersWritten = true;
+}
 
   // Scroll & capture (unchanged)
   const scroller = this.page.locator('div.relative.overflow-auto, [role="region"]').first();
   if (await scroller.isVisible()) await autoScroll(scroller);
 
   const rows = await this.page.locator('table tbody tr').all();
-  for (let i = 1; i < rows.length; i++) {
+  for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const cells = await row.locator('td').all();
     const rowData = [];
     for (const cell of cells) {
-      const html = await cell.innerHTML();
-      if (html.includes('lucide-thumbs-up')) rowData.push('true');
-      else if (html.includes('lucide-thumbs-down')) rowData.push('false');
-      else rowData.push((await cell.innerText()).trim());
+     rowData.push(await this.parseCellValue(cell));
     }
+
     if (rowData[0] && !isNaN(rowData[0].trim())) sheet.addRow(rowData);
   }
   
-  sheet.addRow([]);
+  
+
   await this.goBackSafe();
 }
 
-    
+
     
 
   async goBackSafe() {
@@ -248,19 +261,27 @@ async scanDataAnalysis(sheet, viewName, prodHeaders, prodRowData, viewRowData) {
   }
 
   async generateWeldSummarySheet(workbook) {
-    const sheet = workbook.addWorksheet('WeldSummary');
-    const headers = await this.page.locator('table thead th').allInnerTexts();
-    sheet.addRow(headers);
-    const rows = await this.page.locator('table tbody tr').all();
-    for (const row of rows) {
-      sheet.addRow(await row.locator('td').allInnerTexts());
+  const sheet = workbook.addWorksheet('WeldSummary');
+
+  const headers = await this.page.locator('table thead th').allInnerTexts();
+  sheet.addRow(headers);
+
+  const rows = await this.page.locator('table tbody tr').all();
+
+  for (const row of rows) {
+    const cells = await row.locator('td').all();
+    const rowData = [];
+
+    for (const cell of cells) {
+      rowData.push(await this.parseCellValue(cell));
     }
+
+    sheet.addRow(rowData);
   }
+}
 }
 
 module.exports = ProductionPassAnalysisPage;
-
-
 
 
 
