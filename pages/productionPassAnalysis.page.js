@@ -167,38 +167,47 @@ viewSheet.addRow(headers);
     }
   }
 
+
+
 async scanDataAnalysis(sheet, viewName, prodHeaders, prodRowData, viewRowData) {
   sheet._headersWritten = sheet._headersWritten ?? false;
-
 
   let dataHeaders = [];
   
   // 🚨 CRITICAL: Wait for DataAnalysis page to fully load
   await this.page.waitForTimeout(2000);
   
-  // 1️⃣ MOST SPECIFIC: Target DEEPEST table (DataAnalysis has more columns)
+  // 1️⃣ MODIFIED TARGETING: Find the wide table (Data Analysis) 
+  // without using fixed text like "Pulse" or IDs
   try {
-    const deepTable = this.page.locator('table tbody tr td:has-text("Pulse")').first().locator('..').locator('..').locator('..');
-    dataHeaders = await deepTable.locator('thead th, tbody tr:first-child td').allInnerTexts();
-    if (dataHeaders.length > 15) {
-      console.log(`✅ DataAnalysis: Found ${dataHeaders.length} DEEP headers`);
-    }
-  } catch(e) {}
+    // We look for a table that has many columns (typical for Data Analysis)
+    const tables = await this.page.locator('table').all();
+    let deepTable;
 
-  // 2️⃣ Target table with Weld ID column (DataAnalysis specific)
-  if (dataHeaders.length < 10) {
-    try {
-      const analysisTable = this.page.locator('table:has(td:has-text("363466"))').first();
-      dataHeaders = await analysisTable.locator('thead th, tbody tr:first-child td').allInnerTexts();
-      console.log(`✅ DataAnalysis: Found WeldID table (${dataHeaders.length} cols)`);
-    } catch(e) {}
+    for (const table of tables) {
+      const colCount = await table.locator('tr:first-child td, tr:first-child th').count();
+      if (colCount > 10) { // Data Analysis always has many columns
+        deepTable = table;
+        break;
+      }
+    }
+
+    if (deepTable) {
+      dataHeaders = await deepTable.locator('thead th').allInnerTexts();
+      if (dataHeaders.length > 15) {
+        console.log(`✅ DataAnalysis: Found ${dataHeaders.length} headers`);
+      }
+    }
+  } catch(e) {
+    console.log("Error finding table: ", e);
   }
 
-  // 3️⃣ LAST RESORT: Most recent table
+  // 2️⃣ (Rest of your original logic unchanged)
   if (dataHeaders.length < 10) {
     try {
+      // Fallback to first row headers if previous step failed
       dataHeaders = await this.page.locator('table tbody tr:first-child td').allInnerTexts();
-      console.log(`✅ DataAnalysis: Fallback first row headers (${dataHeaders.length})`);
+      console.log(`✅ DataAnalysis: Fallback headers (${dataHeaders.length})`);
     } catch(e) {}
   }
 
@@ -206,34 +215,45 @@ async scanDataAnalysis(sheet, viewName, prodHeaders, prodRowData, viewRowData) {
     dataHeaders = ['Sl.no','Status','Weld ID','Time','Pass No','Mode','Program','Position','Distance','Travel Speed','Voltage','Current','Wire Feed Speed','Ext1','Ext2','Ext3','Ext4','Ext5','Ext6','Ext7','Ext8','Ext9'];
   }
 
-  
- if (!sheet._headersWritten) {
-  sheet.addRow(dataHeaders);   // becomes row 1
-  sheet._headersWritten = true;
-}
+  if (!sheet._headersWritten) {
+    sheet.addRow(dataHeaders);   // becomes row 1
+    sheet._headersWritten = true;
+  }
 
-  // Scroll & capture (unchanged)
+  // Scroll & capture (Keeping your logic exactly)
   const scroller = this.page.locator('div.relative.overflow-auto, [role="region"]').first();
-  if (await scroller.isVisible()) await autoScroll(scroller);
+  if (await scroller.isVisible()) {
+     // You can keep your autoScroll(scroller) call here
+     await scroller.evaluate(el => el.scrollTop = el.scrollHeight);
+  }
 
-  const rows = await this.page.locator('table tbody tr').all();
+  // Identify the table again for row extraction to match your logic
+  const tables = await this.page.locator('table').all();
+  let analysisTable;
+  for (const t of tables) {
+      if (await t.locator('tr:first-child td').count() > 10) {
+          analysisTable = t;
+          break;
+      }
+  }
+  const target = analysisTable || this.page.locator('table').first();
+
+  const rows = await target.locator('tbody tr').all();
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const cells = await row.locator('td').all();
     const rowData = [];
     for (const cell of cells) {
-     rowData.push(await this.parseCellValue(cell));
+      rowData.push(await this.parseCellValue(cell));
     }
 
-    if (rowData[0] && !isNaN(rowData[0].trim())) sheet.addRow(rowData);
+    if (rowData[0] && !isNaN(rowData[0].trim())) {
+        sheet.addRow(rowData);
+    }
   }
-  
-  
 
   await this.goBackSafe();
 }
-
-
     
 
   async goBackSafe() {
