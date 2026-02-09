@@ -135,11 +135,11 @@ class ComparePage {
             aDisp[1] = status; pDisp[1] = status;
             resSheet.addRow(aDisp);
             const pr = resSheet.addRow(pDisp);
-            const ar = resSheet.addRow(aDisp);
+            
             
             if (status !== 'PASS') {
     // "ar" is the Actual Row, "pr" is the Production Row
-           [ar, pr].forEach(row => {
+           [pr].forEach(row => {
             row.eachCell({ includeEmpty: true }, (cell) => {
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } };
               });
