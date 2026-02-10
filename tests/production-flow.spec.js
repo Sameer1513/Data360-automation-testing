@@ -29,11 +29,11 @@
 // for executing only the actualdata script
 
 // const { test } = require('@playwright/test');
-// // Comment out the UI pages for now
-// // const LoginAndProjectPage = require('../pages/loginAndProject.page');
-// // const ProductionPassAnalysisPage = require('../pages/productionPassAnalysis.page');
+//         // Comment out the UI pages for now
+// const LoginAndProjectPage = require('../pages/loginAndProject.page');
+// const ProductionPassAnalysisPage = require('../pages/productionPassAnalysis.page');
 
-// // 1. Keep only the extractor import
+//           // 1. Keep only the extractor import
 // const ActualDataExtractor = require('../pages/actualdata.page'); 
 
 // test('TESTING ONLY: Actual Data Extraction', async ({ page }) => {
@@ -56,58 +56,58 @@
 
 // for executing only the compare script
 
-// const { test } = require('@playwright/test');
-// const ComparePage = require('../pages/compare.page'); 
+const { test } = require('@playwright/test');
+const ComparePage = require('../pages/compare.page'); 
 
-// test('TESTING ONLY: Compare Isolated Files', async () => {
-//   const compare = new ComparePage();
+test('TESTING ONLY: Compare Isolated Files', async () => {
+  const compare = new ComparePage();
   
-//   console.log('🧪 Starting isolated comparison...');
+  console.log('🧪 Starting isolated comparison...');
 
-//   // The Page Object now handles finding the files automatically
-//   await compare.runAutoCompare();
+  // The Page Object now handles finding the files automatically
+  await compare.runAutoCompare();
 
-//   console.log('✅ Done.');
-// });
+  console.log('✅ Done.');
+});
 
 
 // all at once
-const { test } = require('@playwright/test');
-const LoginAndProjectPage = require('../pages/loginAndProject.page');
-const ProductionPassAnalysisPage = require('../pages/productionPassAnalysis.page');
-const ActualDataExtractor = require('../pages/actualdata.page'); 
-const ComparePage = require('../pages/compare.page'); 
+// const { test } = require('@playwright/test');
+// const LoginAndProjectPage = require('../pages/loginAndProject.page');
+// const ProductionPassAnalysisPage = require('../pages/productionPassAnalysis.page');
+// const ActualDataExtractor = require('../pages/actualdata.page'); 
+// const ComparePage = require('../pages/compare.page'); 
 
-test('FULL PRODUCTION FLOW: Extraction followed by Auto-Comparison', async ({ page }) => {
-  // Initialize Page Objects
-  const login = new LoginAndProjectPage(page);
-  const analysis = new ProductionPassAnalysisPage(page);
-  const extractor = new ActualDataExtractor(); 
-  // Ensure the constructor in compare.page.js matches this call
-  const compare = new ComparePage(page); 
+// test('FULL PRODUCTION FLOW: Extraction followed by Auto-Comparison', async ({ page }) => {
+//   // Initialize Page Objects
+//   const login = new LoginAndProjectPage(page);
+//   const analysis = new ProductionPassAnalysisPage(page);
+//   const extractor = new ActualDataExtractor(); 
+//   // Ensure the constructor in compare.page.js matches this call
+//   const compare = new ComparePage(page); 
 
-  // --- PART 1: GENERATE THE EXCEL FILES ---
+//   // --- PART 1: GENERATE THE EXCEL FILES ---
   
-  // Step 1: Login
-  await login.loginAndOpenProject();
+//   // Step 1: Login
+//   await login.loginAndOpenProject();
   
-  console.log('🚀 Starting UI Analysis and Text Extraction...');
+//   console.log('🚀 Starting UI Analysis and Text Extraction...');
 
-  // Step 2: Run Analysis and Extraction in parallel
-  // We wait for this to finish so the files actually exist on disk
-  await Promise.all([
-    analysis.runFlow(1), 
-    extractor.run()
-  ]);
+//   // Step 2: Run Analysis and Extraction in parallel
+//   // We wait for this to finish so the files actually exist on disk
+//   await Promise.all([
+//     analysis.runFlow(1), 
+//     extractor.run()
+//   ]);
 
-  console.log('🎉 DATA EXTRACTION COMPLETED. Checking for files...');
+//   console.log('🎉 DATA EXTRACTION COMPLETED. Checking for files...');
 
-  // --- PART 2: COMPARE THE GENERATED FILES ---
+//   // --- PART 2: COMPARE THE GENERATED FILES ---
 
-  console.log('🧪 Starting automated comparison of generated excels...');
+//   console.log('🧪 Starting automated comparison of generated excels...');
 
-  // This will only run AFTER the Promise.all above has resolved
-  await compare.runAutoCompare();
+//   // This will only run AFTER the Promise.all above has resolved
+//   await compare.runAutoCompare();
 
-  console.log('✅ ALL PROCESSES COMPLETED SUCCESSFULLY.');
-});
+//   console.log('✅ ALL PROCESSES COMPLETED SUCCESSFULLY.');
+// });

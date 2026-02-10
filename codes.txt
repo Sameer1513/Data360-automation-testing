@@ -476,3 +476,68 @@
 
 // module.exports = ProductionPassAnalysisPage;
 
+// async scanDataAnalysis(sheet, viewName, prodHeaders, prodRowData, viewRowData) {
+//   sheet._headersWritten = sheet._headersWritten ?? false;
+
+
+//   let dataHeaders = [];
+  
+//   // 🚨 CRITICAL: Wait for DataAnalysis page to fully load
+//   await this.page.waitForTimeout(2000);
+  
+//   // 1️⃣ MOST SPECIFIC: Target DEEPEST table (DataAnalysis has more columns)
+//   try {
+//     const deepTable = this.page.locator('table tbody tr td:has-text("Pulse")').first().locator('..').locator('..').locator('..');
+//     dataHeaders = await deepTable.locator('thead th, tbody tr:first-child td').allInnerTexts();
+//     if (dataHeaders.length > 15) {
+//       console.log(`✅ DataAnalysis: Found ${dataHeaders.length} DEEP headers`);
+//     }
+//   } catch(e) {}
+
+//   // 2️⃣ Target table with Weld ID column (DataAnalysis specific)
+//   if (dataHeaders.length < 10) {
+//     try {
+//       const analysisTable = this.page.locator('table:has(td:has-text("363466"))').first();
+//       dataHeaders = await analysisTable.locator('thead th, tbody tr:first-child td').allInnerTexts();
+//       console.log(`✅ DataAnalysis: Found WeldID table (${dataHeaders.length} cols)`);
+//     } catch(e) {}
+//   }
+
+//   // 3️⃣ LAST RESORT: Most recent table
+//   if (dataHeaders.length < 10) {
+//     try {
+//       dataHeaders = await this.page.locator('table tbody tr:first-child td').allInnerTexts();
+//       console.log(`✅ DataAnalysis: Fallback first row headers (${dataHeaders.length})`);
+//     } catch(e) {}
+//   }
+
+//   if (dataHeaders.length === 0) {
+//     dataHeaders = ['Sl.no','Status','Weld ID','Time','Pass No','Mode','Program','Position','Distance','Travel Speed','Voltage','Current','Wire Feed Speed','Ext1','Ext2','Ext3','Ext4','Ext5','Ext6','Ext7','Ext8','Ext9'];
+//   }
+
+  
+//  if (!sheet._headersWritten) {
+//   sheet.addRow(dataHeaders);   // becomes row 1
+//   sheet._headersWritten = true;
+// }
+
+//   // Scroll & capture (unchanged)
+//   const scroller = this.page.locator('div.relative.overflow-auto, [role="region"]').first();
+//   if (await scroller.isVisible()) await autoScroll(scroller);
+
+//   const rows = await this.page.locator('table tbody tr').all();
+//   for (let i = 0; i < rows.length; i++) {
+//     const row = rows[i];
+//     const cells = await row.locator('td').all();
+//     const rowData = [];
+//     for (const cell of cells) {
+//      rowData.push(await this.parseCellValue(cell));
+//     }
+
+//     if (rowData[0] && !isNaN(rowData[0].trim())) sheet.addRow(rowData);
+//   }
+  
+  
+
+//   await this.goBackSafe();
+// }
