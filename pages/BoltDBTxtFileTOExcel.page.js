@@ -7,7 +7,7 @@ class BoltDBTxtFileTOExcel {
     constructor() {
         this.inputTxtPath = path.join(__dirname, 'AUTOMATION.txt');
         this.outputDir = path.join(__dirname, '..', 'exports');
-        this.outputFile = `ActualData_Full_Comparison_${Date.now()}.xlsx`;
+        this.outputFile = `ActualData_${Date.now()}.xlsx`;
 
         this.unitSystem = 'imperial'; 
 

@@ -30,18 +30,29 @@ class ComparePage {
     }
 
     async runAutoCompare() {
-        const exportsDir = path.join(__dirname, '..', 'exports');
-        const getLatest = (pre) => {
-            const files = fs.readdirSync(exportsDir).filter(f => f.startsWith(pre) && f.endsWith('.xlsx'))
-                .sort((a, b) => fs.statSync(path.join(exportsDir, b)).mtime - fs.statSync(path.join(exportsDir, a)).mtime);
-            return files.length > 0 ? files[0] : null;
-        };
+        const exportsDir = path.join(process.cwd(), 'exports');
+        const files = fs.readdirSync(exportsDir);
 
-        const actual = getLatest('ActualData_Full_Comparison');
-        const prod = getLatest('Production_Row_1');
-        if (!actual || !prod) throw new Error("Files missing");
+        // 1. Updated helper to handle timestamps using startsWith
+       const getLatest = (prefix) => {
+        return files
+        .filter(f => f.startsWith(prefix) && f.endsWith('.xlsx'))
+        .sort((a, b) => {
+            const statA = fs.statSync(path.join(exportsDir, a));
+            const statB = fs.statSync(path.join(exportsDir, b));
+            return statB.mtimeMs - statA.mtimeMs; // Latest file first
+        })[0];
+    };
 
-        await this.compareWorkbooks(path.join(exportsDir, actual), path.join(exportsDir, prod));
+     // 2. Update prefixes to match your Extraction Script output
+     // Your script saves: Production_weld_data1_[timestamp].xlsx
+    const actual = getLatest('ActualData_'); 
+    const prod = getLatest('Production_weld_data1'); 
+
+    // 3. Improved error message for debugging
+        if (!actual || !prod) {
+           throw new Error(`Files missing in ${exportsDir}. \nLooking for: "ActualData_" and "Production_weld_data1" \nFound: ${files.length} files total.`);
+      }
     }
 
     async compareWorkbooks(actualPath, prodPath) {

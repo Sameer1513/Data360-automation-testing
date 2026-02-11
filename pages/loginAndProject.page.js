@@ -119,9 +119,8 @@ async attemptLogin(email, password, attemptNo) {
           console.log('Login successful 🎉');
 
           // Post-login navigation
-          await this.page.getByText('datacomparetest').first().click();
-          // await this.page.getByRole('tab', { name: 'Production' }).click();
-          // await this.page.waitForSelector('table tbody tr', { timeout: 60000 });
+          // await this.page.getByText('test').first().click();
+          await this.page.getByText('test', { exact: true }).click();
           console.log('Project opened. Handing over to Status Configuration.');
 
           return; // Stop execution after successful login

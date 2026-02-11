@@ -1,23 +1,55 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  // 1. Increase the overall test timeout (e.g., to 5 or 10 minutes)
-  // because clicking every eye-icon takes significant time.
-  timeout: 600000, 
-
+  timeout: 600000,
+  workers: 3,
   expect: {
     timeout: 10000,
   },
 
   use: {
     headless: false,
-    viewport: null, 
+    viewport: null,
     launchOptions: {
-      slowMo: 300, // Reduced slightly from 500 to speed up extraction
-      args: ["--start-maximized"], 
+      slowMo: 300,
+      args: ['--start-maximized'],
     },
-    // 2. Action timeout for individual clicks/navigation
     actionTimeout: 30000,
     navigationTimeout: 30000,
   },
+
+  projects: [
+    // {
+    //   name: 'Chromium',
+    //   use: {
+    //     browserName: 'chromium',
+    //   },
+    // },
+    {
+      name: 'Chrome',
+      use: {
+        browserName: 'chromium',
+        channel: 'chrome', // 🔹 Uses installed Google Chrome
+      },
+    },
+    // {
+    //   name: 'Edge',
+    //   use: {
+    //     browserName: 'chromium',
+    //     channel: 'msedge', // ✅ Microsoft Edge
+    //   },
+    // },
+    // {
+    //   name: 'Firefox',
+    //   use: {
+    //     browserName: 'firefox',
+    //   },
+    // },
+    // {
+    //   name: 'WebKit',
+    //   use: {
+    //     browserName: 'webkit',
+    //   },
+    // },
+  ],
 });

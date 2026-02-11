@@ -11,7 +11,12 @@ class ProductionTabWeldData {
     if (!fs.existsSync(this.exportDir)) {
       fs.mkdirSync(this.exportDir, { recursive: true });
     }
-    this.tlogsTabsToScan = new Set(['Pass']);   
+   // 🔧 ONE PLACE TO CONTROL EVERYTHING
+   this.scanConfig = {
+    Pass:  { view: true,  tlogs: false },
+    Zone:  { view: false, tlogs: true  },
+    Tilt:  { view: false, tlogs: false }
+    };  
   }
 
   async runFlow(prodLimit = null) {
@@ -34,19 +39,39 @@ class ProductionTabWeldData {
       const prodRowData = await rows.nth(i).locator('td').allInnerTexts();
 
 
-      const tabs = ['Pass', 'Zone', 'Tilt'];
-      for (const tabName of tabs) {
-        try {
-          console.log(`--- Processing ${tabName} Tab ---`);
-          await this.page.getByRole('tab', { name: tabName }).click();
-          await this.page.waitForSelector('table tbody tr', { state: 'visible' });
-          
-          await this.processTabView(workbook, tabName, prodHeaders, prodRowData);
-        } catch (tabError) {
-          console.warn(`⚠️  ${tabName} Tab failed:`, tabError.message);
-          // ✅ CONTINUE to next tab even if one fails
-        }
-      }
+     const tabsToProcess = Object.entries(this.scanConfig)
+  .filter(([_, cfg]) => cfg.view || cfg.tlogs)
+  .map(([tab]) => tab);
+
+for (const tabName of tabsToProcess) {
+  try {
+    const cfg = this.scanConfig[tabName] || {};
+
+    // Skip tab entirely if both view & tlogs are false (extra safety)
+    if (!cfg.view && !cfg.tlogs) {
+      console.log(`⏭️ ${tabName} tab skipped (both view & tlogs false)`);
+      continue;
+    }
+
+    console.log(`--- Processing ${tabName} Tab ---`);
+    const tab = this.page.getByRole('tab', { name: tabName });
+
+    if (await tab.count() === 0) {
+      console.log(`⏭️ ${tabName} tab not available — skipping`);
+      continue;
+    }
+
+    await tab.click({ timeout: 5000 });
+    await this.page.waitForSelector('table tbody tr', { state: 'visible', timeout: 5000 });
+
+    // 🔁 Process the tab based on its flags
+    await this.processTabView(workbook, tabName, prodHeaders, prodRowData);
+
+  } catch (tabError) {
+    console.warn(`⚠️  ${tabName} Tab failed:`, tabError.message);
+  }
+}
+ 
 
     } catch (rowError) {
       console.error(`❌ Row ${i + 1} processing failed:`, rowError.message);
@@ -84,91 +109,78 @@ async parseCellValue(cell) {
   });
 }
 
-  async processTabView(workbook, viewName, prodHeaders, prodRowData) {
-    const viewSheet = workbook.addWorksheet(`${viewName}_View`);
-    const analysisSheet = workbook.addWorksheet(`${viewName}_tlogs_data`);
- 
-    // ✅ Freeze header row BEFORE any data is written
-      analysisSheet.views = [{ state: 'frozen', ySplit: 1 }];
-      analysisSheet._headersWritten = false;
- 
+ async processTabView(workbook, viewName, prodHeaders, prodRowData) {
+  const cfg = this.scanConfig[viewName] || {};
 
-    // 1. SCROLL & CAPTURE ENTIRE VIEW TABLE
-    const viewScroller = this.page.locator('div.relative.overflow-auto, [role="region"]').first();
-    if (await viewScroller.isVisible()) await autoScroll(viewScroller);
+  // ✅ Only create sheets that are enabled
+  const viewSheet = cfg.view ? workbook.addWorksheet(`${viewName}_View`) : null;
+  const analysisSheet = cfg.tlogs ? workbook.addWorksheet(`${viewName}_tlogs_data`) : null;
 
-   // ✅ Get ONLY the View table headers (2nd table), skip production table
-// TRY multiple selectors to find the RIGHT table
-let headers = [];
-let attempts = 0;
+  if (analysisSheet) {
+    analysisSheet.views = [{ state: 'frozen', ySplit: 1 }];
+    analysisSheet._headersWritten = false;
+  }
 
-// 1️⃣ Try main table first (most reliable)
-try {
-  headers = await this.page.locator('table:has(tbody tr)').locator('thead th').allInnerTexts();
-  if (headers.length > 10) console.log(`✅ Found ${headers.length} headers`);
-} catch(e) {}
+  // 1️⃣ Scroll the table for full data
+  const viewScroller = this.page.locator('div.relative.overflow-auto, [role="region"]').first();
+  if (await viewScroller.isVisible()) await autoScroll(viewScroller);
 
-// 2️⃣ Fallback to any table with data
-if (headers.length < 5) {
+  // 2️⃣ Get headers (keep original logic)
+  let headers = [];
   try {
-    headers = await this.page.locator('table tbody tr:first-child td').allInnerTexts();
-    // Use FIRST data row as headers if no thead found
-    console.log(`✅ Used data row as headers: ${headers.length} columns`);
+    headers = await this.page.locator('table:has(tbody tr)').locator('thead th').allInnerTexts();
+    if (headers.length > 10) console.log(`✅ Found ${headers.length} headers`);
   } catch(e) {}
-}
 
-if (headers.length === 0) {
-  // 3️⃣ LAST RESORT - hardcoded common headers
-  headers = ['Sl.no', 'Status', 'Station', 'Welder ID', 'Direction', 'Action', 'Mode', 
-             'Start Time', 'Duration', 'Auto?', 'Current(A)', 'Voltage(V)', 'Travel Speed', 
-             'Heat Input', 'Wire Speed'];
-  console.log('⚠️ Used hardcoded headers');
-}
+  if (headers.length < 5) {
+    try {
+      headers = await this.page.locator('table tbody tr:first-child td').allInnerTexts();
+      console.log(`✅ Used data row as headers: ${headers.length} columns`);
+    } catch(e) {}
+  }
 
-viewSheet.addRow(headers);
+  if (headers.length === 0) {
+    headers = ['Sl.no', 'Status', 'Station', 'Welder ID', 'Direction', 'Action', 'Mode', 
+               'Start Time', 'Duration', 'Auto?', 'Current(A)', 'Voltage(V)', 'Travel Speed', 
+               'Heat Input', 'Wire Speed'];
+    console.log('⚠️ Used hardcoded headers');
+  }
 
+  // 3️⃣ Only write headers to viewSheet if view enabled
+  if (viewSheet) viewSheet.addRow(headers);
 
+  const rowsLocator = this.page.locator('table tbody tr');
+  const rowCount = await rowsLocator.count();
+  const capturedRows = [];
 
-    const rowsLocator = this.page.locator('table tbody tr');
-    const rowCount = await rowsLocator.count();
+  // 4️⃣ Capture rows for viewSheet and/or analysis
+  for (let i = 0; i < rowCount; i++) {
+    const cells = await rowsLocator.nth(i).locator('td').all();
+    const rowData = [];
+    for (const cell of cells) rowData.push(await this.parseCellValue(cell));
 
-    // Store row data first so we don't lose it during navigation
-    const capturedRows = [];
-
-    for (let i = 0; i < rowCount; i++) {
-      const cells = await rowsLocator.nth(i).locator('td').all();
-      const rowData = [];
-      for (const cell of cells) {
-       rowData.push(await this.parseCellValue(cell));
-       }
-      if (rowData[0] && !isNaN(rowData[0].trim())) {
-        viewSheet.addRow(rowData);
-        capturedRows.push({ index: i, data: rowData });
-      }
-    }
-
-    // 2. CLICK EYE FOR EACH VALID ROW
-    for (const item of capturedRows) {
-      
-      const row = rowsLocator.nth(item.index);
-      const eye = row.locator('button:has(svg.lucide-eye), svg.lucide-eye').first();
-
-      if (await eye.count() > 0) {
-        console.log(`   🔍 Row ${item.data[0]}: Opening Data Analysis`);
-        await row.hover(); // Important for revealing icons
-        await eye.click({ force: true });
-
-        // Scan the deep view
-        await this.scanDataAnalysis(analysisSheet, viewName, prodHeaders, prodRowData, item.data);
-
-        // VERIFY RETURN: Wait until the tab table is visible again before next iteration
-        await this.page.waitForSelector(`table tbody tr`, { state: 'visible' });
-        await this.page.waitForTimeout(1000); // 1s wait as requested
-      }
-      // ✅ FREEZE DATA ANALYSIS HEADER (ADD HERE)
-
+    if (rowData[0] && !isNaN(rowData[0].trim())) {
+      if (viewSheet) viewSheet.addRow(rowData);  // view sheet
+      if (analysisSheet) capturedRows.push({ index: i, data: rowData }); // only if tlogs enabled
     }
   }
+
+  // 5️⃣ Click eye-icon only if tlogs is enabled
+  if (analysisSheet) {
+    for (const item of capturedRows) {
+      const row = rowsLocator.nth(item.index);
+      const eye = row.locator('button:has(svg.lucide-eye), svg.lucide-eye').first();
+      if (await eye.count() > 0) {
+        console.log(`   🔍 Row ${item.data[0]}: Opening Data Analysis`);
+        await row.hover();
+        await eye.click({ force: true });
+        await this.scanDataAnalysis(analysisSheet, viewName, prodHeaders, prodRowData, item.data);
+        await this.page.waitForSelector(`table tbody tr`, { state: 'visible' });
+        await this.page.waitForTimeout(1000);
+      }
+    }
+  }
+}
 
 
 
