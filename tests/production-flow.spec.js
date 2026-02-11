@@ -1,31 +1,4 @@
 
-// const { test } = require('@playwright/test');
-// const LoginAndProjectPage = require('../pages/loginAndProject.page');
-// const ProductionPassAnalysisPage = require('../pages/productionPassAnalysis.page');
-// // 1. Import your new extractor
-// const ActualDataExtractor = require('../pages/actualdata.page'); 
-
-// test('FULL PRODUCTION → TABS (PASS, ZONE, TILT) → DATA ANALYSIS FLOW', async ({ page }) => {
-//   const login = new LoginAndProjectPage(page);
-//   const analysis = new ProductionPassAnalysisPage(page);
-//   const extractor = new ActualDataExtractor(); // 2. Initialize it
-
-//   // Step 1: Login (This must happen first)
-//   await login.loginAndOpenProject();
-  
-//   console.log('🚀 Starting UI Analysis and Text Extraction in parallel...');
-
-//   // Step 2: Run both in parallel
-//   // This starts runFlow AND the file extraction at the same time.
-//   await Promise.all([
-//     analysis.runFlow(1), 
-//     extractor.run()
-//   ]);
-
-//   console.log('🎉 FULL FLOW AND DATA EXTRACTION COMPLETED');
-// });
-
-
 // for executing only the actualdata script
 
 // const { test } = require('@playwright/test');
@@ -56,58 +29,67 @@
 
 // for executing only the compare script
 
-const { test } = require('@playwright/test');
-const ComparePage = require('../pages/compare.page'); 
-
-test('TESTING ONLY: Compare Isolated Files', async () => {
-  const compare = new ComparePage();
-  
-  console.log('🧪 Starting isolated comparison...');
-
-  // The Page Object now handles finding the files automatically
-  await compare.runAutoCompare();
-
-  console.log('✅ Done.');
-});
-
-
-// all at once
 // const { test } = require('@playwright/test');
-// const LoginAndProjectPage = require('../pages/loginAndProject.page');
-// const ProductionPassAnalysisPage = require('../pages/productionPassAnalysis.page');
-// const ActualDataExtractor = require('../pages/actualdata.page'); 
 // const ComparePage = require('../pages/compare.page'); 
 
-// test('FULL PRODUCTION FLOW: Extraction followed by Auto-Comparison', async ({ page }) => {
-//   // Initialize Page Objects
-//   const login = new LoginAndProjectPage(page);
-//   const analysis = new ProductionPassAnalysisPage(page);
-//   const extractor = new ActualDataExtractor(); 
-//   // Ensure the constructor in compare.page.js matches this call
-//   const compare = new ComparePage(page); 
-
-//   // --- PART 1: GENERATE THE EXCEL FILES ---
+// test('TESTING ONLY: Compare Isolated Files', async () => {
+//   const compare = new ComparePage();
   
-//   // Step 1: Login
-//   await login.loginAndOpenProject();
-  
-//   console.log('🚀 Starting UI Analysis and Text Extraction...');
+//   console.log('🧪 Starting isolated comparison...');
 
-//   // Step 2: Run Analysis and Extraction in parallel
-//   // We wait for this to finish so the files actually exist on disk
-//   await Promise.all([
-//     analysis.runFlow(1), 
-//     extractor.run()
-//   ]);
-
-//   console.log('🎉 DATA EXTRACTION COMPLETED. Checking for files...');
-
-//   // --- PART 2: COMPARE THE GENERATED FILES ---
-
-//   console.log('🧪 Starting automated comparison of generated excels...');
-
-//   // This will only run AFTER the Promise.all above has resolved
+//   // The Page Object now handles finding the files automatically
 //   await compare.runAutoCompare();
 
-//   console.log('✅ ALL PROCESSES COMPLETED SUCCESSFULLY.');
+//   console.log('✅ Done.');
 // });
+
+
+// slope in and out 
+
+const { test, expect } = require('@playwright/test');
+const LoginAndProjectPage = require('../pages/loginAndProject.page');
+const StatusConfigPage = require('../pages/statusConfig.page');
+const ProductionTabWeldData = require('../pages/ProductionTabWeldData.page');
+const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page'); 
+const ComparePage = require('../pages/compare.page');
+
+test('Production Flow: Fast Script-Based Input', async ({ page }) => {
+  // --- STEP 1: DEFINE INPUTS DIRECTLY ---
+  // Change these numbers here whenever you want to test different slopes
+  const slopes = {
+    slopeIn: 4, 
+    slopeOut: 3
+  };
+
+  const login = new LoginAndProjectPage(page);
+  const status = new StatusConfigPage(page);
+  const analysis = new ProductionTabWeldData(page);
+  const extractor = new BoltDBTxtFileTOExcel();
+  const compare = new ComparePage(); 
+
+  console.log(`🚀 Starting Flow with: In=${slopes.slopeIn}, Out=${slopes.slopeOut}`);
+
+  // --- STEP 2: LOGIN & PROJECT ---
+  await login.loginAndOpenProject();
+
+  // --- STEP 3: STATUS CONFIGURATION ---
+  // Logic inside this method will skip the menu if values are 0
+  await status.applyStatusConfiguration(slopes.slopeIn, slopes.slopeOut);
+
+  // --- STEP 4: MANDATORY TABLE WAIT ---
+  console.log('⏳ Synchronizing Production Table...');
+  await page.waitForSelector('table tbody tr', { state: 'visible', timeout: 10000 });
+
+  // --- STEP 5: PARALLEL TASKS ---
+  console.log('⚡ Running Analysis & Extraction in Parallel...');
+  await Promise.all([
+    analysis.runFlow(1).then(() => console.log('✅ Analysis Complete.')),
+    extractor.run(slopes.slopeIn, slopes.slopeOut).then(() => console.log('✅ Extraction Complete.'))
+  ]);
+
+  // --- STEP 6: AUTO COMPARE ---
+  console.log('🧪 Running Auto-Comparison...');
+  await compare.runAutoCompare();
+
+  console.log('✅ COMPLETE: Flow finished successfully.');
+});

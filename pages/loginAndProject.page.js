@@ -24,12 +24,16 @@ async attemptLogin(email, password, attemptNo) {
 
   await this.page.goto(this.url, { waitUntil: 'networkidle' });
 
-  // Fill inputs
-  await this.page.fill('input[placeholder="Enter your email"]', email || '');
-  await this.page.fill('input[placeholder="Enter your password"]', password || '');
+  const emailInput = this.page.locator('input[placeholder="Enter your email"]');
+  const passwordInput = this.page.locator('input[placeholder="Enter your password"]');
 
-  // Eye icon click
-  const eyeIcon = this.page.locator('button[aria-label="Show password"], button:has-text("👁")');
+  // 2. Fill the inputs using the locators
+  await emailInput.fill(email || '');
+  await passwordInput.fill(password || '');
+
+  // 3. Eye icon click (Now using the passwordInput LOCATOR, not the string)
+  const eyeIcon = passwordInput.locator('..').locator('svg, span, div').last();
+  
   if (await eyeIcon.isVisible().catch(() => false)) {
     await eyeIcon.click();
   }
@@ -115,9 +119,10 @@ async attemptLogin(email, password, attemptNo) {
           console.log('Login successful 🎉');
 
           // Post-login navigation
-          await this.page.getByText('weldNumEdit').first().click();
-          await this.page.getByRole('tab', { name: 'Production' }).click();
-          await this.page.waitForSelector('table tbody tr', { timeout: 60000 });
+          await this.page.getByText('datacomparetest').first().click();
+          // await this.page.getByRole('tab', { name: 'Production' }).click();
+          // await this.page.waitForSelector('table tbody tr', { timeout: 60000 });
+          console.log('Project opened. Handing over to Status Configuration.');
 
           return; // Stop execution after successful login
         } else if (result === 'EMPTY_FIELD') {
