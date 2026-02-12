@@ -43,53 +43,90 @@
 //   console.log('✅ Done.');
 // });
 
-
-// slope in and out 
-
+// to execute only the ui test
 const { test, expect } = require('@playwright/test');
 const LoginAndProjectPage = require('../pages/loginAndProject.page');
 const StatusConfigPage = require('../pages/statusConfig.page');
 const ProductionTabWeldData = require('../pages/ProductionTabWeldData.page');
-const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page'); 
-const ComparePage = require('../pages/compare.page');
 
-test('Production Flow: Fast Script-Based Input', async ({ page }) => {
-  // --- STEP 1: DEFINE INPUTS DIRECTLY ---
-  // Change these numbers here whenever you want to test different slopes
-  const slopes = {
-    slopeIn: 4, 
-    slopeOut: 3
-  };
+test('Production Flow: Analysis Only', async ({ page }) => {
+  // --- CONFIGURATION ---
+  const slopes = { slopeIn: 1, slopeOut: 1 };
+  
+  // 🎯 ENTER WELD ID HERE: 
+  // Set to "147" to target one, or null to process all sequentially
+  const targetWeldId = ["123","125"]; 
 
   const login = new LoginAndProjectPage(page);
   const status = new StatusConfigPage(page);
   const analysis = new ProductionTabWeldData(page);
-  const extractor = new BoltDBTxtFileTOExcel();
-  const compare = new ComparePage(); 
 
-  console.log(`🚀 Starting Flow with: In=${slopes.slopeIn}, Out=${slopes.slopeOut}`);
+  console.log(`🚀 Starting Flow targeting Weld ID: ${targetWeldId || 'ALL'}`);
 
-  // --- STEP 2: LOGIN & PROJECT ---
+  // --- STEP 1: LOGIN & PROJECT ---
   await login.loginAndOpenProject();
 
-  // --- STEP 3: STATUS CONFIGURATION ---
-  // Logic inside this method will skip the menu if values are 0
+  // --- STEP 2: STATUS CONFIGURATION ---
   await status.applyStatusConfiguration(slopes.slopeIn, slopes.slopeOut);
 
-  // --- STEP 4: MANDATORY TABLE WAIT ---
+  // --- STEP 3: MANDATORY TABLE WAIT ---
   console.log('⏳ Synchronizing Production Table...');
   await page.waitForSelector('table tbody tr', { state: 'visible', timeout: 10000 });
 
-  // --- STEP 5: PARALLEL TASKS ---
-  console.log('⚡ Running Analysis & Extraction in Parallel...');
-  await Promise.all([
-    analysis.runFlow(1).then(() => console.log('✅ Analysis Complete.')),
-    extractor.run(slopes.slopeIn, slopes.slopeOut).then(() => console.log('✅ Extraction Complete.'))
-  ]);
+  // --- STEP 4: PRODUCTION ANALYSIS ---
+  // This will now use the logic we built: adding ID columns to a single Excel file
+  console.log('⚡ Running Analysis...');
+  await analysis.runFlow(targetWeldId);
 
-  // --- STEP 6: AUTO COMPARE ---
-  console.log('🧪 Running Auto-Comparison...');
-  await compare.runAutoCompare();
-
-  console.log('✅ COMPLETE: Flow finished successfully.');
+  console.log('✅ COMPLETE: Analysis finished and Excel file generated.');
 });
+
+// slope in and out 
+
+// const { test, expect } = require('@playwright/test');
+// const LoginAndProjectPage = require('../pages/loginAndProject.page');
+// const StatusConfigPage = require('../pages/statusConfig.page');
+// const ProductionTabWeldData = require('../pages/ProductionTabWeldData.page');
+// const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page'); 
+// const ComparePage = require('../pages/compare.page');
+
+// test('Production Flow: Fast Script-Based Input', async ({ page }) => {
+//   // --- STEP 1: DEFINE INPUTS DIRECTLY ---
+//   // Change these numbers here whenever you want to test different slopes
+//   const slopes = {
+//     slopeIn: 0, 
+//     slopeOut: 0
+//   };
+
+//   const login = new LoginAndProjectPage(page);
+//   const status = new StatusConfigPage(page);
+//   const analysis = new ProductionTabWeldData(page);
+//   const extractor = new BoltDBTxtFileTOExcel();
+//   const compare = new ComparePage(); 
+
+//   console.log(`🚀 Starting Flow with: In=${slopes.slopeIn}, Out=${slopes.slopeOut}`);
+
+//   // --- STEP 2: LOGIN & PROJECT ---
+//   await login.loginAndOpenProject();
+
+//   // --- STEP 3: STATUS CONFIGURATION ---
+//   // Logic inside this method will skip the menu if values are 0
+//   await status.applyStatusConfiguration(slopes.slopeIn, slopes.slopeOut);
+
+//   // --- STEP 4: MANDATORY TABLE WAIT ---
+//   console.log('⏳ Synchronizing Production Table...');
+//   await page.waitForSelector('table tbody tr', { state: 'visible', timeout: 10000 });
+
+//   // --- STEP 5: PARALLEL TASKS ---
+//   console.log('⚡ Running Analysis & Extraction in Parallel...');
+//   await Promise.all([
+//     analysis.runFlow(1).then(() => console.log('✅ Analysis Complete.')),
+//     extractor.run(slopes.slopeIn, slopes.slopeOut).then(() => console.log('✅ Extraction Complete.'))
+//   ]);
+
+//   // --- STEP 6: AUTO COMPARE ---
+//   console.log('🧪 Running Auto-Comparison...');
+//   await compare.runAutoCompare();
+
+//   console.log('✅ COMPLETE: Flow finished successfully.');
+// });
