@@ -79,6 +79,8 @@ class BoltDBTxtFileTOExcel {
                 const obj = JSON.parse(line);
                 if (obj.Record === 'S') {
                     setupData = obj;
+                    // DERIVATION POINT: Map "Weld_number" to "Weld ID"
+                    setupData.WeldID = obj.Weld_number || 'N/A';
                 } else if (obj.Record === 'T') {
                     tRecords.push(obj);
                 }
@@ -90,7 +92,7 @@ class BoltDBTxtFileTOExcel {
 
 async run(slopeIn = 0, slopeOut = 0) { // 1. Added slope variables as arguments
         const { tRecords, setupData } = this.parseAutomationFile();
-        
+        const weldIdValue = setupData.WeldID;
         const workbook = new ExcelJS.Workbook();
 
         // 1. SETUP SHEET
@@ -164,7 +166,7 @@ async run(slopeIn = 0, slopeOut = 0) { // 1. Added slope variables as arguments
 
         // Updated Headers to include True Energy
         const analysisHeaders = [
-            'Event', 'Time', 'Tilt', 'Pass', 'Zone', 'Distance', 
+             'Weld ID','Event', 'Time', 'Tilt', 'Pass', 'Zone', 'Distance', 
             'Travel Speed', 'Voltage', 'Current', 'Wire Speed', 'Oscillation Width', 
             'Target', 'Horizontal Bias', 'Frequency', 'Total Wire Consumed', 'True Energy', 'Heat'
         ];
@@ -174,7 +176,7 @@ async run(slopeIn = 0, slopeOut = 0) { // 1. Added slope variables as arguments
             const sheet = workbook.addWorksheet(name);
             sheet.addRow(analysisHeaders);
             allData.forEach(d => {
-                sheet.addRow([
+                sheet.addRow([weldIdValue,
                     d['Event'], d['Time'], d['Tilt'], d['Pass'], d['Zone'], d['Distance'],
                     d['Travel Speed'], d['Voltage'], d['Current'], d['Wire Speed'], d['Oscillation Width'],
                     d['Target'], d['Horizontal Bias'], d['Frequency'], d['Total Wire Consumed'], 
@@ -204,7 +206,7 @@ addViewSheet(workbook, name, data, groupFn, setupData) {
     const sheet = workbook.addWorksheet(name);
 
     // 1. Build Headers
-    const headers = ['Station', 'Welder ID', 'Bug Type', 'Torch'];
+    const headers = ['Weld ID','Station', 'Welder ID', 'Bug Type', 'Torch'];
     
     // NEW: Add 'Zone' header only for Zone_View
     if (name === 'Zone_View') headers.push('Zone');

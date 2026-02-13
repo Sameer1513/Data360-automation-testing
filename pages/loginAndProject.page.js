@@ -75,7 +75,7 @@ async attemptLogin(email, password, attemptNo) {
 
 
 
-  async loginAndOpenProject() {
+  async loginAndOpenProject(projectName) {
     const scenarios = [
       // {
       //   name: 'Empty Email & Password',
@@ -120,7 +120,7 @@ async attemptLogin(email, password, attemptNo) {
 
           // Post-login navigation
           // await this.page.getByText('test').first().click();
-          await this.page.getByText('weldNumEdit', { exact: true }).click();
+          await this.page.getByText(projectName, { exact: true }).click();
           console.log('Project opened. Handing over to Status Configuration.');
 
           return; // Stop execution after successful login

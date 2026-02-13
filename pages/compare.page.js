@@ -47,74 +47,84 @@ class ComparePage {
      // 2. Update prefixes to match your Extraction Script output
      // Your script saves: Production_weld_data1_[timestamp].xlsx
     const actual = getLatest('ActualData_'); 
-    const prod = getLatest('Production_weld_data1'); 
+    const prod = getLatest('Production_Report'); 
 
     // 3. Improved error message for debugging
         if (!actual || !prod) {
            throw new Error(`Files missing in ${exportsDir}. \nLooking for: "ActualData_" and "Production_weld_data1" \nFound: ${files.length} files total.`);
       }
+      const actualPath = path.join(exportsDir, actual);
+      const prodPath = path.join(exportsDir, prod);
+     console.log(`🚀 Starting Comparison:\nActual: ${actual}\nProd: ${prod}`); 
+        await this.compareWorkbooks(actualPath, prodPath);
     }
 
-    async compareWorkbooks(actualPath, prodPath) {
-        const actualWb = new ExcelJS.Workbook(); await actualWb.xlsx.readFile(actualPath);
-        const prodWb = new ExcelJS.Workbook(); await prodWb.xlsx.readFile(prodPath);
-        const resultWb = new ExcelJS.Workbook();
+   async compareWorkbooks(actualPath, prodPath) {
+    const actualWb = new ExcelJS.Workbook(); await actualWb.xlsx.readFile(actualPath);
+    const prodWb = new ExcelJS.Workbook(); await prodWb.xlsx.readFile(prodPath);
+    const resultWb = new ExcelJS.Workbook();
 
-        // 1. CREATE SUMMARY SHEET FIRST (This makes it Sheet 1)
-        const summarySheet = resultWb.addWorksheet('SUMMARY_DASHBOARD');
-        summarySheet.addRow(['Report Name', 'Final Status', 'Navigation Link']);
-        
-        // Formatting for Summary Header
-        summarySheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-        summarySheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+    // 1. CREATE SUMMARY SHEET
+    const summarySheet = resultWb.addWorksheet('SUMMARY_DASHBOARD');
+    summarySheet.addRow(['Report Name', 'Final Status', 'Navigation Link']);
+    
+    summarySheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    summarySheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
 
-        const configs = [
-            { name: 'Pass_View', keys: ['Station', 'Bug Type', 'Torch'] },
-            { name: 'Zone_View', keys: ['Station', 'Bug Type', 'Torch', 'Zone'] },
-            { name: 'Tilt_View', keys: ['Station', 'Bug Type', 'Torch', 'Tilt Range'] },
-            { name: 'Pass_DataAnalysis', keys: ['Zone', 'Event'] },
-            // { name: 'Zone_DataAnalysis', keys: ['Zone', 'Event'] },
-            // { name: 'Tilt_DataAnalysis', keys: ['Zone', 'Event'] }, 
-            { name: 'Setup', prodSheet: 'WeldSummary', keys: ['Job', 'Weld'] }
-        ];
+    // Define which keys belong to which sheet name
+    const keyLookup = {
+        'Pass_View': [ 'Station', 'Bug Type', 'Torch'],
+        'Zone_View': [ 'Station', 'Bug Type', 'Torch', 'Zone'],
+        'Tilt_View': [ 'Station', 'Bug Type', 'Torch', 'Tilt Range'],
+        'Pass_DataAnalysis': [ 'Zone', 'Event'],
+        'Zone_DataAnalysis': [ 'Zone', 'Event'],
+        'Tilt_DataAnalysis': [ 'Zone', 'Event'],
+        'WeldSummary': ['Job Number', 'Weld ID'] // This will match against 'Setup' in Actual
+    };
 
-        // 2. PROCESS OTHER SHEETS (These become Sheet 2, 3, etc.)
-        for (const cfg of configs) {
-            const aSheet = actualWb.getWorksheet(cfg.name);
-            const pSheet = prodWb.getWorksheet(cfg.prodSheet || cfg.name); 
-            
-            if (aSheet && pSheet) {
-                const hasFailures = this.compare(aSheet, pSheet, resultWb, cfg.name, cfg.keys);
-                const status = hasFailures ? 'FAIL' : 'PASS';
-                
-                // Add entry to the first sheet
-                const row = summarySheet.addRow([
-                    cfg.name.replace(/_/g, ' '),
-                    status,
-                    {
-                        text: `Go to ${cfg.name}`,
-                        hyperlink: `#'${cfg.name}'!A1` // Correct internal link syntax
-                    }
-                ]);
+    // 2. DYNAMIC PROCESS: Only loop through sheets that EXIST in Production Excel
+    for (const pSheet of prodWb.worksheets) {
+        const pName = pSheet.name;
 
-                // Cell styling for the summary row
-                const statusCell = row.getCell(2);
-                statusCell.font = { bold: true, color: { argb: status === 'PASS' ? 'FF006100' : 'FF9C0006' } };
-                statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: status === 'PASS' ? 'FFC6EFCE' : 'FFFFC7CE' } };
-                
-                row.getCell(3).font = { color: { argb: 'FF0000FF' }, underline: true };
-            }
+        if (pName === 'SUMMARY_DASHBOARD') continue;
+
+        // Sync names: Production 'WeldSummary' -> Actual 'Setup'
+        let aName = pName;
+        if (pName === 'WeldSummary') aName = 'Setup';
+
+        const aSheet = actualWb.getWorksheet(aName);
+        const keys = keyLookup[pName];
+
+        // Only proceed if BoltDB has the matching sheet and we have keys defined
+        if (aSheet && keys) {
+            console.log(`📊 Comparing Sheet: ${pName}`);
+            const hasFailures = this.compare(aSheet, pSheet, resultWb, pName, keys);
+            const status = hasFailures ? 'FAIL' : 'PASS';
+
+            const row = summarySheet.addRow([
+                pName.replace(/_/g, ' '),
+                status,
+                {
+                    text: `Go to ${pName}`,
+                    hyperlink: `#'${pName}'!A1`
+                }
+            ]);
+
+            const statusCell = row.getCell(2);
+            statusCell.font = { bold: true, color: { argb: status === 'PASS' ? 'FF006100' : 'FF9C0006' } };
+            statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: status === 'PASS' ? 'FFC6EFCE' : 'FFFFC7CE' } };
+            row.getCell(3).font = { color: { argb: 'FF0000FF' }, underline: true };
         }
-
-        // Auto-size summary columns
-        summarySheet.columns = [
-            { width: 30 }, { width: 15 }, { width: 25 }
-        ];
-
-        const out = path.join(__dirname, '..', 'exports', `Final_Comparison_${Date.now()}.xlsx`);
-        await resultWb.xlsx.writeFile(out);
-        console.log("✅ Comparison Saved: " + out);
     }
+
+    // 3. FINALIZING
+    summarySheet.columns = [{ width: 30 }, { width: 15 }, { width: 25 }];
+
+    const out = path.join(__dirname, '..', 'exports', `Final_Comparison_${Date.now()}.xlsx`);
+    await resultWb.xlsx.writeFile(out);
+    console.log("✅ Comparison Saved: " + out);
+}
+
 
     compare(aSheet, pSheet, resultWb, title, keyCols) {
         const resSheet = resultWb.addWorksheet(title);
@@ -156,23 +166,35 @@ class ComparePage {
             const pDisp = ['PRODUCTION', ''];
             let rowFails = false;
 
-            headers.forEach((h, idx) => {
-                const aVal = aRow.getCell(idx + 1).value;
-                aDisp.push(aVal);
-                const pIdx = this.findColIdx(pHMap, h);
-                const pVal = (pRow && pIdx) ? pRow.getCell(pIdx).value : 'N/A';
-                pDisp.push(pVal);
+               // Inside the compare() method
+headers.forEach((h, idx) => {
+    const aVal = aRow.getCell(idx + 1).value;
+    aDisp.push(aVal);
 
-                const cleanHeader = this.clean(h);
-                const isIgnored = ignoreList.some(item => cleanHeader.includes(item));
+    // Dynamic lookup: This allows "Weld ID" to match "Search Weld ID"
+    const pIdx = this.findColIdx(pHMap, h);
+    
+    let pVal;
+    if (!pRow) {
+        pVal = 'NOT FOUND'; // The entire row is missing in Production
+    } else if (pIdx === null) {
+        pVal = 'COL MISSING'; // This specific column wasn't scraped
+    } else {
+        pVal = pRow.getCell(pIdx).value;
+    }
+    pDisp.push(pVal);
 
-                if (!isIgnored && pVal !== 'N/A') {
-                    if (this.normalizeValue(aVal) !== this.normalizeValue(pVal)) {
-                        rowFails = true;
-                        sheetHasFail = true;
-                    }
-                }
-            });
+    const cleanHeader = this.clean(h);
+    const isIgnored = ignoreList.some(item => cleanHeader.includes(item));
+
+    // Only mark as FAIL if the column actually exists in Production
+    if (!isIgnored && pVal !== 'COL MISSING' && pVal !== 'NOT FOUND') {
+        if (this.normalizeValue(aVal) !== this.normalizeValue(pVal)) {
+            rowFails = true;
+            sheetHasFail = true;
+        }
+    }
+});
 
             const status = (pRow && !rowFails) ? 'PASS' : (pRow ? 'FAIL' : 'NOT FOUND');
             aDisp[1] = status; pDisp[1] = status;

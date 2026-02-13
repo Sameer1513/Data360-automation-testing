@@ -5,18 +5,14 @@ const path = require('path');
 const { autoScroll } = require('../utils/scroll.util');
 
 class ProductionTabWeldData {
-  constructor(page) {
+  constructor(page,scanConfig) {
     this.page = page;
     this.exportDir = path.join(process.cwd(), 'exports');
     if (!fs.existsSync(this.exportDir)) {
       fs.mkdirSync(this.exportDir, { recursive: true });
     }
    // 🔧 ONE PLACE TO CONTROL EVERYTHING
-   this.scanConfig = {
-    Pass:  { view: true,  tlogs: false },
-    Zone:  { view: false, tlogs: false },
-    Tilt:  { view: false, tlogs: false }
-    };  
+     this.scanConfig = scanConfig;
   }
 
 async runFlow(weldIds = [], prodLimit = null) {

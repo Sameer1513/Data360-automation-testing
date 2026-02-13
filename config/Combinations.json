@@ -1,0 +1,54 @@
+{
+  "mode": "single",
+
+ "scanConfig": {
+    "Pass": { "view": false,  "tlogs": false },
+    "Zone": { "view": true, "tlogs": false },
+    "Tilt": { "view": false, "tlogs": false }
+  },
+
+
+  "singleProject": {
+    "projectName": "datacomparetest",
+    "weldIds": "",
+    "slopeCombinations": [
+      { "slopeIn": 0, "slopeOut": 5 }
+     
+    ]
+  },
+
+  "multiProject": [
+    {
+      "browserId": 1,
+      "projectName": "Project-A",
+      "weldIds": ["123", "125"],
+      "slopeCombinations": [
+        { "slopeIn": 1, "slopeOut": 1 }
+      ]
+    },
+    {
+      "browserId": 2,
+      "projectName": "Project-B",
+      "weldIds": ["201", "202"],
+      "slopeCombinations": [
+        { "slopeIn": 0, "slopeOut": 5 }
+       
+      ]
+    }
+  ],
+
+  "multiBrowser": [
+    {
+      "browserId": 1,
+      "projectName": "Project-A",
+      "weldIds": ["123"],
+      "slope": { "slopeIn": 1, "slopeOut": 1 }
+    },
+    {
+      "browserId": 2,
+      "projectName": "Project-A",
+      "weldIds": ["125"],
+      "slope": { "slopeIn": 2, "slopeOut": 6 }
+    }
+  ]
+}
