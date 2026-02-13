@@ -113,6 +113,7 @@ async run(slopeIn = 0, slopeOut = 0) { // 1. Added slope variables as arguments
             return {
                 'Event': r.Event,
                 'Time': this.formatToIST(r.Time),
+                'rawTime': Number(r.Time),
                 'Tilt': this.applyRounding('Tilt', r.Tilt),
                 'Torch': type,
                 'Pass': r[p + 'pass_name'] || "NA", 
@@ -207,7 +208,7 @@ addViewSheet(workbook, name, data, groupFn, setupData) {
 
     // 1. Build Headers
     const headers = ['Weld ID','Station', 'Welder ID', 'Bug Type', 'Torch'];
-    
+    headers.push('Weld Start Time', 'Weld Time');
     // NEW: Add 'Zone' header only for Zone_View
     if (name === 'Zone_View') headers.push('Zone');
     if (name === 'Tilt_View') headers.push('Tilt Range');
@@ -234,24 +235,46 @@ addViewSheet(workbook, name, data, groupFn, setupData) {
     });
 
     // 3. Process each group
-    Object.values(groups).forEach(g => {
-      const avg = (key, list) => {
+   Object.values(groups).forEach(g => {
+    // 1. Define Bug Type first to avoid ReferenceError
+    const rawBugType = (setupData.Bug_type || '').toUpperCase();
+    const displayBugType = rawBugType.includes('CCW') ? 'CCW' : 'CW';
+
+    // 2. High-precision time calculation
+    // Sort using the raw numeric timestamp (rawTime)
+    const sortedItems = g.items.sort((a, b) => a.rawTime - b.rawTime);
+    
+    const startTimeFormatted = sortedItems[0].Time;
+    const startRaw = sortedItems[0].rawTime;
+    const endRaw = sortedItems[sortedItems.length - 1].rawTime;
+    
+    // Difference in seconds (kiloseconds * 1000)
+    const totalSeconds = Math.round((endRaw - startRaw) * 1000); 
+
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    const weldTimeStr = `${minutes}m ${seconds}s`;
+
+    // 3. Define the average helper function
+    const avg = (key, list) => {
         const sum = list.reduce((a, b) => a + Number(b || 0), 0);
         const averageValue = sum / list.length;
-
         if (key === 'Current') return Math.round(averageValue);
         return this.applyRounding(key, averageValue);
-      };
+    };
 
-      const rawBugType = (setupData.Bug_type || '').toUpperCase();
-      const displayBugType = rawBugType.includes('CCW') ? 'CCW' : 'CW';
-
-      const rowData = [
+    // 4. Build the row data in the correct order
+    const rowData = [
+        setupData.Weld_number || 'N/A',
         setupData.Station_number ? `Station ${setupData.Station_number}` : 'N/A',
         setupData.Welder_id || 'N/A',
-        displayBugType,
-        g.torch
-      ];
+        displayBugType,       // Now defined!
+        g.torch,
+        startTimeFormatted, 
+        weldTimeStr
+    ];
+
+    
 
       // NEW: Push the actual Zone name into the row ONLY for Zone_View
       if (name === 'Zone_View') {

@@ -73,12 +73,12 @@ class ComparePage {
 
     // Define which keys belong to which sheet name
     const keyLookup = {
-        'Pass_View': [ 'Station', 'Bug Type', 'Torch'],
-        'Zone_View': [ 'Station', 'Bug Type', 'Torch', 'Zone'],
-        'Tilt_View': [ 'Station', 'Bug Type', 'Torch', 'Tilt Range'],
-        'Pass_DataAnalysis': [ 'Zone', 'Event'],
-        'Zone_DataAnalysis': [ 'Zone', 'Event'],
-        'Tilt_DataAnalysis': [ 'Zone', 'Event'],
+        'Pass_View': [ 'Weld ID','Station', 'Bug Type', 'Torch'],
+        'Zone_View': [ 'Weld ID','Station', 'Bug Type', 'Torch', 'Zone'],
+        'Tilt_View': [ 'Weld ID','Station', 'Bug Type', 'Torch', 'Tilt Range'],
+        'Pass_DataAnalysis': [ 'Weld ID','Zone', 'Event'],
+        'Zone_DataAnalysis': [ 'Weld ID','Zone', 'Event'],
+        'Tilt_DataAnalysis': [ 'Weld ID','Zone', 'Event'],
         'WeldSummary': ['Job Number', 'Weld ID'] // This will match against 'Setup' in Actual
     };
 
@@ -128,7 +128,9 @@ class ComparePage {
 
     compare(aSheet, pSheet, resultWb, title, keyCols) {
         const resSheet = resultWb.addWorksheet(title);
-        const ignoreList = ['time', 'pass', 'passname', 'weldstarttime', 'status', 'slno'];
+        const ignoreList = [ 'Weld ID', 'pass', 'status', 'slno', 'record', 'event', 
+                      'pipe', 'band', 'logging', 'year', 'month', 'day', 
+                      'hour', 'minute', 'second', 'iwm', 'm500'];
         let sheetHasFail = false;
 
         const getHMap = (s) => {
@@ -176,9 +178,9 @@ headers.forEach((h, idx) => {
     
     let pVal;
     if (!pRow) {
-        pVal = 'NOT FOUND'; // The entire row is missing in Production
+        pVal = 'Row missing'; // The entire row is missing in Production
     } else if (pIdx === null) {
-        pVal = 'COL MISSING'; // This specific column wasn't scraped
+        pVal = 'N/A'; // This specific column wasn't scraped
     } else {
         pVal = pRow.getCell(pIdx).value;
     }
@@ -196,7 +198,7 @@ headers.forEach((h, idx) => {
     }
 });
 
-            const status = (pRow && !rowFails) ? 'PASS' : (pRow ? 'FAIL' : 'NOT FOUND');
+            const status = (pRow && !rowFails) ? 'PASS' : (pRow ? 'FAIL' : 'Row missing');
             aDisp[1] = status; pDisp[1] = status;
             
             const ar = resSheet.addRow(aDisp);
