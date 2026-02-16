@@ -29,14 +29,18 @@ class ComparePage {
         return null;
     }
 
-    async runAutoCompare() {
+    async runAutoCompare(projectName, targetWeldIds = []) {
+         // Convert targetWeldIds to strings for accurate comparison
+        const filterIds = Array.isArray(targetWeldIds) ? targetWeldIds.map(String) : [];
+        this.filterIds = filterIds.map(id => this.normalizeValue(id));
         const exportsDir = path.join(process.cwd(), 'exports');
         const files = fs.readdirSync(exportsDir);
 
         // 1. Updated helper to handle timestamps using startsWith
        const getLatest = (prefix) => {
         return files
-        .filter(f => f.startsWith(prefix) && f.endsWith('.xlsx'))
+        // .filter(f => f.startsWith(prefix) && f.endsWith('.xlsx'))
+        .filter(f => f.startsWith(prefix) && f.includes(`_${projectName}_`) && f.endsWith('.xlsx'))
         .sort((a, b) => {
             const statA = fs.statSync(path.join(exportsDir, a));
             const statB = fs.statSync(path.join(exportsDir, b));
@@ -51,15 +55,20 @@ class ComparePage {
 
     // 3. Improved error message for debugging
         if (!actual || !prod) {
-           throw new Error(`Files missing in ${exportsDir}. \nLooking for: "ActualData_" and "Production_weld_data1" \nFound: ${files.length} files total.`);
+           throw new Error(`Files missing in ${exportsDir}. \nLooking for: "ActualData_" and "Production_report" \nFound: ${files.length} files total.`);
       }
       const actualPath = path.join(exportsDir, actual);
       const prodPath = path.join(exportsDir, prod);
-     console.log(`🚀 Starting Comparison:\nActual: ${actual}\nProd: ${prod}`); 
-        await this.compareWorkbooks(actualPath, prodPath);
-    }
+    //  console.log(`🚀 Starting Comparison:\nActual: ${actual}\nProd: ${prod}`); 
+    //     await this.compareWorkbooks(actualPath, prodPath);
+    const finalOutPath = path.join(exportsDir, `Final_Comparison_${projectName}_${Date.now()}.xlsx`);
 
-   async compareWorkbooks(actualPath, prodPath) {
+    console.log(`🚀 Comparison for ${projectName}:\nActual: ${actual}\nProd: ${prod}`); 
+    await this.compareWorkbooks(actualPath, prodPath, finalOutPath);
+    }
+    
+
+   async compareWorkbooks(actualPath, prodPath,outpath) {
     const actualWb = new ExcelJS.Workbook(); await actualWb.xlsx.readFile(actualPath);
     const prodWb = new ExcelJS.Workbook(); await prodWb.xlsx.readFile(prodPath);
     const resultWb = new ExcelJS.Workbook();
@@ -121,16 +130,15 @@ class ComparePage {
     summarySheet.columns = [{ width: 30 }, { width: 15 }, { width: 25 }];
 
     const out = path.join(__dirname, '..', 'exports', `Final_Comparison_${Date.now()}.xlsx`);
-    await resultWb.xlsx.writeFile(out);
-    console.log("✅ Comparison Saved: " + out);
+    await resultWb.xlsx.writeFile(outpath);
+    console.log("✅ Comparison Saved: " + outpath);
 }
 
-
-    compare(aSheet, pSheet, resultWb, title, keyCols) {
+compare(aSheet, pSheet, resultWb, title, keyCols) {
         const resSheet = resultWb.addWorksheet(title);
-        const ignoreList = [ 'Weld ID', 'pass', 'status', 'slno', 'record', 'event', 
-                      'pipe', 'band', 'logging', 'year', 'month', 'day', 
-                      'hour', 'minute', 'second', 'iwm', 'm500'];
+        const ignoreList = ['Weld ID', 'pass', 'status', 'slno', 'record', 'event', 
+                          'pipe', 'band', 'logging', 'year', 'month', 'day', 
+                          'hour', 'minute', 'second', 'iwm', 'm500'];
         let sheetHasFail = false;
 
         const getHMap = (s) => {
@@ -141,9 +149,15 @@ class ComparePage {
 
         const aHMap = getHMap(aSheet);
         const pHMap = getHMap(pSheet);
+        
+        // Find where Weld ID is located in the Actual sheet
+        const weldIdColIdx = this.findColIdx(aHMap, 'Weld ID') || 1; 
+
+        // 1. Prepare Headers
         const headers = [];
         aSheet.getRow(1).eachCell(c => headers.push(c.value));
 
+        // 2. Map Production Data for quick lookup
         const pMap = new Map();
         pSheet.eachRow((row, i) => {
             if (i === 1) return;
@@ -154,10 +168,27 @@ class ComparePage {
             pMap.set(k, row);
         });
 
+        // Add Header Row to Result Sheet
         resSheet.addRow(['Source', 'Status', ...headers]);
 
+        // 3. Process Actual Sheet Rows
         aSheet.eachRow((aRow, i) => {
             if (i === 1) return;
+
+            // --- FILTERING LOGIC ---
+            const weldIdValue = this.normalizeValue(aRow.getCell(weldIdColIdx).value);
+            
+            // Skip empty rows
+            if (!weldIdValue) return;
+
+            // If target IDs are provided, skip rows that don't match
+            if (this.filterIds && this.filterIds.length > 0) {
+                if (!this.filterIds.includes(weldIdValue)) {
+                    return; 
+                }
+            }
+
+            // Create unique key for matching against production
             const k = keyCols.map(col => {
                 const idx = this.findColIdx(aHMap, col);
                 return idx ? this.normalizeValue(aRow.getCell(idx).value) : '';
@@ -168,42 +199,43 @@ class ComparePage {
             const pDisp = ['PRODUCTION', ''];
             let rowFails = false;
 
-               // Inside the compare() method
-headers.forEach((h, idx) => {
-    const aVal = aRow.getCell(idx + 1).value;
-    aDisp.push(aVal);
+            // Compare Columns
+            headers.forEach((h, idx) => {
+                const aVal = aRow.getCell(idx + 1).value;
+                aDisp.push(aVal);
 
-    // Dynamic lookup: This allows "Weld ID" to match "Search Weld ID"
-    const pIdx = this.findColIdx(pHMap, h);
-    
-    let pVal;
-    if (!pRow) {
-        pVal = 'Row missing'; // The entire row is missing in Production
-    } else if (pIdx === null) {
-        pVal = 'N/A'; // This specific column wasn't scraped
-    } else {
-        pVal = pRow.getCell(pIdx).value;
-    }
-    pDisp.push(pVal);
+                const pIdx = this.findColIdx(pHMap, h);
+                let pVal;
 
-    const cleanHeader = this.clean(h);
-    const isIgnored = ignoreList.some(item => cleanHeader.includes(item));
+                if (!pRow) {
+                    pVal = 'Row missing';
+                } else if (pIdx === null) {
+                    pVal = 'N/A';
+                } else {
+                    pVal = pRow.getCell(pIdx).value;
+                }
+                pDisp.push(pVal);
 
-    // Only mark as FAIL if the column actually exists in Production
-    if (!isIgnored && pVal !== 'COL MISSING' && pVal !== 'NOT FOUND') {
-        if (this.normalizeValue(aVal) !== this.normalizeValue(pVal)) {
-            rowFails = true;
-            sheetHasFail = true;
-        }
-    }
-});
+                const cleanHeader = this.clean(h);
+                const isIgnored = ignoreList.some(item => cleanHeader.includes(item));
 
+                if (!isIgnored && pVal !== 'Row missing' && pVal !== 'N/A') {
+                    if (this.normalizeValue(aVal) !== this.normalizeValue(pVal)) {
+                        rowFails = true;
+                        sheetHasFail = true;
+                    }
+                }
+            });
+
+            // Determine Status and Add to Sheet
             const status = (pRow && !rowFails) ? 'PASS' : (pRow ? 'FAIL' : 'Row missing');
-            aDisp[1] = status; pDisp[1] = status;
+            aDisp[1] = status; 
+            pDisp[1] = status;
             
             const ar = resSheet.addRow(aDisp);
             const pr = resSheet.addRow(pDisp);
 
+            // Formatting
             [ar, pr].forEach(row => {
                 row.eachCell({ includeEmpty: true }, (cell) => {
                     cell.alignment = { horizontal: 'left' }; 
@@ -212,12 +244,12 @@ headers.forEach((h, idx) => {
                     }
                 });
             });
-            resSheet.addRow([]); 
+            resSheet.addRow([]); // Spacer row
         });
+
         resSheet.getRow(1).font = { bold: true };
         return sheetHasFail;
     }
-    
-}
 
+}
 module.exports = ComparePage;

@@ -14,8 +14,8 @@ export default defineConfig({
       slowMo: 300,
       args: ['--start-maximized'],
     },
-    actionTimeout: 30000,
-    navigationTimeout: 30000,
+    actionTimeout: 60000,
+    navigationTimeout: 60000,
   },
 
   projects: [

@@ -1,18 +1,18 @@
 {
-  "mode": "single",
+  "mode": "multiProject",
 
  "scanConfig": {
-    "Pass": { "view": false,  "tlogs": false },
+    "Pass": { "view": true,  "tlogs": false },
     "Zone": { "view": true, "tlogs": false },
-    "Tilt": { "view": false, "tlogs": false }
+    "Tilt": { "view": true, "tlogs": false }
   },
 
 
   "singleProject": {
-    "projectName": "datacomparetest",
+    "projectName": "datacompare",
     "weldIds": "",
     "slopeCombinations": [
-      { "slopeIn": 0, "slopeOut": 5 }
+      { "slopeIn": 0, "slopeOut": 0 }
      
     ]
   },
@@ -20,18 +20,20 @@
   "multiProject": [
     {
       "browserId": 1,
-      "projectName": "Project-A",
-      "weldIds": ["123", "125"],
+      "projectName": "datacompare",
+      "sourceFile": "textfile.txt",
+      "weldIds": ["1", "5"],
       "slopeCombinations": [
-        { "slopeIn": 1, "slopeOut": 1 }
+        { "slopeIn": 0, "slopeOut": 0}
       ]
     },
     {
       "browserId": 2,
-      "projectName": "Project-B",
-      "weldIds": ["201", "202"],
+      "projectName": "datacompare",
+      "sourceFile": "textfile.txt",
+      "weldIds": ["3", "4"],
       "slopeCombinations": [
-        { "slopeIn": 0, "slopeOut": 5 }
+        { "slopeIn": 0, "slopeOut": 0 }
        
       ]
     }

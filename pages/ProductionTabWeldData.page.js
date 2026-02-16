@@ -15,11 +15,12 @@ class ProductionTabWeldData {
      this.scanConfig = scanConfig;
   }
 
-async runFlow(weldIds = [], prodLimit = null) {
+async runFlow(weldIds = [], prodLimit = null,projectName='Default') {
   // Initialize one workbook for all data
   const workbook = new ExcelJS.Workbook();
   const timestamp = Date.now();
-  const filename = `Production_Report_${timestamp}.xlsx`;
+  // const filename = `Production_Report_${timestamp}.xlsx`;
+  const filename = `Production_Report_${projectName}_${timestamp}.xlsx`;
   const filepath = path.join(this.exportDir, filename);
 
  // If no IDs provided, find all Weld IDs currently visible in the table
@@ -64,7 +65,9 @@ if (targets.length === 0) {
 
       // Step 1: Enter the detail view (Weld Data eye icon)
       // If we filtered, it's usually the 1st row (index 0)
-      await this.WelddataEye(currentWeld ? 0 : i);
+       if (!currentWeld) {
+       await this.WelddataEye(i);
+       }
 
       // Step 2: Generate Summary and process Tabs
      
@@ -104,22 +107,43 @@ if (targets.length === 0) {
 }
 
 async searchAndFilterWeld(weldId) {
-  const searchInput = this.page.locator('input[placeholder*="Search"], .search-bar input').first();
-  
-  // Hard clear the search field
-  await searchInput.click();
-  await this.page.keyboard.press('Control+A');
-  await this.page.keyboard.press('Backspace');
-  
- await searchInput.fill(weldId);
-  await this.page.keyboard.press('Enter');
-  
-  // Wait for the table to refresh to only show the target Weld ID
-  // This is better than a fixed timeout because it reacts to the network speed
-  await this.page.waitForFunction((id) => {
-    const rows = document.querySelectorAll('table tbody tr');
-    return rows.length > 0 && rows[0].innerText.includes(id);
-  }, weldId, { timeout: 15000 });}
+    const idStr = String(weldId).trim();
+    const searchInput = this.page.locator('input[placeholder*="Search"], .search-bar input').first();
+
+    // 1. Precise Clear and Search
+    await searchInput.click({ clickCount: 3 });
+    await this.page.keyboard.press('Backspace');
+    await searchInput.fill(idStr);
+    await this.page.keyboard.press('Enter');
+
+    // 2. Locate the "Weld ID" and "Weld Data" column indices
+    const weldIdCol = await this.getColumnIndexByName('Weld ID');
+    const weldDataCol = await this.getColumnIndexByName('Weld Data');
+
+    // 3. TARGET THE EXACT ROW
+    // We use a regex to ensure "13" is not confused with "3"
+    const targetRow = this.page.locator('table tbody tr').filter({
+        has: this.page.locator(`td:nth-child(${weldIdCol})`).getByText(idStr, { exact: true })
+    }).first();
+
+    try {
+        // Wait for the exact row to appear (Reactive wait)
+        await targetRow.waitFor({ state: 'visible', timeout: 15000 });
+        
+        // 4. CLICK THE EYE ICON IN THE CORRECT ROW
+        const eyeButton = targetRow.locator(`td:nth-child(${weldDataCol}) button, td:nth-child(${weldDataCol}) svg.lucide-eye`).first();
+        
+        await targetRow.scrollIntoViewIfNeeded();
+        await eyeButton.click();
+        
+        // Wait for tabs to appear to confirm we entered the detail view
+        await this.page.waitForSelector('button[role="tab"]', { state: 'visible' });
+        console.log(`🎯 Successfully entered Detail View for Weld ID: ${idStr}`);
+        
+    } catch (e) {
+        throw new Error(`❌ Exact Weld ID ${idStr} not found or eye button missing.`);
+    }
+}
 
 async clearSearch() {
   const clearBtn = this.page.locator('button:has(svg.lucide-x), .clear-search').first();
@@ -386,7 +410,10 @@ async generateWeldSummarySheet(workbook, currentWeldId) { // Added parameter
   }
 
   // Look for the row that specifically contains our Weld ID text
-  const row = this.page.locator(`table tbody tr:has-text("${currentWeldId}")`).first();
+  const row = this.page.locator('table tbody tr').filter({ 
+  has: this.page.locator('td'), 
+  hasText: new RegExp(`^${currentWeldId}$`) // Regex for start-to-finish exact match
+}).first();
   
   if (await row.isVisible()) {
     const cells = await row.locator('td').all();
