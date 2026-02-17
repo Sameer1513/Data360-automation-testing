@@ -85,9 +85,9 @@ class ComparePage {
         'Pass_View': [ 'Weld ID','Station', 'Bug Type', 'Torch'],
         'Zone_View': [ 'Weld ID','Station', 'Bug Type', 'Torch', 'Zone'],
         'Tilt_View': [ 'Weld ID','Station', 'Bug Type', 'Torch', 'Tilt Range'],
-        'Pass_DataAnalysis': [ 'Weld ID','Zone', 'Event'],
-        'Zone_DataAnalysis': [ 'Weld ID','Zone', 'Event'],
-        'Tilt_DataAnalysis': [ 'Weld ID','Zone', 'Event'],
+        'Pass_tlogs_data': [ 'Weld ID','Zone', 'Event'],
+        'Zone_tlogs_data': [ 'Weld ID','Zone', 'Event'],
+        'Tilt_tlogs_data': [ 'Weld ID','Zone', 'Event'],
         'WeldSummary': ['Job Number', 'Weld ID'] // This will match against 'Setup' in Actual
     };
 
@@ -135,121 +135,126 @@ class ComparePage {
 }
 
 compare(aSheet, pSheet, resultWb, title, keyCols) {
-        const resSheet = resultWb.addWorksheet(title);
-        const ignoreList = ['Weld ID', 'pass', 'status', 'slno', 'record', 'event', 
-                          'pipe', 'band', 'logging', 'year', 'month', 'day', 
-                          'hour', 'minute', 'second', 'iwm', 'm500'];
-        let sheetHasFail = false;
+    const resSheet = resultWb.addWorksheet(title);
+    const ignoreList = ['Weld ID', 'pass', 'status', 'slno', 'record', 'event', 'pipe', 'band', 'logging', 'year', 'month', 'day', 'hour', 'minute', 'second', 'iwm', 'm500'];
+    let sheetHasFail = false;
 
-        const getHMap = (s) => {
-            const m = {};
-            s.getRow(1).eachCell({ includeEmpty: true }, (c, i) => { m[this.clean(c.value)] = i; });
-            return m;
-        };
+    const getHMap = (s) => {
+        const m = {};
+        s.getRow(1).eachCell({ includeEmpty: true }, (c, i) => { m[this.clean(c.value)] = i; });
+        return m;
+    };
 
-        const aHMap = getHMap(aSheet);
-        const pHMap = getHMap(pSheet);
-        
-        // Find where Weld ID is located in the Actual sheet
-        const weldIdColIdx = this.findColIdx(aHMap, 'Weld ID') || 1; 
+    const aHMap = getHMap(aSheet);
+    const pHMap = getHMap(pSheet);
+    const weldIdColIdx = this.findColIdx(aHMap, 'Weld ID') || 1;
 
-        // 1. Prepare Headers
-        const headers = [];
-        aSheet.getRow(1).eachCell(c => headers.push(c.value));
+    // 1. Prepare Headers (Only shared columns)
+    const headers = [];
+    aSheet.getRow(1).eachCell(c => {
+        if (this.findColIdx(pHMap, c.value) !== null) {
+            headers.push(c.value);
+        }
+    });
 
-        // 2. Map Production Data for quick lookup
-        const pMap = new Map();
-        pSheet.eachRow((row, i) => {
-            if (i === 1) return;
-            const k = keyCols.map(col => {
-                const idx = this.findColIdx(pHMap, col);
-                return idx ? this.normalizeValue(row.getCell(idx).value) : '';
-            }).join('_');
-            pMap.set(k, row);
-        });
+    // 2. Map Actual Data
+    const aMap = new Map();
+    aSheet.eachRow((row, i) => {
+        if (i === 1) return;
+        const weldVal = this.normalizeValue(row.getCell(weldIdColIdx).value);
+        if (this.filterIds.length > 0 && !this.filterIds.includes(weldVal)) return;
 
-        // Add Header Row to Result Sheet
-        resSheet.addRow(['Source', 'Status', ...headers]);
+        const k = keyCols.map(col => {
+            const idx = this.findColIdx(aHMap, col);
+            return idx ? this.normalizeValue(row.getCell(idx).value) : '';
+        }).join('_');
+        aMap.set(k, row);
+    });
 
-        // 3. Process Actual Sheet Rows
-        aSheet.eachRow((aRow, i) => {
-            if (i === 1) return;
+    resSheet.addRow(['Source', 'Status', ...headers]);
 
-            // --- FILTERING LOGIC ---
-            const weldIdValue = this.normalizeValue(aRow.getCell(weldIdColIdx).value);
+    // 3. Process Production Rows
+    pSheet.eachRow((pRow, i) => {
+        if (i === 1) return;
+
+        const pWeldIdIdx = this.findColIdx(pHMap, 'Weld ID') || 1;
+        const pWeldVal = this.normalizeValue(pRow.getCell(pWeldIdIdx).value);
+        if (this.filterIds.length > 0 && !this.filterIds.includes(pWeldVal)) return;
+
+        const k = keyCols.map(col => {
+            const idx = this.findColIdx(pHMap, col);
+            return idx ? this.normalizeValue(pRow.getCell(idx).value) : '';
+        }).join('_');
+
+        const aRow = aMap.get(k);
+        if (!aRow) return; // Skip if not in Actual database
+
+        const aDisp = ['ACTUAL', ''];
+        const pDisp = ['PRODUCTION', ''];
+        let rowFails = false;
+        let diffColumnIndices = []; // Track which columns are different
+
+        headers.forEach((h, index) => {
+            const aIdx = this.findColIdx(aHMap, h);
+            const pIdx = this.findColIdx(pHMap, h);
             
-            // Skip empty rows
-            if (!weldIdValue) return;
+            const aVal = aRow.getCell(aIdx).value;
+            const pVal = pRow.getCell(pIdx).value;
 
-            // If target IDs are provided, skip rows that don't match
-            if (this.filterIds && this.filterIds.length > 0) {
-                if (!this.filterIds.includes(weldIdValue)) {
-                    return; 
+            aDisp.push(aVal);
+            pDisp.push(pVal);
+
+            const cleanHeader = this.clean(h);
+            const isIgnored = ignoreList.some(item => cleanHeader.includes(item));
+
+            if (!isIgnored) {
+                const normA = this.normalizeValue(aVal);
+                const normP = this.normalizeValue(pVal);
+
+                // Check if values are actually different (and not both empty)
+                if (normA !== normP && (normA !== '' || normP !== '')) {
+                    rowFails = true;
+                    sheetHasFail = true;
+                    // Position is index + 3 (Source + Status + column offset)
+                    diffColumnIndices.push(index + 3); 
                 }
             }
-
-            // Create unique key for matching against production
-            const k = keyCols.map(col => {
-                const idx = this.findColIdx(aHMap, col);
-                return idx ? this.normalizeValue(aRow.getCell(idx).value) : '';
-            }).join('_');
-
-            const pRow = pMap.get(k);
-            const aDisp = ['ACTUAL', ''];
-            const pDisp = ['PRODUCTION', ''];
-            let rowFails = false;
-
-            // Compare Columns
-            headers.forEach((h, idx) => {
-                const aVal = aRow.getCell(idx + 1).value;
-                aDisp.push(aVal);
-
-                const pIdx = this.findColIdx(pHMap, h);
-                let pVal;
-
-                if (!pRow) {
-                    pVal = 'Row missing';
-                } else if (pIdx === null) {
-                    pVal = 'N/A';
-                } else {
-                    pVal = pRow.getCell(pIdx).value;
-                }
-                pDisp.push(pVal);
-
-                const cleanHeader = this.clean(h);
-                const isIgnored = ignoreList.some(item => cleanHeader.includes(item));
-
-                if (!isIgnored && pVal !== 'Row missing' && pVal !== 'N/A') {
-                    if (this.normalizeValue(aVal) !== this.normalizeValue(pVal)) {
-                        rowFails = true;
-                        sheetHasFail = true;
-                    }
-                }
-            });
-
-            // Determine Status and Add to Sheet
-            const status = (pRow && !rowFails) ? 'PASS' : (pRow ? 'FAIL' : 'Row missing');
-            aDisp[1] = status; 
-            pDisp[1] = status;
-            
-            const ar = resSheet.addRow(aDisp);
-            const pr = resSheet.addRow(pDisp);
-
-            // Formatting
-            [ar, pr].forEach(row => {
-                row.eachCell({ includeEmpty: true }, (cell) => {
-                    cell.alignment = { horizontal: 'left' }; 
-                    if (status !== 'PASS' && row === pr) {
-                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } };
-                    }
-                });
-            });
-            resSheet.addRow([]); // Spacer row
         });
 
-        resSheet.getRow(1).font = { bold: true };
-        return sheetHasFail;
-    }
+        const status = rowFails ? 'FAIL' : 'PASS';
+        aDisp[1] = status;
+        pDisp[1] = status;
 
+        const ar = resSheet.addRow(aDisp);
+        const pr = resSheet.addRow(pDisp);
+
+        // Apply Formatting
+        [ar, pr].forEach(row => {
+            row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                cell.alignment = { horizontal: 'left' };
+                
+                // Row fill for FAIL status on the Production row
+                if (status === 'FAIL' && row === pr) {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } };
+                }
+
+                // RED TEXT PART: Apply to mismatched cells in the Production row
+                if (row === pr && diffColumnIndices.includes(colNumber)) {
+                    cell.font = {
+                        color: { argb: 'FFFF0000' }, // Red
+                        bold: true
+                    };
+                }
+            });
+        });
+        resSheet.addRow([]); // Spacer
+    });
+
+    // Formatting for the whole sheet
+    resSheet.getRow(1).font = { bold: true };
+    resSheet.columns.forEach(col => { col.width = 10; });
+
+    return sheetHasFail;
+}
 }
 module.exports = ComparePage;

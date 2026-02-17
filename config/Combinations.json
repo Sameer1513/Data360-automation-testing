@@ -1,18 +1,36 @@
 {
+  
+ 
+  "createProjectData": {
+    
+    "projectNumber": "123",
+    "location": "ANDORRA",
+    "customer": "advanced engg",
+    "startDate": "16",
+    "endDate": "17",
+    "projectStatus": "Initiated",
+    "projectType": "Pipeline",
+    "pipelineFeatures": ["Welding"],
+    "subFeatures": ["CRCE Machines"],
+    "machines": ["IWM", "P-600Z", "P-625", "M-500"]
+  },
+
+
   "mode": "multiProject",
 
  "scanConfig": {
-    "Pass": { "view": true,  "tlogs": false },
-    "Zone": { "view": true, "tlogs": false },
-    "Tilt": { "view": true, "tlogs": false }
+    "Pass": { "view": false,  "tlogs": false },
+    "Zone": { "view": true, "tlogs": true },
+    "Tilt": { "view": false, "tlogs": false }
   },
 
 
   "singleProject": {
     "projectName": "datacompare",
+    "sourceFile": "textfile.txt",
     "weldIds": "",
     "slopeCombinations": [
-      { "slopeIn": 0, "slopeOut": 0 }
+      { "slopeIn": 2, "slopeOut": 2 }
      
     ]
   },
@@ -22,18 +40,18 @@
       "browserId": 1,
       "projectName": "datacompare",
       "sourceFile": "textfile.txt",
-      "weldIds": ["1", "5"],
+      "weldIds": "",
       "slopeCombinations": [
-        { "slopeIn": 0, "slopeOut": 0}
+        { "slopeIn": 5, "slopeOut": 0}
       ]
     },
     {
       "browserId": 2,
       "projectName": "datacompare",
       "sourceFile": "textfile.txt",
-      "weldIds": ["3", "4"],
+      "weldIds": "",
       "slopeCombinations": [
-        { "slopeIn": 0, "slopeOut": 0 }
+        { "slopeIn": 0, "slopeOut": 5 }
        
       ]
     }

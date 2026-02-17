@@ -123,7 +123,7 @@ async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default') 
         'Travel Speed', 'Voltage', 'Current', 'Wire Speed', 'Oscillation Width',
         'Target', 'Horizontal Bias', 'Frequency', 'Total Wire Consumed', 'True Energy', 'Heat'
     ];
-    const analysisSheetNames = ['Pass_DataAnalysis', 'Zone_DataAnalysis', 'Tilt_DataAnalysis'];
+    const analysisSheetNames = ['Pass_tlogs_data', 'Zone_tlogs_data', 'Tilt_tlogs_data'];
     const analysisSheets = {};
     analysisSheetNames.forEach(name => {
         const sheet = workbook.addWorksheet(name);

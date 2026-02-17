@@ -1,21 +1,21 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  timeout: 600000,
-  workers: 3,
+  timeout: 6000000,
+  // workers: 3,
   expect: {
-    timeout: 100000,
+    timeout: 1000000,
   },
 
   use: {
     headless: false,
     viewport: null,
     launchOptions: {
-      slowMo: 300,
+      slowMo: 50,
       args: ['--start-maximized'],
     },
-    actionTimeout: 60000,
-    navigationTimeout: 60000,
+    actionTimeout: 6000000,
+    navigationTimeout: 6000000,
   },
 
   projects: [

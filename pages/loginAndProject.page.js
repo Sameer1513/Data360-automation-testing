@@ -117,11 +117,7 @@ async attemptLogin(email, password, attemptNo) {
 
         if (result === 'SUCCESS') {
           console.log('Login successful 🎉');
-
-          // Post-login navigation
-          // await this.page.getByText('test').first().click();
-          await this.page.getByText(projectName, { exact: true }).click();
-          console.log('Project opened. Handing over to Status Configuration.');
+          
 
           return; // Stop execution after successful login
         } else if (result === 'EMPTY_FIELD') {

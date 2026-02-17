@@ -4,6 +4,8 @@ class StatusConfigPage {
   }
 
   async applyStatusConfiguration(slopeIn = 0, slopeOut = 0) {
+
+    
     if (slopeIn > 0 || slopeOut > 0) {
       console.log(`⚙️ Applying Slopes: In ${slopeIn}s | Out ${slopeOut}s`);
 

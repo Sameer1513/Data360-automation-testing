@@ -32,7 +32,18 @@ async function runSingleFlow(page, projectConfig) {
 
   const targetWeldId = resolveTargetWelds(projectConfig.weldIds);
 
-  await login.loginAndOpenProject(projectConfig.projectName);
+  await login.loginAndOpenProject();
+  console.log(`📂 Selecting Project: ${projectConfig.projectName}`);
+  
+  // Use a case-insensitive regex to find the project tile
+  const projectTile = page.getByText(new RegExp(`^${projectConfig.projectName}$`, 'i'));
+  
+  await projectTile.waitFor({ state: 'visible', timeout: 15000 });
+  await projectTile.click();
+
+  // Wait for the Project-specific UI (like tabs) to appear before continuing
+  await page.waitForSelector('button[role="tab"]', { state: 'visible', timeout: 15000 });
+  // ---------------------------------
 
   for (const slope of projectConfig.slopeCombinations) {
     console.log(
@@ -152,4 +163,40 @@ test('Production Flow – Config Driven', async ({ page }) => {
 //     await extractor.run(0, 0); 
     
 //     console.log("✅ Success! Check the 'exports' folder.");
+// });
+
+
+// const fs = require('fs');
+// const path = require('path');
+// const { test, expect } = require('@playwright/test');
+
+// const LoginAndProjectPage = require('../pages/loginAndProject.page');
+// const CreateProjectPage = require('../pages/createproject.page');
+
+// // --------------------
+// // LOAD CONFIG
+// // --------------------
+// const configPath = path.join(__dirname, '../config/Combinations.json');
+// const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+// test('Create Project Only Flow', async ({ page }) => {
+
+//     const login = new LoginAndProjectPage(page);
+//     const createPage = new CreateProjectPage(page);
+
+//     const data = {
+//         ...flowConfig.createProjectData,
+//         projectName: flowConfig.singleProject.projectName
+//     };
+
+//     // 1️⃣ LOGIN
+//     await login.loginAndOpenProject(data.projectName);
+
+//     // 2️⃣ CREATE PROJECT
+//     await createPage.createProject(data);
+
+//     // 3️⃣ VERIFY
+//     await expect(page.getByText(data.projectName)).toBeVisible();
+
+//     console.log(`✅ Project Successfully Created: ${data.projectName}`);
 // });
