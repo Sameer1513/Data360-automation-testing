@@ -16,29 +16,23 @@ class CreateProjectPage {
   }
 
   // ==========================
-  // Utility: Close toast safely
-  // ==========================
-  async closeToastIfVisible() {
-    try {
-      if (await this.toastCloseBtn.isVisible({ timeout: 2000 })) {
-        await this.toastCloseBtn.click();
-      }
-    } catch (e) {
-      // Ignore if toast not present
-    }
-  }
-
-  // ==========================
-  // Utility: Wait for loader
+  // Utility Functions
   // ==========================
   async waitForLoader() {
     await this.loader.waitFor({ state: 'hidden', timeout: 30000 });
   }
 
-  // ==========================
-  // Open Create Project Modal
-  // ==========================
+  async closeToastIfVisible() {
+    try {
+      if (await this.toastCloseBtn.isVisible({ timeout: 2000 })) {
+        await this.toastCloseBtn.click();
+      }
+    } catch (e) { /* ignore */ }
+  }
+
   async openCreateProject() {
+    // Set zoom to 67% to ensure dropdowns and dates stay on screen
+    // await this.page.evaluate(() => { document.body.style.zoom = "67%"; });
     await this.waitForLoader();
     await this.closeToastIfVisible();
 
@@ -47,106 +41,194 @@ class CreateProjectPage {
   }
 
   // ==========================
-  // Select React Dropdown
+  // ISOLATED: Select React Dropdown
   // ==========================
-async selectDropdown(label, value) {
-    // Target the specific container by the visible label text
-    const dropdown = this.page.locator('div').filter({ hasText: new RegExp(`^${label}$`) }).last();
+  async selectDropdown(type, value) {
+    // Internal mapping: Keep UI text isolated here
+    const placeholders = {
+      location: "Select or enter location",
+      customer: "Select or enter customer name"
+    };
 
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        // Ensure no global loaders are blocking interaction
-        await this.waitForLoader();
+    const labelText = placeholders[type];
+    const dropdown = this.page.locator('div').filter({ hasText: labelText }).last();
 
-        // 1. Wait for the "Loading..." text inside the specific dropdown to disappear (00:10 in video)
-        const fieldLoader = dropdown.locator('text=Loading...');
-        await fieldLoader.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+    console.log(`Dropdown Task: Finding "${value}" for ${type}`);
 
-        // 2. Click to open
-        await dropdown.click({ force: true });
+    try {
+      await this.waitForLoader();
+      await dropdown.scrollIntoViewIfNeeded();
+      
+      // Step 1: Click to focus the search box inside the dropdown
+      await dropdown.click();
 
-        // 3. Type the value into the search input that appears
-        const searchInput = this.page.locator('input[role="combobox"]');
-        await searchInput.waitFor({ state: 'visible', timeout: 3000 });
-        await searchInput.fill(value);
-        await this.page.waitForTimeout(500); // Wait for results to filter
+      // Step 2: Use keyboard to type (this is the most compatible way for React-Select)
+      await this.page.keyboard.type(value, { delay: 50 });
+      
+      // Step 3: Wait for filtered results
+      await this.page.waitForTimeout(800);
 
-        // 4. Click the matching option from the list
-        const option = this.page.locator('div[id*="-option"]').filter({ hasText: value }).first();
-        await option.waitFor({ state: 'visible', timeout: 5000 });
-        await option.click();
+      // Step 4: Select the result (Case-Insensitive match)
+      const option = this.page.locator('div').filter({ hasText: new RegExp(`^${value}$`, 'i') }).last();
+      await option.waitFor({ state: 'visible', timeout: 1000 });
+      await option.click();
 
-        return; // ✅ Success
-      } catch (error) {
-        console.log(`Dropdown attempt ${attempt} failed for: ${value}`);
-        await this.page.keyboard.press('Escape');
-        if (attempt === 3) throw error;
-        await this.page.waitForTimeout(1000);
-      }
+      await this.page.waitForTimeout(300); 
+    } catch (error) {
+      console.error(`Isolated Dropdown Error (${type}): ${error.message}`);
+      await this.page.keyboard.press('Escape');
+      throw error;
     }
   }
-  // ==========================
-  // Select Date
-  // ==========================
-  async selectDate(index, day) {
-    await this.page.getByPlaceholder('DD-MMM-YYYY').nth(index).click();
-    await this.page.getByRole('gridcell', { name: day, exact: true }).first().click();
-  }
 
   // ==========================
-  // CREATE PROJECT (Main)
+  // ISOLATED: Select Date
+async selectDate(type, dateString) {
+    const dateLabels = { start: "Start Date", end: "End Date" };
+    const labelText = dateLabels[type];
+
+    const [day, month, year] = dateString.split("-");
+    const targetDay = parseInt(day);
+    const targetYear = parseInt(year);
+
+    const monthMap = {
+        jan: 0, january: 0,
+        feb: 1, february: 1,
+        mar: 2, march: 2,
+        apr: 3, april: 3,
+        may: 4,
+        jun: 5, june: 5,
+        jul: 6, july: 6,
+        aug: 7, august: 7,
+        sep: 8, september: 8,
+        oct: 9, october: 9,
+        nov: 10, november: 10,
+        dec: 11, december: 11
+    };
+
+    const targetMonth = monthMap[month.toLowerCase()];
+
+    try {
+        await this.waitForLoader();
+
+        // Open correct input
+        const container = this.page
+            .locator('div')
+            .filter({ hasText: new RegExp(`^${labelText}`) })
+            .last();
+
+        await container.locator('input').click();
+
+        // Wait for panels
+        const panels = this.page.locator('.ant-picker-panel');
+        await panels.first().waitFor();
+
+        // 🔥 IMPORTANT: choose panel based on type
+        const activePanel =
+            type === "start"
+                ? panels.first()
+                : panels.nth(1);
+
+        const header = activePanel.locator('.ant-picker-header-view');
+        const prevYearBtn = activePanel.locator('.ant-picker-header-super-prev-btn');
+        const nextYearBtn = activePanel.locator('.ant-picker-header-super-next-btn');
+        const prevMonthBtn = activePanel.locator('.ant-picker-header-prev-btn');
+        const nextMonthBtn = activePanel.locator('.ant-picker-header-next-btn');
+
+        const getState = async () => {
+            const text = (await header.innerText()).toLowerCase();
+            const yearMatch = text.match(/\d{4}/);
+            const monthMatch = text.match(/[a-z]+/);
+
+            return {
+                year: yearMatch ? parseInt(yearMatch[0]) : null,
+                month: monthMatch ? monthMap[monthMatch[0]] : null
+            };
+        };
+
+        let state = await getState();
+        let guard = 0;
+
+        // ===== YEAR NAVIGATION =====
+        while (state.year !== targetYear && guard < 30) {
+            if (state.year > targetYear) {
+                await prevYearBtn.click();
+            } else {
+                await nextYearBtn.click();
+            }
+            await this.page.waitForTimeout(250);
+            state = await getState();
+            guard++;
+        }
+
+        guard = 0;
+
+        // ===== MONTH NAVIGATION =====
+        while (state.month !== targetMonth && guard < 24) {
+            if (state.month > targetMonth) {
+                await prevMonthBtn.click();
+            } else {
+                await nextMonthBtn.click();
+            }
+            await this.page.waitForTimeout(250);
+            state = await getState();
+            guard++;
+        }
+
+        // ===== SELECT DAY =====
+        await activePanel
+            .locator('.ant-picker-cell-in-view')
+            .filter({ hasText: new RegExp(`^${targetDay}$`) })
+            .first()
+            .click();
+
+    } catch (error) {
+        console.error("Date Selection Error:", error.message);
+        await this.page.keyboard.press('Escape');
+        throw error;
+    }
+}
+  // ==========================
+  // CREATE PROJECT (Main Flow)
   // ==========================
   async createProject(projectData) {
+    await this.openCreateProject();
 
-   await this.openCreateProject();
-
-    // 🔹 FIX: Wait for the form-specific loading to disappear (00:10 in video)
-    // This prevents entering data too early
+    // Wait for internal form data to load
     await this.page.locator('text=Loading project data...').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await this.page.waitForTimeout(1000); // Short buffer for inputs to become stable
+    await this.page.waitForTimeout(1000);
 
-    // 🔹 Project Name
-    await this.projectNameInput.waitFor({ state: 'visible' });
+    // 🔹 Standard Inputs
     await this.projectNameInput.fill(projectData.projectName);
-
-    // 🔹 Project Number
     await this.projectNumberInput.fill(projectData.projectNumber);
 
-    // 🔹 Dropdowns - Using the Labels from the UI
-    await this.selectDropdown("Select or enter location", projectData.location);
-    await this.selectDropdown("Select or enter customer name", projectData.customer);
-    // 🔹 Dates
-    await this.selectDate(0, projectData.startDate);
-    await this.selectDate(1, projectData.endDate);
+    // 🔹 Isolated Dropdowns (Called by key, not UI text)
+    await this.selectDropdown('location', projectData.location);
+    await this.selectDropdown('customer', projectData.customer);
 
-    // 🔹 Project Status
+    // 🔹 Isolated Dates (Called by key, not index)
+    await this.selectDate('start', projectData.startDate);
+    await this.selectDate('end', projectData.endDate);
+
+    // 🔹 Features and Checkboxes
     if (projectData.projectStatus) {
       await this.page.getByLabel(projectData.projectStatus).check();
     }
 
-    // 🔹 Project Type
     if (projectData.projectType) {
       await this.page.getByLabel(projectData.projectType).check();
     }
 
-    // 🔹 Pipeline Features
     for (const feature of projectData.pipelineFeatures || []) {
       await this.page.getByLabel(feature).check();
     }
 
-    // 🔹 Sub Features (CRCE Machines etc.)
-    for (const sub of projectData.subFeatures || []) {
-      await this.page.getByLabel(sub).check();
-    }
-
-    // 🔹 Machines
     for (const machine of projectData.machines || []) {
       await this.page.locator(`label:has-text("${machine}")`).click();
     }
 
-    // 🔹 Submit
+    // 🔹 Submit and Cleanup
     await this.submitBtn.click();
-
     await this.waitForLoader();
     await this.closeToastIfVisible();
 
@@ -168,6 +250,85 @@ async selectDropdown(label, value) {
 
     console.log(`Project "${projectName}" opened successfully.`);
   }
+
+// ==========================
+// DELETE ALL PROJECTS BY NAME 
+// ==========================
+
+// async deleteProjectsByName(projectName) {
+
+//   await this.waitForLoader();
+
+//   console.log(`🗑 Searching projects to delete: ${projectName}`);
+
+//   // 1️⃣ Locate headings with exact project name
+//   const headings = this.page.getByRole('heading', {
+//     name: projectName,
+//     exact: true
+//   });
+
+//   const count = await headings.count();
+
+//   if (count === 0) {
+//     console.log(`⚠ No project found with name: ${projectName}`);
+//     return;
+//   }
+
+//   console.log(`🗑 Found ${count} project(s) with name "${projectName}"`);
+
+//   // 2️⃣ Loop through each matching project card
+//   for (let i = 0; i < count; i++) {
+
+//     const heading = headings.nth(i);
+
+//     // 🔥 Find closest ancestor that contains BOTH:
+//     // - this heading
+//     // - a checkbox inside it
+//     const card = heading.locator(
+//       'xpath=ancestor::*[.//*[@role="checkbox"] or .//input[@type="checkbox"]][1]'
+//     );
+
+//     // 🔥 Scope checkbox ONLY inside this card
+//     const checkbox = card.locator('[role="checkbox"], input[type="checkbox"]').first();
+
+//     await checkbox.scrollIntoViewIfNeeded();
+
+//     // Use evaluate to avoid bubbling to card click handler
+//     await checkbox.evaluate(el => el.click());
+
+//     console.log(`✔ Selected project ${i + 1}`);
+//   }
+
+//   // 3️⃣ Click Delete Selected button
+//   const deleteBtn = this.page.getByRole('button', { name: /Delete Selected/i });
+//   await deleteBtn.waitFor({ state: 'visible' });
+//   await deleteBtn.click();
+
+//   // 4️⃣ Wait for Delete modal
+//   await this.page.getByText('Delete Projects').waitFor({ state: 'visible' });
+
+// // 5️⃣ Toggle Hard Delete
+// const modal = this.page.locator('.ant-modal-content');
+// await modal.waitFor({ state: 'visible' });
+
+// // Click the switch next to "Soft Delete"
+// const toggleSwitch = modal.locator('.ant-switch');
+
+// await toggleSwitch.waitFor({ state: 'visible' });
+// await toggleSwitch.click();   // Just click the switch itself
+
+// console.log('🔁 Toggle button clicked');
+
+// // 6️⃣ Confirm Hard Delete
+// const confirmBtn = modal.getByRole('button', { name: /Hard Delete/i });
+// await confirmBtn.waitFor({ state: 'visible' });
+// await confirmBtn.click();
+
+// await this.waitForLoader();
+// await this.closeToastIfVisible();
+
+// console.log(`🗑 Hard Deletion complete for: ${projectName}`);
+// }
 
   // ==========================
   // CREATE MULTIPLE PROJECTS (Dynamic from mode)
