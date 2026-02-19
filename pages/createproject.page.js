@@ -92,18 +92,10 @@ async selectDate(type, dateString) {
     const targetYear = parseInt(year);
 
     const monthMap = {
-        jan: 0, january: 0,
-        feb: 1, february: 1,
-        mar: 2, march: 2,
-        apr: 3, april: 3,
-        may: 4,
-        jun: 5, june: 5,
-        jul: 6, july: 6,
-        aug: 7, august: 7,
-        sep: 8, september: 8,
-        oct: 9, october: 9,
-        nov: 10, november: 10,
-        dec: 11, december: 11
+        jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2,
+        apr: 3, april: 3, may: 4, jun: 5, june: 5, jul: 6, july: 6,
+        aug: 7, august: 7, sep: 8, september: 8, oct: 9, october: 9,
+        nov: 10, november: 10, dec: 11, december: 11
     };
 
     const targetMonth = monthMap[month.toLowerCase()];
@@ -111,23 +103,24 @@ async selectDate(type, dateString) {
     try {
         await this.waitForLoader();
 
-        // Open correct input
         const container = this.page
             .locator('div')
             .filter({ hasText: new RegExp(`^${labelText}`) })
             .last();
 
+        // FIX 1: Ensure container is in view before clicking
+        await container.scrollIntoViewIfNeeded();
         await container.locator('input').click();
 
-        // Wait for panels
-        const panels = this.page.locator('.ant-picker-panel');
+        // FIX 2: Dynamically detect the panel count
+        const panels = this.page.locator('.ant-picker-panel:visible');
         await panels.first().waitFor();
+        const panelCount = await panels.count();
 
-        // 🔥 IMPORTANT: choose panel based on type
-        const activePanel =
-            type === "start"
-                ? panels.first()
-                : panels.nth(1);
+        // If End Date and 2 panels exist, take the last one; otherwise, take the first.
+        const activePanel = (type === "end" && panelCount > 1) 
+            ? panels.last() 
+            : panels.first();
 
         const header = activePanel.locator('.ant-picker-header-view');
         const prevYearBtn = activePanel.locator('.ant-picker-header-super-prev-btn');
@@ -139,7 +132,6 @@ async selectDate(type, dateString) {
             const text = (await header.innerText()).toLowerCase();
             const yearMatch = text.match(/\d{4}/);
             const monthMatch = text.match(/[a-z]+/);
-
             return {
                 year: yearMatch ? parseInt(yearMatch[0]) : null,
                 month: monthMatch ? monthMap[monthMatch[0]] : null
@@ -149,38 +141,30 @@ async selectDate(type, dateString) {
         let state = await getState();
         let guard = 0;
 
-        // ===== YEAR NAVIGATION =====
-        while (state.year !== targetYear && guard < 30) {
-            if (state.year > targetYear) {
-                await prevYearBtn.click();
-            } else {
-                await nextYearBtn.click();
-            }
-            await this.page.waitForTimeout(250);
+        while (state.year !== targetYear && guard++ < 30) {
+            if (state.year > targetYear) await prevYearBtn.click();
+            else await nextYearBtn.click();
+            await this.page.waitForTimeout(100);
             state = await getState();
-            guard++;
         }
 
         guard = 0;
-
-        // ===== MONTH NAVIGATION =====
-        while (state.month !== targetMonth && guard < 24) {
-            if (state.month > targetMonth) {
-                await prevMonthBtn.click();
-            } else {
-                await nextMonthBtn.click();
-            }
-            await this.page.waitForTimeout(250);
+        while (state.month !== targetMonth && guard++ < 24) {
+            if (state.month > targetMonth) await prevMonthBtn.click();
+            else await nextMonthBtn.click();
+            await this.page.waitForTimeout(100);
             state = await getState();
-            guard++;
         }
 
-        // ===== SELECT DAY =====
+        // FIX 3: Use force click to bypass the blue range-highlight overlay
         await activePanel
             .locator('.ant-picker-cell-in-view')
             .filter({ hasText: new RegExp(`^${targetDay}$`) })
             .first()
-            .click();
+            .click({ force: true });
+
+        // Ensure the picker closes properly
+        await this.page.keyboard.press('Escape');
 
     } catch (error) {
         console.error("Date Selection Error:", error.message);
