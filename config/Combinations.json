@@ -6,8 +6,8 @@
     "projectNumber": "123",
     "location": "ANDORRA",
     "customer": "advanced engg",
-    "startDate": "16",
-    "endDate": "17",
+    "startDate": "19-Feb-2026",
+    "endDate": "20-Feb-2026",
     "projectStatus": "Initiated",
     "projectType": "Pipeline",
     "pipelineFeatures": ["Welding"],
@@ -16,7 +16,39 @@
   },
 
 
-  "mode": "multiProject",
+  "deviceRegistration": {
+    "step1": {
+      "enabled": true,
+      "executables": [
+        "filename1.exe",
+        "filename2.exe"
+      ]
+    },
+    "step2": {
+      "enabled": true,
+      "files": [
+        {
+          "exe": "filename1.exe",
+          "db": "filename1.db",
+          "param": "file1.csv"
+        },
+        {
+          "exe": "filename2.exe",
+          "db": "filename2.db",
+          "param": "file2.xml"
+        },
+        {
+          "exe": "filename3.exe",
+          "db": "filename3.db",
+          "param": "file3.csv"
+        }
+      ]
+    }
+  },
+
+
+
+  "mode": "single",
 
  "scanConfig": {
     "Pass": { "view": false,  "tlogs": false },
@@ -26,14 +58,34 @@
 
 
   "singleProject": {
-    "projectName": "datacompare",
+    "projectName": "testing",
     "sourceFile": "textfile.txt",
     "weldIds": "",
     "slopeCombinations": [
-      { "slopeIn": 2, "slopeOut": 2 }
-     
-    ]
+      { "slopeIn": 0, "slopeOut": 0 } ],
+   "setupConfig": {
+  "pipes": [
+    {
+      "pipeSize": "10",
+      "wallThickness": "10",
+      "pipeCount": "10",
+      "pipeLength": "10",
+      "manufacturer": [ "American","API-5l"],
+      "wps": ["abc", "def"]
+    },
+    {
+      "pipeSize": "12",
+      "wallThickness": "0.8",
+      "pipeCount": "5",
+      "pipeLength": "20",
+      "manufacturer": "AZOUSTAL",
+      "wps": ["WPS-B1"]
+    }
+  ]
+}
+      
   },
+ 
 
   "multiProject": [
     {

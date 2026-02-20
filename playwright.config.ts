@@ -12,7 +12,7 @@ export default defineConfig({
     viewport: null,
     launchOptions: {
       slowMo: 50,
-      args: ['--start-maximized'],
+      args: ['--start-maximized','--force-device-scale-factor=1.10'],
     },
     actionTimeout: 6000000,
     navigationTimeout: 6000000,

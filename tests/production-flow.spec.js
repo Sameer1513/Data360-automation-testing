@@ -1,154 +1,154 @@
-const fs = require('fs');
-const path = require('path');
-const { test, chromium } = require('@playwright/test');
+// const fs = require('fs');
+// const path = require('path');
+// const { test, chromium } = require('@playwright/test');
 
-const LoginAndProjectPage = require('../pages/loginAndProject.page');
-const StatusConfigPage = require('../pages/statusConfig.page');
-const ProductionTabWeldData = require('../pages/ProductionTabWeldData.page');
-const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page');
-const ComparePage = require('../pages/compare.page');
+// const LoginAndProjectPage = require('../pages/loginAndProject.page');
+// const StatusConfigPage = require('../pages/statusConfig.page');
+// const ProductionTabWeldData = require('../pages/ProductionTabWeldData.page');
+// const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page');
+// const ComparePage = require('../pages/compare.page');
 
-// --------------------
-// LOAD CONFIG
-// --------------------
-const configPath = path.join(__dirname, '../config/Combinations.json');
-const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-const scanConfig = flowConfig.scanConfig;
+// // --------------------
+// // LOAD CONFIG
+// // --------------------
+// const configPath = path.join(__dirname, '../config/Combinations.json');
+// const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+// const scanConfig = flowConfig.scanConfig;
 
-// --------------------
-// HELPERS
-// --------------------
-function resolveTargetWelds(weldIds) {
-  if (!weldIds || weldIds.length === 0) return null;
-  return weldIds;
-}
+// // --------------------
+// // HELPERS
+// // --------------------
+// function resolveTargetWelds(weldIds) {
+//   if (!weldIds || weldIds.length === 0) return null;
+//   return weldIds;
+// }
 
-async function runSingleFlow(page, projectConfig) {
-  const login = new LoginAndProjectPage(page);
-  const status = new StatusConfigPage(page);
-  const analysis = new ProductionTabWeldData(page, flowConfig.scanConfig);
-  const extractor = new BoltDBTxtFileTOExcel();
-  const compare = new ComparePage();
+// async function runSingleFlow(page, projectConfig) {
+//   const login = new LoginAndProjectPage(page);
+//   const status = new StatusConfigPage(page);
+//   const analysis = new ProductionTabWeldData(page, flowConfig.scanConfig);
+//   const extractor = new BoltDBTxtFileTOExcel();
+//   const compare = new ComparePage();
 
-  const targetWeldId = resolveTargetWelds(projectConfig.weldIds);
+//   const targetWeldId = resolveTargetWelds(projectConfig.weldIds);
 
-  await login.loginAndOpenProject();
-  console.log(`📂 Selecting Project: ${projectConfig.projectName}`);
+//   await login.loginAndOpenProject();
+//   console.log(`📂 Selecting Project: ${projectConfig.projectName}`);
   
-  // Use a case-insensitive regex to find the project tile
-  const projectTile = page.getByText(new RegExp(`^${projectConfig.projectName}$`, 'i'));
+//   // Use a case-insensitive regex to find the project tile
+//   const projectTile = page.getByText(new RegExp(`^${projectConfig.projectName}$`, 'i'));
   
-  await projectTile.waitFor({ state: 'visible', timeout: 15000 });
-  await projectTile.click();
+//   await projectTile.waitFor({ state: 'visible', timeout: 15000 });
+//   await projectTile.click();
 
-  // Wait for the Project-specific UI (like tabs) to appear before continuing
-  await page.waitForSelector('button[role="tab"]', { state: 'visible', timeout: 15000 });
-  // ---------------------------------
+//   // Wait for the Project-specific UI (like tabs) to appear before continuing
+//   await page.waitForSelector('button[role="tab"]', { state: 'visible', timeout: 15000 });
+//   // ---------------------------------
 
-  for (const slope of projectConfig.slopeCombinations) {
-    console.log(
-      `🚀 Project=${projectConfig.projectName} | In=${slope.slopeIn} | Out=${slope.slopeOut} | Welds=${targetWeldId || 'ALL'}`
-    );
+//   for (const slope of projectConfig.slopeCombinations) {
+//     console.log(
+//       `🚀 Project=${projectConfig.projectName} | In=${slope.slopeIn} | Out=${slope.slopeOut} | Welds=${targetWeldId || 'ALL'}`
+//     );
 
-    await status.applyStatusConfiguration(slope.slopeIn, slope.slopeOut);
+//     await status.applyStatusConfiguration(slope.slopeIn, slope.slopeOut);
 
-    console.log('⏳ Synchronizing Production Table...');
-    await page.waitForSelector('table tbody tr', { state: 'visible', timeout: 10000 });
+//     console.log('⏳ Synchronizing Production Table...');
+//     await page.waitForSelector('table tbody tr', { state: 'visible', timeout: 10000 });
 
-    console.log('⚡ Running Analysis & Extraction in Parallel...');
-    await Promise.all([
-      // Added projectConfig.projectName here
-      analysis.runFlow(targetWeldId, null, projectConfig.projectName), 
-      // Added projectConfig.projectName here
-      extractor.run(slope.slopeIn, slope.slopeOut, projectConfig.projectName, projectConfig.sourceFile),
-    ]);
+//     console.log('⚡ Running Analysis & Extraction in Parallel...');
+//     await Promise.all([
+//       // Added projectConfig.projectName here
+//       analysis.runFlow(targetWeldId, null, projectConfig.projectName), 
+//       // Added projectConfig.projectName here
+//       extractor.run(slope.slopeIn, slope.slopeOut, projectConfig.projectName, projectConfig.sourceFile),
+//     ]);
 
-    console.log('🧪 Running Auto-Comparison...');
-    // Added projectConfig.projectName here
-    await compare.runAutoCompare(projectConfig.projectName, targetWeldId);
-  }
-}
+//     console.log('🧪 Running Auto-Comparison...');
+//     // Added projectConfig.projectName here
+//     await compare.runAutoCompare(projectConfig.projectName, targetWeldId);
+//   }
+// }
 
-// --------------------
-// MAIN TEST
-// --------------------
-test('Production Flow – Config Driven', async ({ page }) => {
+// // --------------------
+// // MAIN TEST
+// // --------------------
+// test('Production Flow – Config Driven', async ({ page }) => {
 
-  // 1. If we are in multi-mode, kill the automatic blank browser immediately
-  if (flowConfig.mode === 'multiProject' || flowConfig.mode === 'multiBrowser') {
-    await page.close(); 
-  }
+//   // 1. If we are in multi-mode, kill the automatic blank browser immediately
+//   if (flowConfig.mode === 'multiProject' || flowConfig.mode === 'multiBrowser') {
+//     await page.close(); 
+//   }
 
-  // --------------------
-  // MODE: SINGLE PROJECT
-  // --------------------
-  if (flowConfig.mode === 'single') {
-    await runSingleFlow(page, flowConfig.singleProject);
-    return;
-  }
+//   // --------------------
+//   // MODE: SINGLE PROJECT
+//   // --------------------
+//   if (flowConfig.mode === 'single') {
+//     await runSingleFlow(page, flowConfig.singleProject);
+//     return;
+//   }
 
-  // --------------------
-  // MODE: MULTI PROJECT
-  // --------------------
-  if (flowConfig.mode === 'multiProject') {
-  await page.close(); // Close the runner browser
+//   // --------------------
+//   // MODE: MULTI PROJECT
+//   // --------------------
+//   if (flowConfig.mode === 'multiProject') {
+//   await page.close(); // Close the runner browser
 
-  // Use map to create an array of promises
-  const projectPromises = flowConfig.multiProject.map(async (project) => {
-    // Isolated browser instance for EACH project
-    const browser = await chromium.launch(); 
-    const context = await browser.newContext();
-    const projectPage = await context.newPage();
+//   // Use map to create an array of promises
+//   const projectPromises = flowConfig.multiProject.map(async (project) => {
+//     // Isolated browser instance for EACH project
+//     const browser = await chromium.launch(); 
+//     const context = await browser.newContext();
+//     const projectPage = await context.newPage();
 
-    try {
-      console.log(`▶️ Starting: ${project.projectName} (ID: ${project.browserId})`);
-      await runSingleFlow(projectPage, project);
-      console.log(`✅ Finished: ${project.projectName}`);
-    } catch (err) {
-      console.error(`❌ Error in ${project.projectName}:`, err);
-    } finally {
-      await browser.close(); // Only close THIS browser
-    }
-  });
+//     try {
+//       console.log(`▶️ Starting: ${project.projectName} (ID: ${project.browserId})`);
+//       await runSingleFlow(projectPage, project);
+//       console.log(`✅ Finished: ${project.projectName}`);
+//     } catch (err) {
+//       console.error(`❌ Error in ${project.projectName}:`, err);
+//     } finally {
+//       await browser.close(); // Only close THIS browser
+//     }
+//   });
 
-  // Wait for all to finish, regardless of who finishes first
-  await Promise.allSettled(projectPromises); 
-  return;
-}
-  // --------------------
-  // MODE: MULTI BROWSER (Note: You had a few undefined variable errors here too)
-  // --------------------
-  if (flowConfig.mode === 'multiBrowser') {
-    await Promise.all(
-      flowConfig.multiBrowser.map(async (browserCfg) => {
-        const browser = await chromium.launch({ headless: false });
-        const context = await browser.newContext();
-        const mbPage = await context.newPage();
+//   // Wait for all to finish, regardless of who finishes first
+//   await Promise.allSettled(projectPromises); 
+//   return;
+// }
+//   // --------------------
+//   // MODE: MULTI BROWSER (Note: You had a few undefined variable errors here too)
+//   // --------------------
+//   if (flowConfig.mode === 'multiBrowser') {
+//     await Promise.all(
+//       flowConfig.multiBrowser.map(async (browserCfg) => {
+//         const browser = await chromium.launch({ headless: false });
+//         const context = await browser.newContext();
+//         const mbPage = await context.newPage();
 
-        const login = new LoginAndProjectPage(mbPage);
-        const status = new StatusConfigPage(mbPage);
-        const analysis = new ProductionTabWeldData(mbPage);
-        const extractor = new BoltDBTxtFileTOExcel();
-        const compare = new ComparePage();
+//         const login = new LoginAndProjectPage(mbPage);
+//         const status = new StatusConfigPage(mbPage);
+//         const analysis = new ProductionTabWeldData(mbPage);
+//         const extractor = new BoltDBTxtFileTOExcel();
+//         const compare = new ComparePage();
 
-        console.log(`🌐 Browser-${browserCfg.browserId} | Project=${browserCfg.projectName}`);
+//         console.log(`🌐 Browser-${browserCfg.browserId} | Project=${browserCfg.projectName}`);
 
-        await login.loginAndOpenProject(browserCfg.projectName);
-        await status.applyStatusConfiguration(browserCfg.slope.slopeIn, browserCfg.slope.slopeOut);
+//         await login.loginAndOpenProject(browserCfg.projectName);
+//         await status.applyStatusConfiguration(browserCfg.slope.slopeIn, browserCfg.slope.slopeOut);
 
-        await mbPage.waitForSelector('table tbody tr', { state: 'visible', timeout: 10000 });
+//         await mbPage.waitForSelector('table tbody tr', { state: 'visible', timeout: 10000 });
         
-        await Promise.all([
-          analysis.runFlow(resolveTargetWelds(browserCfg.weldIds), null, browserCfg.projectName),
-          extractor.run(browserCfg.slope.slopeIn, browserCfg.slope.slopeOut, browserCfg.projectName, browserCfg.sourceFile),
-        ]);
+//         await Promise.all([
+//           analysis.runFlow(resolveTargetWelds(browserCfg.weldIds), null, browserCfg.projectName),
+//           extractor.run(browserCfg.slope.slopeIn, browserCfg.slope.slopeOut, browserCfg.projectName, browserCfg.sourceFile),
+//         ]);
 
-        await compare.runAutoCompare(browserCfg.projectName);
-        await browser.close();
-      })
-    );
-  }
-});
+//         await compare.runAutoCompare(browserCfg.projectName);
+//         await browser.close();
+//       })
+//     );
+//   }
+// });
 
 
 // const { test } = require('@playwright/test');
@@ -166,37 +166,38 @@ test('Production Flow – Config Driven', async ({ page }) => {
 // });
 
 
-// const fs = require('fs');
-// const path = require('path');
-// const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
+const { test } = require('@playwright/test');
 
-// const LoginAndProjectPage = require('../pages/loginAndProject.page');
-// const CreateProjectPage = require('../pages/createproject.page');
+const LoginAndProjectPage = require('../pages/loginAndProject.page');
+const CreateProjectPage = require('../pages/createproject.page');
+const SetupPage = require('../pages/setup.page'); 
 
-// // --------------------
-// // LOAD CONFIG
-// // --------------------
-// const configPath = path.join(__dirname, '../config/Combinations.json');
-// const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+const configPath = path.join(__dirname, '../config/Combinations.json');
+const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
-// test('Create Project Only Flow', async ({ page }) => {
+const projects = flowConfig.mode === 'single' ? [flowConfig.singleProject] : flowConfig.multiProject;
 
-//     const login = new LoginAndProjectPage(page);
-//     const createPage = new CreateProjectPage(page);
+for (const [index, project] of projects.entries()) {
+    test(`Project Flow: ${project.projectName}`, async ({ page }) => {
+        const login = new LoginAndProjectPage(page);
+        const createPage = new CreateProjectPage(page);
+        const setupPage = new SetupPage(page); 
 
-//     const data = {
-//         ...flowConfig.createProjectData,
-//         projectName: flowConfig.singleProject.projectName
-//     };
+        const data = {
+            ...flowConfig.createProjectData,
+            projectName: project.projectName
+        };
 
-//     // 1️⃣ LOGIN
-//     await login.loginAndOpenProject(data.projectName);
+        // 1. Login
+        await login.loginAndOpenProject(data.projectName);
 
-//     // 2️⃣ CREATE PROJECT
-//     await createPage.createProject(data);
+        // 2. Create
+        await createPage.createProject(data);
 
-//     // 3️⃣ VERIFY
-//     await expect(page.getByText(data.projectName)).toBeVisible();
-
-//     console.log(`✅ Project Successfully Created: ${data.projectName}`);
-// });
+        // 3. Setup - Passing both the Index and the Project Name
+        console.log(`⚙️ Clicking the first card for: ${data.projectName}`);
+        await setupPage.performSetup(data.projectName); 
+    });
+}
