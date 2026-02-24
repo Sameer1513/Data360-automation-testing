@@ -19,36 +19,50 @@ class LoginAndProjectPage {
     return this.correctPassword.replace('&', ''); // Sameer.l5542
   }
 
+
 async attemptLogin(email, password, attemptNo) {
   console.log(`Attempt ${attemptNo}: ${email || '(empty)'} | ${password || '(empty)'}`);
 
   await this.page.goto(this.url, { waitUntil: 'networkidle' });
 
-  const emailInput = this.page.locator('input[placeholder="Enter your email"]');
-  const passwordInput = this.page.locator('input[placeholder="Enter your password"]');
+  // 1. FIXED: Robust Locators (Keeps Placeholder but adds ID/Name backups)
+  const emailInput = this.page.locator('#email')
+    .or(this.page.locator('input[name="email"]'))
+    .or(this.page.locator('input[placeholder="Enter your email"]'));
 
-  // 2. Fill the inputs using the locators
-  await emailInput.fill(email || '');
-  await passwordInput.fill(password || '');
+  const passwordInput = this.page.locator('#password')
+    .or(this.page.locator('input[name="password"]'))
+    .or(this.page.locator('input[placeholder="Enter your password"]'));
 
-  // 3. Eye icon click (Now using the passwordInput LOCATOR, not the string)
-  const eyeIcon = passwordInput.locator('..').locator('svg, span, div').last();
+  // 2. Fill the inputs using the hardened locators
+  await emailInput.first().fill(email || '');
+  await passwordInput.first().fill(password || '');
+
+  // 3. FIXED: Eye icon click (Targeting the button specifically)
+  
+  const eyeIcon = passwordInput.first().locator('..').locator('button')
+    .or(passwordInput.first().locator('..').locator('svg, span, div').last());
   
   if (await eyeIcon.isVisible().catch(() => false)) {
     await eyeIcon.click();
   }
 
-  // Click checkbox if present
-  const checkbox = this.page.locator('input[type="checkbox"]');
+  // 4.Checkbox (Adds ID backup)
+  const checkbox = this.page.locator('#remember-me')
+    .or(this.page.locator('input[type="checkbox"]'));
+
   if (await checkbox.isVisible().catch(() => false)) {
     await checkbox.check();
   }
 
-  // Click Login
-  await this.page.click('button:has-text("Login")');
+  // 5.Login Button (Adds Type Submit backup)
+  const loginButton = this.page.locator('button[type="submit"]')
+    .or(this.page.locator('button:has-text("Login")'));
+
+  await loginButton.first().click();
 
   // Short wait for page updates
-  await this.page.waitForTimeout(2000);
+  await this.page.waitForTimeout(1000);
 
   // Check for empty fields
   const invalidCount = await this.page.locator('input:invalid').count();
@@ -66,7 +80,7 @@ async attemptLogin(email, password, attemptNo) {
 
   // ✅ Robust Projects detection
   try {
-    await this.page.locator('text=Projects').waitFor({ timeout: 20000 }); // wait up to 20s
+    await this.page.locator('text=Projects').waitFor({ timeout: 20000 });
     return 'SUCCESS';
   } catch {
     return 'NO_CHANGE';
@@ -74,33 +88,32 @@ async attemptLogin(email, password, attemptNo) {
 }
 
 
-
   async loginAndOpenProject(projectName) {
     const scenarios = [
-      // {
-      //   name: 'Empty Email & Password',
-      //   email: '',
-      //   password: '',
-      //   retries: 1,
-      // },
-      // {
-      //   name: 'Wrong Password',
-      //   email: this.correctEmail,
-      //   password: this.getWrongPassword(),
-      //   retries: 1,
-      // },
-      // {
-      //   name: 'Wrong Username',
-      //   email: this.getWrongEmail(),
-      //   password: this.correctPassword,
-      //   retries: 1,
-      // },
-      // {
-      //   name: 'Wrong Username & Password',
-      //   email: this.getWrongEmail(),
-      //   password: this.getWrongPassword(),
-      //   retries: 1,
-      // },
+      {
+        name: 'Empty Email & Password',
+        email: '',
+        password: '',
+        retries: 1,
+      },
+      {
+        name: 'Wrong Password',
+        email: this.correctEmail,
+        password: this.getWrongPassword(),
+        retries: 1,
+      },
+      {
+        name: 'Wrong Username',
+        email: this.getWrongEmail(),
+        password: this.correctPassword,
+        retries: 1,
+      },
+      {
+        name: 'Wrong Username & Password',
+        email: this.getWrongEmail(),
+        password: this.getWrongPassword(),
+        retries: 1,
+      },
       {
         name: 'Correct Credentials',
         email: this.correctEmail,
