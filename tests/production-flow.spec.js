@@ -177,10 +177,17 @@ const SetupPage = require('../pages/setup.page');
 const configPath = path.join(__dirname, '../config/Combinations.json');
 const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
-const projects = flowConfig.mode === 'single' ? [flowConfig.singleProject] : flowConfig.multiProject;
+// Determine which project list to use based on mode
+const projects = flowConfig.mode === 'single' 
+    ? [flowConfig.singleProject] 
+    : (flowConfig.mode === 'multiBrowser' ? flowConfig.multiBrowser : flowConfig.multiProject);
 
-for (const [index, project] of projects.entries()) {
-    test(`Project Flow: ${project.projectName}`, async ({ page }) => {
+// 🔥 Enable Parallel Mode so they don't wait for each other
+test.describe.configure({ mode: 'parallel' });
+
+for (const project of projects) {
+    // browserId can be used to differentiate workers if needed
+    test(`Project Flow: ${project.projectName} (Browser: ${project.browserId || 'Default'})`, async ({ page }) => {
         const login = new LoginAndProjectPage(page);
         const createPage = new CreateProjectPage(page);
         const setupPage = new SetupPage(page); 
@@ -190,14 +197,15 @@ for (const [index, project] of projects.entries()) {
             projectName: project.projectName
         };
 
+        console.log(`🚀 Starting Parallel Worker for: ${data.projectName}`);
+
         // 1. Login
         await login.loginAndOpenProject(data.projectName);
 
         // 2. Create
         await createPage.createProject(data);
 
-        // 3. Setup - Passing both the Index and the Project Name
-        console.log(`⚙️ Clicking the first card for: ${data.projectName}`);
-        await setupPage.performSetup(data.projectName); 
+        // 3. Setup
+        await setupPage.performSetup(data.projectName);
     });
 }

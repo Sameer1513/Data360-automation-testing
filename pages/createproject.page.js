@@ -63,14 +63,14 @@ class CreateProjectPage {
       await dropdown.click();
 
       // Step 2: Use keyboard to type (this is the most compatible way for React-Select)
-      await this.page.keyboard.type(value, { delay: 50 });
+      await this.page.keyboard.type(value, { delay: 10 });
       
       // Step 3: Wait for filtered results
-      await this.page.waitForTimeout(800);
+      await this.page.waitForTimeout(100);
 
       // Step 4: Select the result (Case-Insensitive match)
       const option = this.page.locator('div').filter({ hasText: new RegExp(`^${value}$`, 'i') }).last();
-      await option.waitFor({ state: 'visible', timeout: 1000 });
+      await option.waitFor({ state: 'visible', timeout: 100 });
       await option.click();
 
       await this.page.waitForTimeout(300); 

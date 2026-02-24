@@ -20,8 +20,8 @@
     "step1": {
       "enabled": true,
       "executables": [
-        "filename1.exe",
-        "filename2.exe"
+        
+        "filename1.exe"
       ]
     },
     "step2": {
@@ -58,7 +58,7 @@
 
 
   "singleProject": {
-    "projectName": "testing",
+    "projectName": "statusConfig",
     "sourceFile": "textfile.txt",
     "weldIds": "",
     "slopeCombinations": [
@@ -71,7 +71,15 @@
       "pipeCount": "10",
       "pipeLength": "10",
       "manufacturer": [ "American","API-5l"],
-      "wps": ["abc", "def"]
+      "wps": ["abc"]
+    },
+    {
+      "pipeSize": "12",
+      "wallThickness": "0.8",
+      "pipeCount": "5",
+      "pipeLength": "20",
+      "manufacturer": "AZOUSTAL",
+      "wps": ["WPS-B1"]
     },
     {
       "pipeSize": "12",
@@ -90,22 +98,81 @@
   "multiProject": [
     {
       "browserId": 1,
-      "projectName": "datacompare",
+      "projectName": "statusConfig",
       "sourceFile": "textfile.txt",
       "weldIds": "",
       "slopeCombinations": [
         { "slopeIn": 5, "slopeOut": 0}
-      ]
+        
+      ],
+      "setupConfig": {
+  "pipes": [
+    {
+      "pipeSize": "10",
+      "wallThickness": "10",
+      "pipeCount": "10",
+      "pipeLength": "10",
+      "manufacturer": [ "American","API-5l"],
+      "wps": ["abc"]
+    },
+    {
+      "pipeSize": "12",
+      "wallThickness": "0.8",
+      "pipeCount": "5",
+      "pipeLength": "20",
+      "manufacturer": "AZOUSTAL",
+      "wps": ["WPS-B1"]
+    },
+    {
+      "pipeSize": "12",
+      "wallThickness": "0.8",
+      "pipeCount": "5",
+      "pipeLength": "20",
+      "manufacturer": "AZOUSTAL",
+      "wps": ["WPS-B1"]
+    }
+  ]
+}
+
     },
     {
       "browserId": 2,
-      "projectName": "datacompare",
+      "projectName": "datacompare2",
       "sourceFile": "textfile.txt",
       "weldIds": "",
       "slopeCombinations": [
         { "slopeIn": 0, "slopeOut": 5 }
        
       ]
+      ,
+      "setupConfig": {
+  "pipes": [
+    {
+      "pipeSize": "10",
+      "wallThickness": "10",
+      "pipeCount": "10",
+      "pipeLength": "10",
+      "manufacturer": [ "American","API-5l"],
+      "wps": ["abc"]
+    },
+    {
+      "pipeSize": "12",
+      "wallThickness": "0.8",
+      "pipeCount": "5",
+      "pipeLength": "20",
+      "manufacturer": "AZOUSTAL",
+      "wps": ["WPS-B1"]
+    },
+    {
+      "pipeSize": "12",
+      "wallThickness": "0.8",
+      "pipeCount": "5",
+      "pipeLength": "20",
+      "manufacturer": "AZOUSTAL",
+      "wps": ["WPS-B1"]
+    }
+  ]
+}
     }
   ],
 

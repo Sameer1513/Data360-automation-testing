@@ -9,11 +9,26 @@ class SetupPage {
   constructor(page) {
     this.page = page;
   }
-
-  getProjectConfig(projectName) {
-    if (config.mode === "single") return config.singleProject;
-    return config.multiProject.find(p => p.projectName === projectName);
-  }
+getProjectConfig(projectName) {
+    // 1. Check if it's a simple single-project mode
+    if (config.mode === "single") {
+        return config.singleProject;
+    }
+    
+    // 2. Search in the multiProject array for the specific project name
+    let project = config.multiProject.find(p => p.projectName === projectName);
+    
+    // 3. Fallback: Search in multiBrowser array if not found in multiProject
+    if (!project && config.multiBrowser) {
+        project = config.multiBrowser.find(p => p.projectName === projectName);
+    }
+    
+    return project;
+}
+//   getProjectConfig(projectName) {
+//     if (config.mode === "single") return config.singleProject;
+//     return config.multiProject.find(p => p.projectName === projectName);
+//   }
 
  async performSetup(projectName) {
     const project = this.getProjectConfig(projectName);
@@ -110,78 +125,58 @@ async fillPipeRow(container, pipe) {
     }
     
     // --- WPS COUNT LOGIC ---
- 
+// --- FINAL WPS LOGIC (Force Scroll & Click) ---
+    const wpsList = Array.isArray(pipe.wps) ? pipe.wps : [pipe.wps];
+    const targetCount = wpsList.length;
 
-const wpsList = Array.isArray(pipe.wps) ? pipe.wps : [pipe.wps];
-const targetCount = wpsList.length.toString();
+    // Step 1: Handle row expansion if JSON requires more than 1 WPS
+    if (targetCount > 1) {
+        const wpsCountInput = container.locator(`input[id="numberOfJobs-${index}"]`);
+        
+        // Explicitly scroll and click to ensure the field is "active"
+        await wpsCountInput.scrollIntoViewIfNeeded();
+        await wpsCountInput.click({ force: true });
 
-// 🔍 Stable locator (avoid fragile label matching)
-const wpsCountInput = container.locator('input').filter({
-  has: container.locator('text=Number of WPS Number')
-}).first();
+        // Force React to recognize the change to generate multiple rows
+        await wpsCountInput.evaluate((el, count) => {
+            const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+            nativeSetter.call(el, count);
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            el.dispatchEvent(new Event('blur', { bubbles: true }));
+        }, targetCount);
 
-// 1️⃣ Ensure focus + kill dropdown interference
-await this.page.keyboard.press('Escape');
-await wpsCountInput.scrollIntoViewIfNeeded();
-await wpsCountInput.click({ force: true });
+        await this.page.keyboard.press('Tab');
+        
+        // Sync: Wait for the dynamic rows to actually appear in the DOM
+        const lastPlaceholder = `Enter WPS Number ${targetCount}`;
+        await container.getByPlaceholder(lastPlaceholder).waitFor({ 
+            state: 'visible', 
+            timeout: 8000 
+        });
+    }
 
-// 2️⃣ Read current value
-let currentValue = await wpsCountInput.inputValue();
+    // Step 2: Fill values with forced scrolling and clicking (Handles the scrolling issue)
+    for (let j = 0; j < wpsList.length; j++) {
+        const placeholder = `Enter WPS Number ${j + 1}`;
+        const wpsField = container.getByPlaceholder(placeholder);
 
-// 3️⃣ Force change ONLY if needed
-if (currentValue !== targetCount) {
-  // Clear safely
-  await wpsCountInput.press('Control+A');
-  await wpsCountInput.press('Backspace');
-
-  // 🔥 AntD trigger trick (force rerender)
-  if (currentValue === targetCount || currentValue === '1') {
-    await wpsCountInput.type('0', { delay: 50 });
-    await wpsCountInput.blur();
-    await this.page.waitForTimeout(300);
-
-    await wpsCountInput.click();
-    await wpsCountInput.press('Control+A');
-  }
-
-  // Type final value (NOT fill)
-  await wpsCountInput.type(targetCount, { delay: 80 });
-
-  // Trigger change properly
-  await wpsCountInput.blur();
-}
-
-// 4️⃣ Wait for dynamic fields (NO timeout hacks)
-await this.page.waitForFunction(
-  (count) => {
-    const inputs = Array.from(document.querySelectorAll('input'));
-    return inputs.filter(i => i.placeholder?.includes('Enter WPS Number')).length >= count;
-  },
-  targetCount,
-  { timeout: 8000 }
-);
-
-// 5️⃣ Fill WPS values reliably
-for (let j = 0; j < wpsList.length; j++) {
-  const placeholder = `Enter WPS Number ${j + 1}`;
-  const wpsField = container.getByPlaceholder(placeholder);
-
-  await wpsField.waitFor({ state: 'visible' });
-  await wpsField.scrollIntoViewIfNeeded();
-
-  await wpsField.click({ force: true });
-
-  // Clear + type (important for controlled inputs)
-  await wpsField.press('Control+A');
-  await wpsField.press('Backspace');
-  await wpsField.type(String(wpsList[j]), { delay: 50 });
-
-  // Optional blur for stability
-  await wpsField.blur();
-
-  console.log(`✅ Filled ${placeholder}: ${wpsList[j]}`);
+        // 1. FORCED SCROLL: Move the specific field to the center of the viewport
+        // This ensures the field is not hidden by the header or off-screen
+        await wpsField.evaluate(el => el.scrollIntoView({ behavior: 'instant', block: 'center' }));
+        
+        // 2. Physical click to ensure the field is ready for 'fill'
+        await wpsField.click({ force: true });
+        
+        // 3. Fill the actual value from your JSON (e.g., "abc")
+        await wpsField.fill(String(wpsList[j]));
+        
+        console.log(`✅ Pipe ${index + 1} - Filled ${placeholder}: ${wpsList[j]}`);
+    }
 }
 }
-}
+
+
+
 
 module.exports = SetupPage;
