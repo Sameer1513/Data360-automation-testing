@@ -6,16 +6,26 @@ export default defineConfig({
   expect: {
     timeout: 1000000,
   },
+  reporter: [
+    ['list'],   
+                            
+    ['html', { open: 'always' }]             
+  ],
 
   use: {
     headless: false,
     viewport: null,
     launchOptions: {
-      slowMo: 50,
+      slowMo: 10,
       args: ['--start-maximized','--force-device-scale-factor=1.10'],
     },
     actionTimeout: 6000000,
     navigationTimeout: 6000000,
+    trace: 'on', 
+    screenshot: 'only-on-failure',
+    contextOptions: {
+      ignoreHTTPSErrors: true,
+    },
   },
 
   projects: [

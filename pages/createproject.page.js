@@ -183,8 +183,10 @@ async selectDate(type, dateString) {
     await this.page.waitForTimeout(1000);
 
     // 🔹 Standard Inputs
+    await this.projectNameInput.waitFor({ state: 'visible' });
     await this.projectNameInput.fill(projectData.projectName);
-    await this.projectNumberInput.fill(projectData.projectNumber);
+    await this.projectNumberInput.waitFor({ state: 'visible' });
+    await this.projectNumberInput.fill(projectData.projectNumber || "");
 
     // 🔹 Isolated Dropdowns (Called by key, not UI text)
     await this.selectDropdown('location', projectData.location);
@@ -234,6 +236,17 @@ async selectDate(type, dateString) {
 
     console.log(`Project "${projectName}" opened successfully.`);
   }
+
+  // used to assign device
+
+async assignDevice(projectName, laptopId) {
+    await this.selectProject(projectName); // Must enter project first
+    await this.page.getByRole('tab', { name: 'Devices' }).click();
+    const input = this.page.getByPlaceholder(/Laptop ID/i);
+    await input.clear(); // Clear existing
+    await input.fill(laptopId);
+    await this.page.getByRole('button', { name: 'Save' }).click();
+}
 
 // ==========================
 // DELETE ALL PROJECTS BY NAME 
@@ -313,6 +326,8 @@ async selectDate(type, dateString) {
 
 // console.log(`🗑 Hard Deletion complete for: ${projectName}`);
 // }
+
+
 
   // ==========================
   // CREATE MULTIPLE PROJECTS (Dynamic from mode)

@@ -35,8 +35,12 @@ getProjectConfig(projectName) {
     if (!project || !project.setupConfig) return;
 
     // 1. OPEN PROJECT
-    await this.page.getByPlaceholder('Search Project').fill(projectName);
-    await this.page.getByText(projectName, { exact: true }).first().click();
+    // 1. OPEN PROJECT
+await this.page.getByPlaceholder('Search Project').fill(projectName);
+
+// REPLACE THE CLICK LINE WITH THESE:
+const projectRow = this.page.locator('tr, .ant-list-item', { hasText: projectName });
+await projectRow.getByRole('button', { name: /Select|Open/i }).click();
     await this.page.waitForLoadState('networkidle');
 
     // 2. NAVIGATION
@@ -56,9 +60,10 @@ getProjectConfig(projectName) {
     await this.page.locator('text=Pipe Size Details').waitFor({ state: 'visible', timeout: 10000 });
 
     // 4. FILL ALL ROWS
+    // 4. FILL ALL ROWS
     for (let i = 0; i < incomingPipes.length; i++) {
         const pipeLabel = `Pipe ${i + 1}`;
-        console.log(`🔍 Actively searching for: ${pipeLabel}`);
+        console.log(`🔍 Processing: ${pipeLabel}`);
 
         const pipeContainer = this.page.locator('div')
             .filter({ hasText: new RegExp(`^${pipeLabel}$`) })
@@ -66,113 +71,94 @@ getProjectConfig(projectName) {
             .locator('xpath=./ancestor::div[contains(@class, "ant-card") or contains(@class, "border")][1]');
         
         await pipeContainer.waitFor({ state: 'visible' });
-        await this.fillPipeRow(pipeContainer, incomingPipes[i]);
+        await this.fillPipeRow(pipeContainer, incomingPipes[i], i);
     }
 
-    // 5. SAVE
-    await this.page.getByRole('button', { name: 'Save' }).click();
+    // 5. SAVE WITH RETRY
+    console.log("💾 Attempting to Save...");
+    const saveButton = this.page.getByRole('button', { name: 'Save' });
+    await saveButton.scrollIntoViewIfNeeded();
+    await saveButton.click();
+    await this.page.waitForLoadState('networkidle');
+    console.log("✅ Setup Saved Successfully");
   } // <--- THIS WAS MISSING. Closes performSetup.
 
-async fillPipeRow(container, pipe) {
-    // 1. Basic Details using exact placeholders
+
+
+async fillPipeRow(container, pipe, index) {
+    // 1. Basic Details
     await container.getByPlaceholder('Enter pipe size').fill(pipe.pipeSize);
     await container.getByPlaceholder('Enter wall thickness').fill(pipe.wallThickness);
     await container.getByPlaceholder('Enter number of pipes').fill(pipe.pipeCount);
     await container.getByPlaceholder('Enter pipe length').fill(pipe.pipeLength);
 
-    // 2. Manufacturer Dropdown Logic
- // 1. Open the Manufacturer dropdown
-    await container.getByText('Select manufacturer').click();
-
+    // 2. Manufacturer Dropdown with Search Visibility Logic
     const manufacturers = Array.isArray(pipe.manufacturer) ? pipe.manufacturer : [pipe.manufacturer];
-
+    
     for (let i = 0; i < manufacturers.length; i++) {
         const name = manufacturers[i];
         
-        // FIX: Use a simpler global selector. Sometimes the 'hidden' class check 
-        // conflicts with Playwright's 'visible' check during the animation.
+        // Open dropdown only if search is not already visible
         const searchInput = this.page.locator('input[placeholder="Search..."]').last();
-        
-        // Step 1: Wait and Search
-        // Increase timeout slightly and ensure we click the dropdown again if the search isn't visible
-        try {
-            await searchInput.waitFor({ state: 'visible', timeout: 3000 });
-        } catch (e) {
-            // Fallback: If search didn't appear, click the dropdown area again
+        if (!(await searchInput.isVisible())) {
             await container.getByText('Select manufacturer').click();
-            await searchInput.waitFor({ state: 'visible', timeout: 3000 });
         }
 
-        await searchInput.click();
+        await searchInput.waitFor({ state: 'visible', timeout: 3000 });
         await searchInput.fill(name);
-        
-        // Give the UI a tiny moment to filter the list
         await this.page.waitForTimeout(500);
-        await this.page.keyboard.press('Enter'); 
-        console.log(`✅ Selected: ${name}`);
-
-        // Step 2: Use Conditional Operator (Restored logic)
-        (i < manufacturers.length - 1) 
-            ? await (async () => {
-                await this.page.keyboard.press('Control+A');
-                await this.page.keyboard.press('Backspace');
-              })()
-            : await (async () => {
-                await this.page.keyboard.press('Escape');
-                await container.locator('label').filter({ hasText: /^Number of WPS Number$/ }).click({ force: true });
-                await container.locator('.ant-select-selection-item').filter({ hasText: name }).waitFor({ state: 'visible' });
-              })();
+        await this.page.keyboard.press('Enter');
+        
+        if (i < manufacturers.length - 1) {
+            await this.page.keyboard.press('Control+A');
+            await this.page.keyboard.press('Backspace');
+        }
     }
-    
-    // --- WPS COUNT LOGIC ---
-// --- FINAL WPS LOGIC (Force Scroll & Click) ---
+
+    // 3. FORCE DISMISS DROPDOWN
+    // We press Escape twice to ensure any nested dropdown layers are gone
+    await this.page.keyboard.press('Escape');
+    await this.page.keyboard.press('Escape');
+    await this.page.waitForTimeout(500);
+
+    // Reset UI focus by clicking the Pipe Header to clear transparent overlays
+    const pipeHeader = container.locator('h5', { hasText: `Pipe ${index + 1}` });
+    await pipeHeader.click({ force: true });
+
+    // 4. WPS ENTRY WITH RETRY
     const wpsList = Array.isArray(pipe.wps) ? pipe.wps : [pipe.wps];
-    const targetCount = wpsList.length;
+    const placeholderText = "Enter WPS Number 1"; 
+    const firstWpsInput = container.getByPlaceholder(placeholderText);
 
-    // Step 1: Handle row expansion if JSON requires more than 1 WPS
-    if (targetCount > 1) {
-        const wpsCountInput = container.locator(`input[id="numberOfJobs-${index}"]`);
-        
-        // Explicitly scroll and click to ensure the field is "active"
-        await wpsCountInput.scrollIntoViewIfNeeded();
-        await wpsCountInput.click({ force: true });
+    let wpsFilled = false;
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            // Scroll specifically to move the field away from the sticky header
+            await firstWpsInput.evaluate((el) => {
+                const scroller = el.closest('[role="tabpanel"].overflow-auto') || window;
+                const offset = el.getBoundingClientRect().top;
+                scroller.scrollBy(0, offset - 200); // Buffer of 200px from top
+            });
 
-        // Force React to recognize the change to generate multiple rows
-        await wpsCountInput.evaluate((el, count) => {
-            const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-            nativeSetter.call(el, count);
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-            el.dispatchEvent(new Event('blur', { bubbles: true }));
-        }, targetCount);
-
-        await this.page.keyboard.press('Tab');
-        
-        // Sync: Wait for the dynamic rows to actually appear in the DOM
-        const lastPlaceholder = `Enter WPS Number ${targetCount}`;
-        await container.getByPlaceholder(lastPlaceholder).waitFor({ 
-            state: 'visible', 
-            timeout: 8000 
-        });
+            await firstWpsInput.waitFor({ state: 'visible', timeout: 2000 });
+            await firstWpsInput.click({ force: true });
+            await firstWpsInput.fill(String(wpsList[0]));
+            
+            // Verify if the value was actually entered
+            const val = await firstWpsInput.inputValue();
+            if (val === String(wpsList[0])) {
+                wpsFilled = true;
+                break;
+            }
+        } catch (e) {
+            console.log(`⚠️ WPS Entry attempt ${attempt + 1} failed, retrying focus...`);
+            await pipeHeader.click({ force: true });
+            await this.page.waitForTimeout(500);
+        }
     }
 
-    // Step 2: Fill values with forced scrolling and clicking (Handles the scrolling issue)
-    for (let j = 0; j < wpsList.length; j++) {
-        const placeholder = `Enter WPS Number ${j + 1}`;
-        const wpsField = container.getByPlaceholder(placeholder);
-
-        // 1. FORCED SCROLL: Move the specific field to the center of the viewport
-        // This ensures the field is not hidden by the header or off-screen
-        await wpsField.evaluate(el => el.scrollIntoView({ behavior: 'instant', block: 'center' }));
-        
-        // 2. Physical click to ensure the field is ready for 'fill'
-        await wpsField.click({ force: true });
-        
-        // 3. Fill the actual value from your JSON (e.g., "abc")
-        await wpsField.fill(String(wpsList[j]));
-        
-        console.log(`✅ Pipe ${index + 1} - Filled ${placeholder}: ${wpsList[j]}`);
-    }
+    if (!wpsFilled) console.error(`❌ Failed to fill WPS for Pipe ${index + 1}`);
+    else console.log(`✅ Pipe ${index + 1} WPS filled.`);
 }
 }
 

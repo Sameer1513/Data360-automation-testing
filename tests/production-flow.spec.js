@@ -151,61 +151,453 @@
 // });
 
 
-// const { test } = require('@playwright/test');
-// // Ensure the path correctly points to your pages folder
-// const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page');
 
-// test('Verify Weld Time in Actual Data', async () => {
-//     console.log("⚡ Testing Actual Data Flow...");
-//     const extractor = new BoltDBTxtFileTOExcel();
 
-//     // Run extraction with 0 slope to test raw timing logic
-//     await extractor.run(0, 0); 
+
+
+
+
+
+// // const fs = require('fs');
+// // const path = require('path');
+// // const { test } = require('@playwright/test');
+
+// // const LoginAndProjectPage = require('../pages/loginAndProject.page');
+// // const CreateProjectPage = require('../pages/createproject.page');
+// // const SetupPage = require('../pages/setup.page'); 
+
+// // const configPath = path.join(__dirname, '../config/Combinations.json');
+// // const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+// // // Determine which project list to use based on mode
+// // const projects = flowConfig.mode === 'single' 
+// //     ? [flowConfig.singleProject] 
+// //     : (flowConfig.mode === 'multiBrowser' ? flowConfig.multiBrowser : flowConfig.multiProject);
+
+// // // 🔥 Enable Parallel Mode so they don't wait for each other
+// // test.describe.configure({ mode: 'parallel' });
+
+// // for (const project of projects) {
+// //     // browserId can be used to differentiate workers if needed
+// //     test(`Project Flow: ${project.projectName} (Browser: ${project.browserId || 'Default'})`, async ({ page }) => {
+// //         const login = new LoginAndProjectPage(page);
+// //         const createPage = new CreateProjectPage(page);
+// //         const setupPage = new SetupPage(page); 
+
+// //         const data = {
+// //             ...flowConfig.createProjectData,
+// //             projectName: project.projectName
+// //         };
+
+// //         console.log(`🚀 Starting Parallel Worker for: ${data.projectName}`);
+
+// //         // 1. Login
+// //         await login.loginAndOpenProject(data.projectName);
+
+// //         // 2. Create
+// //         await createPage.createProject(data);
+
+// //         // 3. Setup
+// //         await setupPage.performSetup(data.projectName);
+// //     });
+// // }
+
+
+
+// // const { test } = require('@playwright/test');
+// // // Ensure the path correctly points to your pages folder
+// // const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page');
+
+// // test('Verify Weld Time in Actual Data', async () => {
+// //     console.log("⚡ Testing Actual Data Flow...");
+// //     const extractor = new BoltDBTxtFileTOExcel();
+
+// //     // Run extraction with 0 slope to test raw timing logic
+// //     await extractor.run(0, 0); 
     
-//     console.log("✅ Success! Check the 'exports' folder.");
+// //     console.log("✅ Success! Check the 'exports' folder.");
+// // });
+
+// // const fs = require('fs');
+// // const path = require('path');
+// // const { test } = require('@playwright/test');
+
+// // // Importing the updated Page Object
+// // const LoginAndProjectPage = require('../pages/loginAndProject.page');
+
+// // const configPath = path.join(__dirname, '../config/Combinations.json');
+// // const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+// // // Determine project list
+// // const projects = flowConfig.mode === 'single' 
+// //     ? [flowConfig.singleProject] 
+// //     : (flowConfig.mode === 'multiBrowser' ? flowConfig.multiBrowser : flowConfig.multiProject);
+
+// // // Configure parallel execution
+// // test.describe.configure({ mode: 'single' });
+
+// // for (const project of projects) {
+// //     test(`Login Flow Verification: ${project.projectName}`, async ({ page }) => {
+// //         // Initialize the page object
+// //         const login = new LoginAndProjectPage(page);
+        
+// //         console.log(`🚀 Executing Login Scenarios for: ${project.projectName}`);
+
+// //         // This method handles all scenarios and returns upon 'SUCCESS'
+// //         await login.loginAndOpenProject(project.projectName);
+        
+// //         console.log(`✅ Finished all login scenarios for: ${project.projectName}`);
+
+// //         // --- THE FIX TO CLOSE BROWSER ---
+// //         await page.close();
+// //     });
+// // }
+
+
+// // const fs = require('fs');
+// // const path = require('path');
+// // const { test } = require('@playwright/test');
+
+// // // Importing your existing Page Objects
+// // const LoginAndProjectPage = require('../pages/loginAndProject.page'); // The one you provided
+// // const SpecificationsPage = require('../pages/Specification.page'); // The one we built
+
+// // const configPath = path.join(__dirname, '../config/Combinations.json');
+// // const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+// // // Determine project list based on your logic
+// // const projects = flowConfig.mode === 'single' 
+// //     ? [flowConfig.singleProject] 
+// //     : (flowConfig.mode === 'multiBrowser' ? flowConfig.multiBrowser : flowConfig.multiProject);
+
+// // test.describe.configure({ mode: 'single' }); // Set to parallel if running multi-browser
+
+// // for (const project of projects) {
+// //     test(`Integrated Specification Flow: ${project.projectName}`, async ({ page }) => {
+        
+// //         // 1. Initialize Page Objects
+// //         const login = new LoginAndProjectPage(page);
+// //         const specs = new SpecificationsPage(page);
+
+// //         console.log(`🚀 Starting Login Phase for: ${project.projectName}`);
+
+// //         // 2. Execute your login scenarios (Empty, Wrong, then Correct)
+// //         // This method handles the page.goto and the login button click internally
+// //         await login.loginAndOpenProject(project.projectName);
+        
+// //         console.log(`✅ Login Phase Finished. Starting Navigation for: ${project.projectName}`);
+
+// //         // 3. NAVIGATION: Search and Open the Specifications Tab
+// //         // We use the search logic we built to find the specific project
+// //         await specs.navigateToSpecifications(project.projectName);
+
+// //         // 4. ACTION: Upload Specifications (Excel + PDFs)
+// //         if (project.specificationData) {
+// //             await specs.uploadSpecifications(project.specificationData);
+// //         }
+
+// //         // 5. ACTION: Manual Specification Entry (If data exists)
+// //         if (project.specificationData.newSpecification) {
+// //             await specs.addNewSpecificationManual(project.specificationData.newSpecification);
+// //         }
+
+// //         console.log(`🎉 Full Flow Completed for: ${project.projectName}`);
+
+// //         // Close page properly
+// //         await page.close();
+// //     });
+// // }
+
+
+
+// const fs = require('fs');
+// const path = require('path');
+// const { test, chromium, expect } = require('@playwright/test');
+
+// // Page Objects
+// const LoginAndProjectPage = require('../pages/loginAndProject.page');
+// const CreateProjectPage = require('../pages/createproject.page');
+// const SetupPage = require('../pages/setup.page');
+// const StatusConfigPage = require('../pages/statusConfig.page');
+// const ProductionTabWeldData = require('../pages/ProductionTabWeldData.page');
+// const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page');
+// const ComparePage = require('../pages/compare.page');
+
+// const configPath = path.join(__dirname, '../config/Combinations.json');
+// const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+// // --------------------
+// // HELPERS
+// // --------------------
+// function resolveTargetWelds(weldIds) {
+//     if (!weldIds || weldIds.length === 0) return null;
+//     return weldIds;
+// }
+
+// /**
+//  * Perform ONLY the Creation and Setup Phase
+//  */
+// async function runSetupPhase(page) {
+//     const login = new LoginAndProjectPage(page);
+//     const createPage = new CreateProjectPage(page);
+//     const setupPage = new SetupPage(page);
+
+//     await login.loginAndOpenProject();
+//     const creationProjectName = flowConfig.createProjectData.projectName || "Project-A";
+    
+//     console.log(`🏗️ Phase 1: Setup for: ${creationProjectName}`);
+//     await createPage.createProject({ ...flowConfig.createProjectData, projectName: creationProjectName });
+//     await setupPage.performSetup(creationProjectName);
+// }
+
+// /**
+//  * Perform ONLY the Scan and Analysis Phase
+//  */
+// /**
+//  * Perform ONLY the Scan and Analysis Phase
+//  */
+// async function runScanPhase(page, projectConfig) {
+//     const login = new LoginAndProjectPage(page);
+//     const status = new StatusConfigPage(page);
+//     const analysis = new ProductionTabWeldData(page, flowConfig.scanConfig);
+//     const extractor = new BoltDBTxtFileTOExcel();
+//     const compare = new ComparePage();
+
+//     // 1. RETURN TO DASHBOARD
+//     const isDashboard = await page.locator('input[placeholder*="Search"]').first().isVisible();
+
+//     if (!isDashboard) {
+//         if (page.url().includes('login') || page.url() === 'about:blank') {
+//             await login.loginAndOpenProject();
+//         } else {
+//             console.log("⬅️ Navigating back to Project List...");
+//             const projectsBreadcrumb = page.locator('header').getByText('Projects', { exact: true });
+//             await projectsBreadcrumb.click();
+//         }
+//     }
+
+//     // 2. SEARCH AND SELECT PROJECT-B
+//     const searchInput = page.locator('input[placeholder*="Search"]').first();
+//     await searchInput.click({ clickCount: 3 });
+//     await page.keyboard.press('Backspace');
+//     await searchInput.fill(projectConfig.projectName);
+//     await page.keyboard.press('Enter');
+
+//     const projectTile = page.locator('main, .project-list')
+//         .getByText(new RegExp(`^${projectConfig.projectName}$`, 'i'))
+//         .first();
+    
+//     // Wait for the tile to be stable before clicking
+//     await projectTile.waitFor({ state: 'visible' });
+//     await projectTile.click();
+
+//     // 3. WAIT FOR PRODUCTION TAB TO BE SELECTED & DATA TO APPEAR
+//     console.log("📂 Switching to Production and waiting for data...");
+    
+//     const productionTab = page.getByRole('tab', { name: /Production/i });
+    
+//     // Ensure tab is clicked
+//     await productionTab.waitFor({ state: 'visible' });
+//     await productionTab.click();
+
+//     // CRITICAL: Wait for the tab to gain the 'active' state (aria-selected) 
+//     // and wait for the table rows to exist in the DOM.
+//     await expect(productionTab).toHaveAttribute('aria-selected', 'true');
+
+//     // This is the "Smart Wait": It waits for the first weld row to actually show up
+//     const weldRows = page.locator('table tbody tr');
+//     await weldRows.first().waitFor({ state: 'visible' });
+
+//     console.log(`✅ Data loaded. Found ${await weldRows.count()} welds. Starting search...`);
+
+//     // 4. CONTINUE ANALYSIS FLOW
+//     const targetWeldId = resolveTargetWelds(projectConfig.weldIds);
+//     for (const slope of projectConfig.slopeCombinations) {
+//         console.log(`🚀 Project=${projectConfig.projectName} | In=${slope.slopeIn}`);
+        
+//         // Re-verify table is still present before applying config
+//         await expect(page.locator('table')).toBeVisible();
+        
+//         await status.applyStatusConfiguration(slope.slopeIn, slope.slopeOut);
+        
+//         await Promise.all([
+//             analysis.runFlow(targetWeldId, null, projectConfig.projectName), 
+//             extractor.run(slope.slopeIn, slope.slopeOut, projectConfig.projectName, projectConfig.sourceFile),
+//         ]);
+        
+//         await compare.runAutoCompare(projectConfig.projectName, targetWeldId);
+//     }
+// }
+
+// // --------------------
+// // MAIN TEST
+// // --------------------
+// test('Production Flow – Strategy Controller', async ({ page }) => {
+
+//     switch (flowConfig.mode) {
+        
+//         // OPTION 1: Same Browser (Setup A -> Dashboard -> Scan B)
+//         case 'single':
+//             await runSetupPhase(page);
+//             await runScanPhase(page, flowConfig.singleProject);
+//             break;
+
+//         // OPTION 2: Different Browsers (Browser 1 Setup -> Close -> Browser 2 Scan)
+//         case 'split':
+//             await page.close(); // Close default
+            
+//             console.log("🖥️ Launching Browser 1 for SETUP...");
+//             const b1 = await chromium.launch({ headless: false });
+//             const p1 = await b1.newPage();
+//             await runSetupPhase(p1);
+//             await b1.close();
+
+//             console.log("🖥️ Launching Browser 2 for SCAN...");
+//             const b2 = await chromium.launch({ headless: false });
+//             const p2 = await b2.newPage();
+//             await runScanPhase(p2, flowConfig.singleProject);
+//             await b2.close();
+//             break;
+
+//         // OPTION 3: Parallel Multi-Project
+//         case 'multiProject':
+//             await page.close();
+//             const projectPromises = flowConfig.multiProject.map(async (project) => {
+//                 const browser = await chromium.launch({ headless: false });
+//                 const pPage = await browser.newPage();
+//                 try {
+//                     await runSetupPhase(pPage);
+//                     await runScanPhase(pPage, project);
+//                 } finally {
+//                     await browser.close();
+//                 }
+//             });
+//             await Promise.allSettled(projectPromises);
+//             break;
+//     }
 // });
+
 
 
 const fs = require('fs');
 const path = require('path');
 const { test } = require('@playwright/test');
+const { execSync } = require('child_process');
 
+// 1. Import Page Objects
 const LoginAndProjectPage = require('../pages/loginAndProject.page');
 const CreateProjectPage = require('../pages/createproject.page');
-const SetupPage = require('../pages/setup.page'); 
+const DeviceAssigningPage = require('../pages/DeviceAssigning.page');
+const SetupPage = require('../pages/setup.page');
 
+// Config path
 const configPath = path.join(__dirname, '../config/Combinations.json');
+
+// --------------------------------------------
+// ✅ Helper: Wait for Device ID (IMPORTANT)
+// --------------------------------------------
+async function waitForDeviceId(configPath, timeout = 20000) {
+    const start = Date.now();
+
+    while (Date.now() - start < timeout) {
+        const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+        if (updatedConfig.capturedDeviceId) {
+            return updatedConfig.capturedDeviceId;
+        }
+
+        await new Promise(res => setTimeout(res, 1000)); // wait 1 sec
+    }
+
+    throw new Error("❌ Timeout: Device ID not generated.");
+}
+
+// Run in serial (important for shared file)
+test.describe.configure({ mode: 'serial' });
+
+// Load Config
 const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+const projects = flowConfig.mode === 'single'
+    ? [flowConfig.singleProject]
+    : flowConfig.multiProject;
 
-// Determine which project list to use based on mode
-const projects = flowConfig.mode === 'single' 
-    ? [flowConfig.singleProject] 
-    : (flowConfig.mode === 'multiBrowser' ? flowConfig.multiBrowser : flowConfig.multiProject);
-
-// 🔥 Enable Parallel Mode so they don't wait for each other
-test.describe.configure({ mode: 'parallel' });
-
+// --------------------------------------------
+// 🚀 MAIN FLOW
+// --------------------------------------------
 for (const project of projects) {
-    // browserId can be used to differentiate workers if needed
-    test(`Project Flow: ${project.projectName} (Browser: ${project.browserId || 'Default'})`, async ({ page }) => {
+    test(`Automated Integrated Flow: ${project.projectName}`, async ({ page }) => {
+
+        // --------------------------------------------
+        // 🔁 STEP 0: Reset old Device ID
+        // --------------------------------------------
+        const configToReset = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        delete configToReset.capturedDeviceId;
+        fs.writeFileSync(configPath, JSON.stringify(configToReset, null, 2));
+
+        // --------------------------------------------
+        // 📄 Initialize Pages
+        // --------------------------------------------
         const login = new LoginAndProjectPage(page);
         const createPage = new CreateProjectPage(page);
-        const setupPage = new SetupPage(page); 
+        const deviceAssign = new DeviceAssigningPage(page);
+        const setupPage = new SetupPage(page);
 
-        const data = {
-            ...flowConfig.createProjectData,
-            projectName: project.projectName
-        };
+        // --------------------------------------------
+        // 🔐 STEP 1: LOGIN
+        // --------------------------------------------
+        console.log(`🚀 Starting Flow for: ${project.projectName}`);
+        await login.loginAndOpenProject(project.projectName);
 
-        console.log(`🚀 Starting Parallel Worker for: ${data.projectName}`);
+        // --------------------------------------------
+        // 🏗️ STEP 2: CREATE PROJECT
+        // --------------------------------------------
+        await createPage.createProject(project.createProjectData || project);
 
-        // 1. Login
-        await login.loginAndOpenProject(data.projectName);
+        // --------------------------------------------
+        // 🖥️ STEP 3: RUN TERMINAL SYNC
+        // --------------------------------------------
+        console.log(`🖥️ Running device_register.js...`);
 
-        // 2. Create
-        await createPage.createProject(data);
+        try {
+            const scriptPath = path.join(
+                __dirname,
+                '..',
+                'terminal_execution_files',
+                'device_register.js'
+            );
 
-        // 3. Setup
-        await setupPage.performSetup(data.projectName);
+            console.log(`🔍 Executing: ${scriptPath}`);
+
+            // Run script (blocking)
+            execSync(`node "${scriptPath}"`, { stdio: 'inherit' });
+
+            console.log("⏳ Waiting for Device ID...");
+
+            // --------------------------------------------
+            // ⏳ STEP 4: WAIT FOR DEVICE ID
+            // --------------------------------------------
+            const capturedID = await waitForDeviceId(configPath);
+
+            console.log(`🎯 Device ID received: ${capturedID}`);
+
+            // --------------------------------------------
+            // 🔗 STEP 5: ASSIGN DEVICE
+            // --------------------------------------------
+            await deviceAssign.assignProjectToDevice(capturedID, project.projectName);
+
+        } catch (error) {
+            console.error(`❌ Terminal execution failed: ${error.message}`);
+            throw error;
+        }
+
+        // --------------------------------------------
+        // ⚙️ STEP 6: SETUP CONFIGURATION
+        // --------------------------------------------
+        console.log(`⚙️ Starting Setup for: ${project.projectName}`);
+        await setupPage.performSetup(project.projectName);
+
+        console.log(`🎉 SUCCESS: ${project.projectName} is fully configured.`);
+
+        await page.close();
     });
 }

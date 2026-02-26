@@ -107,7 +107,7 @@ parseAutomationFile() {
 
 
 async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default') {
-    this.inputTxtPath = path.join(process.cwd(), 'textdata', sourceFile); 
+    this.inputTxtPath = path.join(process.cwd(), 'Input', sourceFile); 
     console.log(`📂 Reading from: ${this.inputTxtPath}`);
     const weldSessions = this.parseAutomationFile();
     const workbook = new ExcelJS.Workbook();
