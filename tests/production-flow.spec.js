@@ -4,9 +4,14 @@ const { test, chromium } = require('@playwright/test');
 
 const LoginAndProjectPage = require('../pages/loginAndProject.page');
 const StatusConfigPage = require('../pages/statusConfig.page');
-const ProductionTabWeldData = require('../pages/ProductionTabWeldData.page');
-const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page');
-const ComparePage = require('../pages/compare.page');
+// const ProductionTabWeldData = require('../pages/ProductionTabWeldData.page');
+// const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page');
+// const ComparePage = require('../pages/compare.page');
+const StatusConfigPass = require('../pages/StatusConfigPass.page');
+const WeldParameterExcel = require('../pages/WeldParameterExcel.page');
+const WeldParametersCsvToExcel = require('../pages/WeldParametersCsvToExcel.page');
+const StatusConfigCompare = require('../pages/statusConfigCompare.page');
+
 
 // --------------------
 // LOAD CONFIG
@@ -26,32 +31,62 @@ function resolveTargetWelds(weldIds) {
 async function runSingleFlow(page, projectConfig) {
   const login = new LoginAndProjectPage(page);
   const status = new StatusConfigPage(page);
-  const analysis = new ProductionTabWeldData(page, flowConfig.scanConfig);
-  const extractor = new BoltDBTxtFileTOExcel();
-  const compare = new ComparePage();
+  // const analysis = new ProductionTabWeldData(page, flowConfig.scanConfig);
+  // const extractor = new BoltDBTxtFileTOExcel();
+  // const compare = new ComparePage();
+  const statusPass = new StatusConfigPass(page);
+  const weldExcel = new WeldParameterExcel(page);
+  const csvToExcel = new WeldParametersCsvToExcel();
 
-  const targetWeldId = resolveTargetWelds(projectConfig.weldIds);
+
+
+  // const targetWeldId = resolveTargetWelds(projectConfig.weldIds);
 
   await login.loginAndOpenProject(projectConfig.projectName);
 
   for (const slope of projectConfig.slopeCombinations) {
-    console.log(
-      `🚀 Project=${projectConfig.projectName} | In=${slope.slopeIn} | Out=${slope.slopeOut} | Welds=${targetWeldId || 'ALL'}`
-    );
+    // console.log(
+    // `🚀 Project=${projectConfig.projectName} | In=${slope.slopeIn} | Out=${slope.slopeOut} | Welds=${targetWeldId || 'ALL'}`
+    // );
 
     await status.applyStatusConfiguration(slope.slopeIn, slope.slopeOut);
 
     console.log('⏳ Synchronizing Production Table...');
     await page.waitForSelector('table tbody tr', { state: 'visible', timeout: 10000 });
 
-    console.log('⚡ Running Analysis & Extraction in Parallel...');
-    await Promise.all([
-      analysis.runFlow(targetWeldId),
-      extractor.run(slope.slopeIn, slope.slopeOut),
-    ]);
+    // console.log('⚡ Running Analysis & Extraction in Parallel...');
+    // await Promise.all([
+    // analysis.runFlow(targetWeldId),
+    // extractor.run(slope.slopeIn, slope.slopeOut),
+    // ]);
 
-    console.log('🧪 Running Auto-Comparison...');
-    await compare.runAutoCompare();
+    // console.log('🧪 Running Auto-Comparison...');
+    // await compare.runAutoCompare();
+    console.log('📊 Extracting Final Status Configuration Snapshot...');
+    // 1️⃣ Generate StatusConfigPass Excel and capture its path
+const statusPassPath = await statusPass.run(
+  projectConfig.projectName,
+  slope.slopeIn,
+  slope.slopeOut
+);
+
+// 2️⃣ Generate Weld Parameters Excel
+await weldExcel.run(
+  projectConfig.projectName,
+  slope.slopeIn,
+  slope.slopeOut
+);
+
+// 3️⃣ Convert CSV to Excel and capture path
+const csvExcelPath = await csvToExcel.run();
+
+// 4️⃣ Create StatusConfigCompare with BOTH files
+const statusCompare = new StatusConfigCompare(
+  csvExcelPath,      // input file
+  statusPassPath     // pass comparison file
+);
+
+await statusCompare.run();
   }
 }
 
@@ -112,7 +147,7 @@ test('Production Flow – Config Driven', async ({ page }) => {
           `🌐 Browser-${browserCfg.browserId} | Project=${browserCfg.projectName}`
         );
 
-        await login.loginAndOpenProject();
+        await login.loginAndOpenProject(browserCfg.projectName);
         await status.applyStatusConfiguration(
           browserCfg.slope.slopeIn,
           browserCfg.slope.slopeOut
