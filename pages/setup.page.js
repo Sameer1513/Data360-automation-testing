@@ -25,10 +25,7 @@ getProjectConfig(projectName) {
     
     return project;
 }
-//   getProjectConfig(projectName) {
-//     if (config.mode === "single") return config.singleProject;
-//     return config.multiProject.find(p => p.projectName === projectName);
-//   }
+
 
  async performSetup(projectName) {
     const project = this.getProjectConfig(projectName);

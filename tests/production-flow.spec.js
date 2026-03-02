@@ -479,125 +479,344 @@
 
 
 
+// const fs = require('fs');
+// const path = require('path');
+// const { test } = require('@playwright/test');
+// const { execSync } = require('child_process');
+
+// // 1. Import Page Objects
+// const LoginAndProjectPage = require('../pages/loginAndProject.page');
+// const CreateProjectPage = require('../pages/createproject.page');
+// const DeviceAssigningPage = require('../pages/DeviceAssigning.page');
+// const SetupPage = require('../pages/setup.page');
+
+// // Config path
+// const configPath = path.join(__dirname, '../config/Combinations.json');
+
+// // --------------------------------------------
+// // ✅ Helper: Wait for Device ID (IMPORTANT)
+// // --------------------------------------------
+// async function waitForDeviceId(configPath, timeout = 20000) {
+//     const start = Date.now();
+
+//     while (Date.now() - start < timeout) {
+//         const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+//         if (updatedConfig.capturedDeviceId) {
+//             return updatedConfig.capturedDeviceId;
+//         }
+
+//         await new Promise(res => setTimeout(res, 1000)); // wait 1 sec
+//     }
+
+//     throw new Error("❌ Timeout: Device ID not generated.");
+// }
+
+// // Run in serial (important for shared file)
+// test.describe.configure({ mode: 'serial' });
+
+// // Load Config
+// const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+// const projects = flowConfig.mode === 'single'
+//     ? [flowConfig.singleProject]
+//     : flowConfig.multiProject;
+
+// // --------------------------------------------
+// // 🚀 MAIN FLOW
+// // --------------------------------------------
+// for (const project of projects) {
+//     test(`Automated Integrated Flow: ${project.projectName}`, async ({ page }) => {
+
+//         // --------------------------------------------
+//         // 🔁 STEP 0: Reset old Device ID
+//         // --------------------------------------------
+//         const configToReset = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+//         delete configToReset.capturedDeviceId;
+//         fs.writeFileSync(configPath, JSON.stringify(configToReset, null, 2));
+
+//         // --------------------------------------------
+//         // 📄 Initialize Pages
+//         // --------------------------------------------
+//         const login = new LoginAndProjectPage(page);
+//         const createPage = new CreateProjectPage(page);
+//         const deviceAssign = new DeviceAssigningPage(page);
+//         const setupPage = new SetupPage(page);
+
+//         // --------------------------------------------
+//         // 🔐 STEP 1: LOGIN
+//         // --------------------------------------------
+//         console.log(`🚀 Starting Flow for: ${project.projectName}`);
+//         await login.loginAndOpenProject(project.projectName);
+
+//         // --------------------------------------------
+//         // 🏗️ STEP 2: CREATE PROJECT
+//         // --------------------------------------------
+//         await createPage.createProject(project.createProjectData || project);
+
+//         // --------------------------------------------
+//         // 🖥️ STEP 3: RUN TERMINAL SYNC (STEP 1 - Register)
+//         // --------------------------------------------
+//         console.log(`🖥️ Running device_register.js (Step 1)...`);
+
+//         try {
+//             const scriptPath = path.join(
+//                 __dirname,
+//                 '..',
+//                 'terminal_execution_files',
+//                 'device_register.js'
+//             );
+
+//             console.log(`🔍 Executing Step 1: ${scriptPath}`);
+
+//             // Run script (blocking)
+//             // Pass --step=1 to only run registration and capture ID
+//             execSync(`node "${scriptPath}" --step=1`, { stdio: 'inherit' });
+
+//             console.log("⏳ Waiting for Device ID...");
+
+//             // --------------------------------------------
+//             // ⏳ STEP 4: WAIT FOR DEVICE ID
+//             // --------------------------------------------
+//             const capturedID = await waitForDeviceId(configPath);
+
+//             console.log(`🎯 Device ID received: ${capturedID}`);
+
+//             // --------------------------------------------
+//             // 🔗 STEP 5: ASSIGN DEVICE
+//             // --------------------------------------------
+//             await deviceAssign.assignProjectToDevice(capturedID, project.projectName);
+
+//             // --------------------------------------------
+//             // 🖥️ STEP 5.5: RUN TERMINAL SYNC (STEP 2 - DB Sync)
+//             // --------------------------------------------
+//             console.log(`🖥️ Running device_register.js (Step 2)...`);
+//             console.log(`🔍 Executing Step 2: ${scriptPath}`);
+//             // Pass --step=2 to run the sync process
+//             execSync(`node "${scriptPath}" --step=2`, { stdio: 'inherit' });
+
+//         } catch (error) {
+//             console.error(`❌ Terminal execution failed: ${error.message}`);
+//             throw error;
+//         }
+
+//         // --------------------------------------------
+//         // ⚙️ STEP 6: SETUP CONFIGURATION
+//         // --------------------------------------------
+//         console.log(`⚙️ Starting Setup for: ${project.projectName}`);
+//         await setupPage.performSetup(project.projectName);
+
+//         console.log(`🎉 SUCCESS: ${project.projectName} is fully configured.`);
+
+//         await page.close();
+//     });
+// }
+
+
+
+
+
+// const { test } = require('@playwright/test');
+// const fs = require('fs');
+// const path = require('path');
+// const LoginAndProjectPage = require('../pages/loginAndProject.page');
+// const DeviceAssigningPage = require('../pages/DeviceAssigning.page');
+
+// const configPath = path.join(__dirname, '../config/Combinations.json');
+// const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+// test('Login and Device Assign Flow', async ({ page }) => {
+//     const login = new LoginAndProjectPage(page);
+//     const devicePage = new DeviceAssigningPage(page);
+
+//     // Get data from JSON
+//     // We use singleProject.projectName as the target
+//     const projectName = flowConfig.singleProject.projectName;
+    
+//     // We assume capturedDeviceId was already saved by your terminal script
+//     const deviceId = flowConfig.capturedDeviceId || "DESKTOP-3Q28M09"; 
+
+//     // 1. Login
+//     await login.loginAndOpenProject(projectName);
+
+//     // 2. Assign Device
+//     await devicePage.assignProjectToDevice(deviceId, projectName);
+// });
+
+
 const fs = require('fs');
 const path = require('path');
-const { test } = require('@playwright/test');
+const { test, expect } = require('@playwright/test');
 const { execSync } = require('child_process');
 
-// 1. Import Page Objects
+// Page Objects
 const LoginAndProjectPage = require('../pages/loginAndProject.page');
 const CreateProjectPage = require('../pages/createproject.page');
 const DeviceAssigningPage = require('../pages/DeviceAssigning.page');
 const SetupPage = require('../pages/setup.page');
+const StatusConfigPage = require('../pages/statusConfig.page');
+const ProductionTabWeldData = require('../pages/ProductionTabWeldData.page');
+const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page');
+const ComparePage = require('../pages/compare.page');
 
-// Config path
+// Config
 const configPath = path.join(__dirname, '../config/Combinations.json');
+const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
-// --------------------------------------------
-// ✅ Helper: Wait for Device ID (IMPORTANT)
-// --------------------------------------------
-async function waitForDeviceId(configPath, timeout = 20000) {
+function resolveTargetWelds(weldIds) {
+    if (!weldIds || weldIds.length === 0) return null;
+    return weldIds;
+}
+
+// ✅ Wait for Device ID from config
+async function waitForDeviceId(timeout = 20000) {
     const start = Date.now();
 
     while (Date.now() - start < timeout) {
-        const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        const updated = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
-        if (updatedConfig.capturedDeviceId) {
-            return updatedConfig.capturedDeviceId;
+        if (updated.capturedDeviceId) {
+            return updated.capturedDeviceId;
         }
 
-        await new Promise(res => setTimeout(res, 1000)); // wait 1 sec
+        await new Promise(res => setTimeout(res, 1000));
     }
 
-    throw new Error("❌ Timeout: Device ID not generated.");
+    throw new Error("❌ Device ID not generated");
 }
 
-// Run in serial (important for shared file)
-test.describe.configure({ mode: 'serial' });
+test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
 
-// Load Config
-const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-const projects = flowConfig.mode === 'single'
-    ? [flowConfig.singleProject]
-    : flowConfig.multiProject;
+    const project = flowConfig.singleProject;
+    const targetWeldId = resolveTargetWelds(project.weldIds);
 
-// --------------------------------------------
-// 🚀 MAIN FLOW
-// --------------------------------------------
-for (const project of projects) {
-    test(`Automated Integrated Flow: ${project.projectName}`, async ({ page }) => {
+    // ----------------------------
+    // 🔁 RESET DEVICE ID
+    // ----------------------------
+    const resetConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    delete resetConfig.capturedDeviceId;
+    fs.writeFileSync(configPath, JSON.stringify(resetConfig, null, 2));
 
-        // --------------------------------------------
-        // 🔁 STEP 0: Reset old Device ID
-        // --------------------------------------------
-        const configToReset = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        delete configToReset.capturedDeviceId;
-        fs.writeFileSync(configPath, JSON.stringify(configToReset, null, 2));
+    // ----------------------------
+    // 📄 INIT PAGES
+    // ----------------------------
+    const login = new LoginAndProjectPage(page);
+    const createPage = new CreateProjectPage(page);
+    const deviceAssign = new DeviceAssigningPage(page);
+    const setupPage = new SetupPage(page);
+    const status = new StatusConfigPage(page);
+    const analysis = new ProductionTabWeldData(page, flowConfig.scanConfig);
+    const extractor = new BoltDBTxtFileTOExcel();
+    const compare = new ComparePage();
 
-        // --------------------------------------------
-        // 📄 Initialize Pages
-        // --------------------------------------------
-        const login = new LoginAndProjectPage(page);
-        const createPage = new CreateProjectPage(page);
-        const deviceAssign = new DeviceAssigningPage(page);
-        const setupPage = new SetupPage(page);
+    console.log(`🚀 START FLOW: ${project.projectName}`);
 
-        // --------------------------------------------
-        // 🔐 STEP 1: LOGIN
-        // --------------------------------------------
-        console.log(`🚀 Starting Flow for: ${project.projectName}`);
-        await login.loginAndOpenProject(project.projectName);
+    // ----------------------------
+    // 🔐 STEP 1: LOGIN
+    // ----------------------------
+    await login.loginAndOpenProject();
 
-        // --------------------------------------------
-        // 🏗️ STEP 2: CREATE PROJECT
-        // --------------------------------------------
-        await createPage.createProject(project.createProjectData || project);
-
-        // --------------------------------------------
-        // 🖥️ STEP 3: RUN TERMINAL SYNC
-        // --------------------------------------------
-        console.log(`🖥️ Running device_register.js...`);
-
-        try {
-            const scriptPath = path.join(
-                __dirname,
-                '..',
-                'terminal_execution_files',
-                'device_register.js'
-            );
-
-            console.log(`🔍 Executing: ${scriptPath}`);
-
-            // Run script (blocking)
-            execSync(`node "${scriptPath}"`, { stdio: 'inherit' });
-
-            console.log("⏳ Waiting for Device ID...");
-
-            // --------------------------------------------
-            // ⏳ STEP 4: WAIT FOR DEVICE ID
-            // --------------------------------------------
-            const capturedID = await waitForDeviceId(configPath);
-
-            console.log(`🎯 Device ID received: ${capturedID}`);
-
-            // --------------------------------------------
-            // 🔗 STEP 5: ASSIGN DEVICE
-            // --------------------------------------------
-            await deviceAssign.assignProjectToDevice(capturedID, project.projectName);
-
-        } catch (error) {
-            console.error(`❌ Terminal execution failed: ${error.message}`);
-            throw error;
-        }
-
-        // --------------------------------------------
-        // ⚙️ STEP 6: SETUP CONFIGURATION
-        // --------------------------------------------
-        console.log(`⚙️ Starting Setup for: ${project.projectName}`);
-        await setupPage.performSetup(project.projectName);
-
-        console.log(`🎉 SUCCESS: ${project.projectName} is fully configured.`);
-
-        await page.close();
+    // ----------------------------
+    // 🏗️ STEP 2: CREATE PROJECT
+    // ----------------------------
+    await createPage.createProject({
+        ...flowConfig.createProjectData,
+        projectName: project.projectName
     });
-}
+
+    // ----------------------------
+    // 🖥️ STEP 3: DEVICE REGISTER (STEP 1)
+    // ----------------------------
+    const scriptPath = path.join(
+        __dirname,
+        '..',
+        'terminal_execution_files',
+        'device_register.js'
+    );
+
+    console.log("🖥️ Running Device Register (Step 1)");
+    execSync(`node "${scriptPath}" --step=1`, { stdio: 'inherit' });
+
+    // ----------------------------
+    // ⏳ STEP 4: WAIT FOR DEVICE ID
+    // ----------------------------
+    const deviceId = await waitForDeviceId();
+    console.log(`🎯 Device ID: ${deviceId}`);
+
+    // ----------------------------
+    // 🔗 STEP 5: ASSIGN DEVICE
+    // ----------------------------
+    await deviceAssign.assignProjectToDevice(deviceId, project.projectName);
+
+    // ----------------------------
+    // 🖥️ STEP 6: DEVICE SYNC (STEP 2)
+    // ----------------------------
+    console.log("🖥️ Running Device Sync (Step 2)");
+    execSync(`node "${scriptPath}" --step=2`, { stdio: 'inherit' });
+
+    // ----------------------------
+    // ⚙️ STEP 7: SETUP
+    // ----------------------------
+    await setupPage.performSetup(project.projectName);
+
+    // ----------------------------
+    // 📂 STEP 8: OPEN PROJECT
+    // ----------------------------
+    const searchInput = page.locator('input[placeholder*="Search"]').first();
+    await searchInput.fill(project.projectName);
+    await page.keyboard.press('Enter');
+
+    const projectTile = page.getByText(
+        new RegExp(`^${project.projectName}$`, 'i')
+    );
+
+    await projectTile.waitFor({ state: 'visible' });
+    await projectTile.click();
+
+    // ----------------------------
+    // 📊 STEP 9: PRODUCTION TAB
+    // ----------------------------
+    const productionTab = page.getByRole('tab', { name: /Production/i });
+    await productionTab.click();
+
+    await expect(productionTab).toHaveAttribute('aria-selected', 'true');
+
+    const weldRows = page.locator('table tbody tr');
+    await weldRows.first().waitFor({ state: 'visible' });
+
+    console.log(`✅ Weld Count: ${await weldRows.count()}`);
+
+    // ----------------------------
+    // 🔁 STEP 10: SLOPE LOOP
+    // ----------------------------
+    for (const slope of project.slopeCombinations) {
+
+        console.log(`🚀 In=${slope.slopeIn}, Out=${slope.slopeOut}`);
+
+        await status.applyStatusConfiguration(
+            slope.slopeIn,
+            slope.slopeOut
+        );
+
+        // Parallel Execution
+        await Promise.all([
+            analysis.runFlow(targetWeldId, null, project.projectName),
+            extractor.run(
+                slope.slopeIn,
+                slope.slopeOut,
+                project.projectName,
+                project.sourceFile
+            )
+        ]);
+
+        // ----------------------------
+        // 🧪 STEP 11: COMPARE
+        // ----------------------------
+        await compare.runAutoCompare(
+            project.projectName,
+            targetWeldId
+        );
+    }
+
+    console.log("🎉 END-TO-END FLOW COMPLETED");
+});
+
