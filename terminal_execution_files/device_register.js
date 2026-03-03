@@ -152,7 +152,6 @@ function runStep2(exeName, dbFile, paramFile) {
     // FIX: Use pipe to capture output, and detach so it can loop in the background
     const proc = spawn(exePath, [`-db`, dbPath, `-param`, paramPath], {
       shell: false,
-      detached: true, 
       detached: false, 
       stdio: ['ignore', 'pipe', 'pipe'] 
     });
@@ -185,16 +184,8 @@ function runStep2(exeName, dbFile, paramFile) {
 
       // 🛠️ THE FIX: Scan for the exact success string OR sufficient MQTT heartbeats
       if (!isSynced && (outputBuffer.includes("No new logs to publish") || outputBuffer.includes("(boltdb) Get all logs: Completed") || mqttCount > 3)) {
-        console.log(`\n✅ [SYNC COMPLETE] Detected completion signal (Log found or MQTT Status count: ${mqttCount}). Proceeding...`);
         console.log(`\n✅ [SYNC COMPLETE] Detected completion signal. Terminating process...`);
         isSynced = true;
-        
-        // Detach the process from Node's event loop so Node can exit
-        proc.unref();
-        
-        // Stop listening to stdout so we don't hold the process open
-        proc.stdout.removeAllListeners('data');
-        proc.stderr.removeAllListeners('data');
         
         cleanupAndExit();
         resolve(); // Tell the script to move on!

@@ -1,31 +1,22 @@
+const locators = require('../Locators/CreateProjectLocators.page');
+
 class CreateProjectPage {
   constructor(page) {
     this.page = page;
-
-    // Buttons
-    this.createProjectBtn = page.getByRole('button', { name: 'Create Project' });
-    this.submitBtn = page.getByRole('button', { name: 'Submit Project' });
-
-    // Inputs
-    this.projectNameInput = page.getByPlaceholder('Enter project name');
-    this.projectNumberInput = page.getByPlaceholder('Enter project number');
-
-    // Loaders & Toast
-    this.loader = page.locator('text=Loading projects data...');
-    this.toastCloseBtn = page.locator('.Toastify__close-button');
   }
 
   // ==========================
   // Utility Functions
   // ==========================
   async waitForLoader() {
-    await this.loader.waitFor({ state: 'hidden', timeout: 30000 });
+    await locators.loader(this.page).waitFor({ state: 'hidden', timeout: 30000 });
   }
 
   async closeToastIfVisible() {
     try {
-      if (await this.toastCloseBtn.isVisible({ timeout: 2000 })) {
-        await this.toastCloseBtn.click();
+      const btn = locators.toastCloseBtn(this.page);
+      if (await btn.isVisible({ timeout: 2000 })) {
+        await btn.click();
       }
     } catch (e) { /* ignore */ }
   }
@@ -36,8 +27,8 @@ class CreateProjectPage {
     await this.waitForLoader();
     await this.closeToastIfVisible();
 
-    await this.createProjectBtn.click();
-    await this.projectNameInput.waitFor({ state: 'visible' });
+    await locators.createProjectBtn(this.page).click();
+    await locators.projectNameInput(this.page).waitFor({ state: 'visible' });
   }
 
   // ==========================
@@ -51,7 +42,7 @@ class CreateProjectPage {
     };
 
     const labelText = placeholders[type];
-    const dropdown = this.page.locator('div').filter({ hasText: labelText }).last();
+    const dropdown = locators.dropdownByLabel(this.page, labelText);
 
     console.log(`Dropdown Task: Finding "${value}" for ${type}`);
 
@@ -69,7 +60,7 @@ class CreateProjectPage {
       await this.page.waitForTimeout(100);
 
       // Step 4: Select the result (Case-Insensitive match)
-      const option = this.page.locator('div').filter({ hasText: new RegExp(`^${value}$`, 'i') }).last();
+      const option = locators.dropdownOption(this.page, value);
       await option.waitFor({ state: 'visible', timeout: 100 });
       await option.click();
 
@@ -103,17 +94,14 @@ async selectDate(type, dateString) {
     try {
         await this.waitForLoader();
 
-        const container = this.page
-            .locator('div')
-            .filter({ hasText: new RegExp(`^${labelText}`) })
-            .last();
+        const container = locators.dateContainer(this.page, labelText);
 
         // FIX 1: Ensure container is in view before clicking
         await container.scrollIntoViewIfNeeded();
-        await container.locator('input').click();
+        await locators.dateInput(container).click();
 
         // FIX 2: Dynamically detect the panel count
-        const panels = this.page.locator('.ant-picker-panel:visible');
+        const panels = locators.visiblePanels(this.page);
         await panels.first().waitFor();
         const panelCount = await panels.count();
 
@@ -122,11 +110,11 @@ async selectDate(type, dateString) {
             ? panels.last() 
             : panels.first();
 
-        const header = activePanel.locator('.ant-picker-header-view');
-        const prevYearBtn = activePanel.locator('.ant-picker-header-super-prev-btn');
-        const nextYearBtn = activePanel.locator('.ant-picker-header-super-next-btn');
-        const prevMonthBtn = activePanel.locator('.ant-picker-header-prev-btn');
-        const nextMonthBtn = activePanel.locator('.ant-picker-header-next-btn');
+        const header = locators.pickerHeader(activePanel);
+        const prevYearBtn = locators.prevYearBtn(activePanel);
+        const nextYearBtn = locators.nextYearBtn(activePanel);
+        const prevMonthBtn = locators.prevMonthBtn(activePanel);
+        const nextMonthBtn = locators.nextMonthBtn(activePanel);
 
         const getState = async () => {
             const text = (await header.innerText()).toLowerCase();
@@ -157,10 +145,7 @@ async selectDate(type, dateString) {
         }
 
         // FIX 3: Use force click to bypass the blue range-highlight overlay
-        await activePanel
-            .locator('.ant-picker-cell-in-view')
-            .filter({ hasText: new RegExp(`^${targetDay}$`) })
-            .first()
+        await locators.dayCell(activePanel, targetDay)
             .click({ force: true });
 
         // Ensure the picker closes properly
@@ -179,14 +164,14 @@ async selectDate(type, dateString) {
     await this.openCreateProject();
 
     // Wait for internal form data to load
-    await this.page.locator('text=Loading project data...').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    await locators.projectDataLoader(this.page).waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
     await this.page.waitForTimeout(1000);
 
     // 🔹 Standard Inputs
-    await this.projectNameInput.waitFor({ state: 'visible' });
-    await this.projectNameInput.fill(projectData.projectName);
-    await this.projectNumberInput.waitFor({ state: 'visible' });
-    await this.projectNumberInput.fill(projectData.projectNumber || "");
+    await locators.projectNameInput(this.page).waitFor({ state: 'visible' });
+    await locators.projectNameInput(this.page).fill(projectData.projectName);
+    await locators.projectNumberInput(this.page).waitFor({ state: 'visible' });
+    await locators.projectNumberInput(this.page).fill(projectData.projectNumber || "");
 
     // 🔹 Isolated Dropdowns (Called by key, not UI text)
     await this.selectDropdown('location', projectData.location);
@@ -198,23 +183,23 @@ async selectDate(type, dateString) {
 
     // 🔹 Features and Checkboxes
     if (projectData.projectStatus) {
-      await this.page.getByLabel(projectData.projectStatus).check();
+      await locators.checkboxByLabel(this.page, projectData.projectStatus).check();
     }
 
     if (projectData.projectType) {
-      await this.page.getByLabel(projectData.projectType).check();
+      await locators.checkboxByLabel(this.page, projectData.projectType).check();
     }
 
     for (const feature of projectData.pipelineFeatures || []) {
-      await this.page.getByLabel(feature).check();
+      await locators.checkboxByLabel(this.page, feature).check();
     }
 
     for (const machine of projectData.machines || []) {
-      await this.page.locator(`label:has-text("${machine}")`).click();
+      await locators.machineLabel(this.page, machine).click();
     }
 
     // 🔹 Submit and Cleanup
-    await this.submitBtn.click();
+    await locators.submitBtn(this.page).click();
     await this.waitForLoader();
     await this.closeToastIfVisible();
 
@@ -228,15 +213,13 @@ async selectDate(type, dateString) {
     await this.waitForLoader();
 
     console.log(`🔍 Searching for project to select: ${projectName}`);
-    const searchInput = this.page.locator('input[placeholder*="Search"]').first();
+    const searchInput = locators.searchInput(this.page);
     await searchInput.fill(projectName);
     await this.page.keyboard.press('Enter');
 
     // This locator is more robust as it finds the project by text and clicks the container,
     // which aligns with modern UI patterns and the logic in other parts of the test suite.
-    const projectTile = this.page.getByText(
-      new RegExp(`^${projectName}$`, 'i')
-    ).first();
+    const projectTile = locators.projectTile(this.page, projectName);
 
     await projectTile.waitFor({ state: 'visible', timeout: 20000 });
     await projectTile.click();
@@ -247,11 +230,11 @@ async selectDate(type, dateString) {
 
 async assignDevice(projectName, laptopId) {
     await this.selectProject(projectName); // Must enter project first
-    await this.page.getByRole('tab', { name: 'Devices' }).click();
-    const input = this.page.getByPlaceholder(/Laptop ID/i);
+    await locators.devicesTab(this.page).click();
+    const input = locators.laptopIdInput(this.page);
     await input.clear(); // Clear existing
     await input.fill(laptopId);
-    await this.page.getByRole('button', { name: 'Save' }).click();
+    await locators.saveBtn(this.page).click();
 }
 
 // ==========================

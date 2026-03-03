@@ -1,4 +1,16 @@
 {
+  "flowControl": {
+    "cleanExports": true,
+    "checkSourceFile": true,
+    "runExtraction": true,
+    "login": true,
+    "createProject": true,
+    "deviceRegistration": true,
+    "setup": true,
+    "deviceSync": true,
+    "productionAnalysis": true,
+    "comparison": true
+  },
   "createProjectData": {
     "projectNumber": "123",
     "location": "ANDORRA",
@@ -55,7 +67,7 @@
     }
   },
   "singleProject": {
-    "projectName": "logstest123",
+    "projectName": "logstesting",
     "projectNumber": "1234",
     "location": "ANDORRA",
     "customer": "advanced engg",

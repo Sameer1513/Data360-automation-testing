@@ -70,7 +70,7 @@ class ComparePage {
     const finalOutPath = path.join(comparedDir, `Final_Comparison_${projectName}_${Date.now()}.xlsx`);
 
     console.log(`🚀 Comparison for ${projectName}:\nActual: ${actual}\nProd: ${prod}`); 
-    await this.compareWorkbooks(actualPath, prodPath, finalOutPath);
+    return await this.compareWorkbooks(actualPath, prodPath, finalOutPath);
     }
     
 
@@ -78,6 +78,7 @@ class ComparePage {
     const actualWb = new ExcelJS.Workbook(); await actualWb.xlsx.readFile(actualPath);
     const prodWb = new ExcelJS.Workbook(); await prodWb.xlsx.readFile(prodPath);
     const resultWb = new ExcelJS.Workbook();
+    let globalFailure = false;
 
     // 1. CREATE SUMMARY SHEET
     const summarySheet = resultWb.addWorksheet('SUMMARY_DASHBOARD');
@@ -114,6 +115,7 @@ class ComparePage {
         if (aSheet && keys) {
             console.log(`📊 Comparing Sheet: ${pName}`);
             const hasFailures = this.compare(aSheet, pSheet, resultWb, pName, keys);
+            if (hasFailures) globalFailure = true;
             const status = hasFailures ? 'FAIL' : 'PASS';
 
             const row = summarySheet.addRow([
@@ -137,6 +139,7 @@ class ComparePage {
 
     await resultWb.xlsx.writeFile(outpath);
     console.log("✅ Comparison Saved: " + outpath);
+    return globalFailure;
 }
 
 compare(aSheet, pSheet, resultWb, title, keyCols) {

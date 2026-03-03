@@ -1,5 +1,7 @@
 const fs = require('fs');
 const path = require('path');
+const locators = require('../Locators/SetupLocators.page');
+const CommonHelper = require('../Helper/CommonHelper');
 
 const config = JSON.parse(
   fs.readFileSync(path.join(__dirname, '../config/Combinations.json'), 'utf-8')
@@ -8,6 +10,7 @@ const config = JSON.parse(
 class SetupPage {
   constructor(page) {
     this.page = page;
+    this.helper = new CommonHelper(page);
   }
 getProjectConfig(projectName) {
     // 1. Check if it's a simple single-project mode
@@ -32,26 +35,14 @@ getProjectConfig(projectName) {
     if (!project || !project.setupConfig) return;
 
     // 1. OPEN PROJECT
-    console.log(`🔍 Searching and selecting project for setup: ${projectName}`);
-    const searchInput = this.page.locator('input[placeholder*="Search"]').first();
-    await searchInput.fill(projectName);
-    await this.page.keyboard.press('Enter');
-
-    // This updated logic clicks the project container directly, which is more robust
-    // and consistent with other parts of the test suite.
-    const projectTile = this.page.getByText(
-      new RegExp(`^${projectName}$`, 'i')
-    ).first();
-    await projectTile.waitFor({ state: 'visible' });
-    await projectTile.click();
-    await this.page.waitForLoadState('networkidle');
+    await this.helper.selectProject(projectName);
 
     // 2. NAVIGATION
-    await this.page.getByRole('tab', { name: 'Setup' }).click();
+    await locators.setupTab(this.page).click();
     
 
     const incomingPipes = project.setupConfig.pipes;
-    const pipeCountInput = this.page.locator('input[placeholder="Enter number of pipe sizes"]');
+    const pipeCountInput = locators.pipeCountInput(this.page);
     
     // 3. ENTER PIPE COUNT
     await pipeCountInput.click();
@@ -60,7 +51,7 @@ getProjectConfig(projectName) {
     await pipeCountInput.type(incomingPipes.length.toString(), { delay: 100 });
 
     // Wait for header to confirm UI update
-    await this.page.locator('text=Pipe Size Details').waitFor({ state: 'visible', timeout: 10000 });
+    await locators.pipeDetailsHeader(this.page).waitFor({ state: 'visible', timeout: 10000 });
 
     // 4. FILL ALL ROWS
     // 4. FILL ALL ROWS
@@ -68,10 +59,7 @@ getProjectConfig(projectName) {
         const pipeLabel = `Pipe ${i + 1}`;
         console.log(`🔍 Processing: ${pipeLabel}`);
 
-        const pipeContainer = this.page.locator('div')
-            .filter({ hasText: new RegExp(`^${pipeLabel}$`) })
-            .first()
-            .locator('xpath=./ancestor::div[contains(@class, "ant-card") or contains(@class, "border")][1]');
+        const pipeContainer = locators.pipeContainer(this.page, pipeLabel);
         
         await pipeContainer.waitFor({ state: 'visible' });
         await this.fillPipeRow(pipeContainer, incomingPipes[i], i);
@@ -79,7 +67,7 @@ getProjectConfig(projectName) {
 
     // 5. SAVE WITH RETRY
     console.log("💾 Attempting to Save...");
-    const saveButton = this.page.getByRole('button', { name: 'Save' });
+    const saveButton = locators.saveBtn(this.page);
     await saveButton.scrollIntoViewIfNeeded();
     await saveButton.click();
     await this.page.waitForLoadState('networkidle');
@@ -90,21 +78,26 @@ getProjectConfig(projectName) {
 
 async fillPipeRow(container, pipe, index) {
     // 1. Basic Details
-    await container.getByPlaceholder('Enter pipe size').fill(pipe.pipeSize);
-    await container.getByPlaceholder('Enter wall thickness').fill(pipe.wallThickness);
-    await container.getByPlaceholder('Enter number of pipes').fill(pipe.pipeCount);
-    await container.getByPlaceholder('Enter pipe length').fill(pipe.pipeLength);
+    await locators.pipeSizeInput(container).fill(pipe.pipeSize);
+    await locators.wallThicknessInput(container).fill(pipe.wallThickness);
+    await locators.pipeCountRowInput(container).fill(pipe.pipeCount);
+    await locators.pipeLengthInput(container).fill(pipe.pipeLength);
 
     // 2. Manufacturer Dropdown with Search Visibility Logic
     const manufacturers = Array.isArray(pipe.manufacturer) ? pipe.manufacturer : [pipe.manufacturer];
     
     for (let i = 0; i < manufacturers.length; i++) {
+        // DEVELOPER NOTE: This loop handles manufacturer selection. The current implementation
+        // types a name, hits Enter, and then clears the input for the next name. This pattern
+        // assumes the UI does not support true multi-select via checkboxes or tags. If the UI
+        // changes to a standard multi-select component, this logic will need to be updated to
+        // click each option without clearing the input.
         const name = manufacturers[i];
         
         // Open dropdown only if search is not already visible
-        const searchInput = this.page.locator('input[placeholder="Search..."]').last();
+        const searchInput = locators.manufacturerSearch(this.page);
         if (!(await searchInput.isVisible())) {
-            await container.getByText('Select manufacturer').click();
+            await locators.manufacturerPlaceholder(container).click();
         }
 
         await searchInput.waitFor({ state: 'visible', timeout: 3000 });
@@ -125,13 +118,13 @@ async fillPipeRow(container, pipe, index) {
     await this.page.waitForTimeout(500);
 
     // Reset UI focus by clicking the Pipe Header to clear transparent overlays
-    const pipeHeader = container.locator('h5', { hasText: `Pipe ${index + 1}` });
+    const pipeHeader = locators.pipeHeader(container, index);
     await pipeHeader.click({ force: true });
 
     // 4. WPS ENTRY WITH RETRY
     const wpsList = Array.isArray(pipe.wps) ? pipe.wps : [pipe.wps];
     const placeholderText = "Enter WPS Number 1"; 
-    const firstWpsInput = container.getByPlaceholder(placeholderText);
+    const firstWpsInput = locators.wpsInput(container, placeholderText);
 
     let wpsFilled = false;
     for (let attempt = 0; attempt < 2; attempt++) {
