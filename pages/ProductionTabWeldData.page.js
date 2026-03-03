@@ -10,7 +10,7 @@ const { autoScroll } = require('../utils/scroll.util');
 class ProductionTabWeldData {
   constructor(page,scanConfig) {
     this.page = page;
-    this.exportDir = path.join(process.cwd(), 'exports');
+    this.exportDir = path.join(process.cwd(), 'exports', 'ProductionData');
     if (!fs.existsSync(this.exportDir)) {
       fs.mkdirSync(this.exportDir, { recursive: true });
     }

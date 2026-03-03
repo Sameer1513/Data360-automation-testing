@@ -170,24 +170,32 @@ class DeviceAssigningPage {
         await expect(successToast).toBeVisible();
         console.log(`✅ SUCCESS: Assigned ${projectName} to ${deviceId}`);
 
+        // Wait for the success toast to disappear before proceeding
+        await successToast.waitFor({ state: 'hidden', timeout: 5000 });
+
         // ==========================================
         // 7. Navigate Back to Projects Dashboard
         // ==========================================
         console.log(`🔙 Navigating back to Projects page...`);
-        const projectsBtn = locators.projectsMenuBtn(this.page);
+        // FIX: Use a more robust locator for the Projects link based on its href
+        const projectsLink = this.page.locator('a[href="/Projects"][data-discover="true"]').first();
         const trigger = locators.sidebarTrigger(this.page);
 
         // Ensure sidebar is expanded to show 'Projects'
-        if (!(await projectsBtn.isVisible())) {
+        if (!(await projectsLink.isVisible())) {
             if (await trigger.isVisible()) {
+                console.log("   👆 Expanding sidebar...");
                 await trigger.click({ force: true });
                 await this.page.waitForTimeout(500); 
             }
         }
 
-        await projectsBtn.waitFor({ state: 'visible', timeout: 10000 });
-        await projectsBtn.click({ force: true });
+        console.log("   🖱️ Clicking Projects link...");
+        await projectsLink.waitFor({ state: 'visible', timeout: 10000 });
+        await projectsLink.scrollIntoViewIfNeeded();
+        await projectsLink.click();
         
+        console.log("   ⏳ Waiting for navigation to /Projects...");
         await this.page.waitForURL(/.*\/projects/i, { timeout: 15000 });
         
         // 🧪 ASSERTION: Hard check that we successfully returned to the projects URL

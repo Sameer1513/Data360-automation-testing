@@ -690,11 +690,45 @@ test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
     const targetWeldId = resolveTargetWelds(project.weldIds);
 
     // ----------------------------
+    // 🛡️ ASSERTION: CHECK SOURCE FILE
+    // ----------------------------
+    await test.step('📂 Verify Input Source File Exists', async () => {
+        const sourceFilePath = path.join(process.cwd(), 'Input', project.sourceFile);
+        expect(fs.existsSync(sourceFilePath), `❌ Source file '${project.sourceFile}' not found in Input directory.`).toBe(true);
+    });
+
+    // ⚙️ CONFIG: Determine if Device Registration is needed
+    const isDeviceRegEnabled = flowConfig.deviceRegistration && flowConfig.deviceRegistration.enabled !== false;
+    const isMultiBrowser = flowConfig.mode === 'multiBrowser';
+    const shouldRegisterDevice = isDeviceRegEnabled && !isMultiBrowser;
+    console.log(`ℹ️ Device Registration Mode: ${shouldRegisterDevice ? 'ENABLED' : 'DISABLED'}`);
+
+    // ----------------------------
+    // ⚡ PRE-STEP: RUN EXTRACTOR
+    // ----------------------------
+    let derivedSetup = null;
+    await test.step('⚡ Pre-Computation: BoltDB to Excel Extraction', async () => {
+        const extractor = new BoltDBTxtFileTOExcel();
+        console.log("⚡ Starting BoltDB to Excel Extraction (Pre-computation)...");
+        for (const slope of project.slopeCombinations) {
+            const result = await extractor.run(
+                slope.slopeIn,
+                slope.slopeOut,
+                project.projectName,
+                project.sourceFile
+            );
+            if (result) derivedSetup = result;
+        }
+    });
+
+    // ----------------------------
     // 🔁 RESET DEVICE ID
     // ----------------------------
-    const resetConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    delete resetConfig.capturedDeviceId;
-    fs.writeFileSync(configPath, JSON.stringify(resetConfig, null, 2));
+    if (shouldRegisterDevice) {
+        const resetConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        delete resetConfig.capturedDeviceId;
+        fs.writeFileSync(configPath, JSON.stringify(resetConfig, null, 2));
+    }
 
     // ----------------------------
     // 📄 INIT PAGES
@@ -705,7 +739,6 @@ test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
     const setupPage = new SetupPage(page);
     const status = new StatusConfigPage(page);
     const analysis = new ProductionTabWeldData(page, flowConfig.scanConfig);
-    const extractor = new BoltDBTxtFileTOExcel();
     const compare = new ComparePage();
 
     console.log(`🚀 START FLOW: ${project.projectName}`);
@@ -726,48 +759,97 @@ test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
     // ----------------------------
     // 🖥️ STEP 3: DEVICE REGISTER (STEP 1)
     // ----------------------------
-    const scriptPath = path.join(
-        __dirname,
-        '..',
-        'terminal_execution_files',
-        'device_register.js'
-    );
+    const scriptPath = path.join(__dirname, '..', 'terminal_execution_files', 'device_register.js');
 
-    console.log("🖥️ Running Device Register (Step 1)");
-    execSync(`node "${scriptPath}" --step=1`, { stdio: 'inherit' });
+    if (shouldRegisterDevice) {
+        await test.step('🖥️ Run Device Register (Step 1)', async () => {
+            try {
+                // Capture stdout and print it to the report
+                const output = execSync(`node "${scriptPath}" --step=1`, { encoding: 'utf-8' });
+                console.log(output);
+            } catch (error) {
+                // If the command fails, log its output and re-throw to fail the test
+                console.error(error.stdout);
+                throw error;
+            }
+        });
+
+        // ----------------------------
+        // ⏳ STEP 4: WAIT FOR DEVICE ID
+        // ----------------------------
+        const deviceId = await test.step('⏳ Wait for Device ID', async () => {
+            const id = await waitForDeviceId();
+            console.log(`🎯 Device ID: ${id}`);
+            return id;
+        });
+
+        // ----------------------------
+        // 🔗 STEP 5: ASSIGN DEVICE
+        // ----------------------------
+        await test.step('🔗 Assign Device to Project', async () => {
+            await deviceAssign.assignProjectToDevice(deviceId, project.projectName);
+        });
+    } else {
+        console.log("⏩ Skipping Device Registration & Assignment (Disabled or Multi-Browser)");
+    }
 
     // ----------------------------
-    // ⏳ STEP 4: WAIT FOR DEVICE ID
+    // ⚙️ STEP 6: SETUP
     // ----------------------------
-    const deviceId = await waitForDeviceId();
-    console.log(`🎯 Device ID: ${deviceId}`);
+    if (derivedSetup) {
+        await test.step('📝 Apply Derived Setup Config', async () => {
+            console.log("📝 Updating Combinations.json with derived data:", derivedSetup);
+            const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+            
+            if (cfg.singleProject && cfg.singleProject.setupConfig && cfg.singleProject.setupConfig.pipes && cfg.singleProject.setupConfig.pipes.length > 0) {
+                const p = cfg.singleProject.setupConfig.pipes[0];
+                if (derivedSetup.pipeSize) p.pipeSize = String(derivedSetup.pipeSize);
+                if (derivedSetup.wallThickness) p.wallThickness = String(derivedSetup.wallThickness);
+                if (derivedSetup.wps) p.wps = [String(derivedSetup.wps)];
+                fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2));
+            }
+        });
+    }
+
+    await test.step('⚙️ Perform Project Setup', async () => {
+        await setupPage.performSetup(project.projectName);
+    });
 
     // ----------------------------
-    // 🔗 STEP 5: ASSIGN DEVICE
+    // 🖥️ STEP 7: DEVICE SYNC (STEP 2)
     // ----------------------------
-    await deviceAssign.assignProjectToDevice(deviceId, project.projectName);
+    if (shouldRegisterDevice) {
+        await test.step('🖥️ Run Device Sync (Step 2)', async () => {
+            try {
+                const output = execSync(`node "${scriptPath}" --step=2`, { encoding: 'utf-8' });
+                console.log(output);
+            } catch (error) {
+                console.error(error.stdout);
+                throw error;
+            }
+        });
+    } else {
+        console.log("⏩ Skipping Device Sync (Step 2)");
+    }
 
     // ----------------------------
-    // 🖥️ STEP 6: DEVICE SYNC (STEP 2)
+    // � STEP 8: OPEN PROJECT
     // ----------------------------
-    console.log("🖥️ Running Device Sync (Step 2)");
-    execSync(`node "${scriptPath}" --step=2`, { stdio: 'inherit' });
+    console.log("🔙 Returning to Dashboard to refresh project state...");
+    const projectsBreadcrumb = page.locator('header').getByText('Projects', { exact: true });
+    if (await projectsBreadcrumb.isVisible()) {
+        await projectsBreadcrumb.click();
+        await page.waitForLoadState('networkidle');
+    }
 
-    // ----------------------------
-    // ⚙️ STEP 7: SETUP
-    // ----------------------------
-    await setupPage.performSetup(project.projectName);
-
-    // ----------------------------
-    // 📂 STEP 8: OPEN PROJECT
-    // ----------------------------
     const searchInput = page.locator('input[placeholder*="Search"]').first();
+    await searchInput.waitFor({ state: 'visible' });
     await searchInput.fill(project.projectName);
     await page.keyboard.press('Enter');
 
     const projectTile = page.getByText(
         new RegExp(`^${project.projectName}$`, 'i')
-    );
+    ).first();
 
     await projectTile.waitFor({ state: 'visible' });
     await projectTile.click();
@@ -797,16 +879,8 @@ test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
             slope.slopeOut
         );
 
-        // Parallel Execution
-        await Promise.all([
-            analysis.runFlow(targetWeldId, null, project.projectName),
-            extractor.run(
-                slope.slopeIn,
-                slope.slopeOut,
-                project.projectName,
-                project.sourceFile
-            )
-        ]);
+        // Run Analysis (Extraction was done at the start)
+        await analysis.runFlow(targetWeldId, null, project.projectName);
 
         // ----------------------------
         // 🧪 STEP 11: COMPARE
@@ -819,4 +893,3 @@ test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
 
     console.log("🎉 END-TO-END FLOW COMPLETED");
 });
-

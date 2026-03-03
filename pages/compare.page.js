@@ -33,35 +33,41 @@ class ComparePage {
          // Convert targetWeldIds to strings for accurate comparison
         const filterIds = Array.isArray(targetWeldIds) ? targetWeldIds.map(String) : [];
         this.filterIds = filterIds.map(id => this.normalizeValue(id));
-        const exportsDir = path.join(process.cwd(), 'exports');
-        const files = fs.readdirSync(exportsDir);
+        
+        const actualDir = path.join(process.cwd(), 'exports', 'ActualData');
+        const prodDir = path.join(process.cwd(), 'exports', 'ProductionData');
+        const comparedDir = path.join(process.cwd(), 'exports', 'ComparedData');
+
+        if (!fs.existsSync(comparedDir)) fs.mkdirSync(comparedDir, { recursive: true });
 
         // 1. Updated helper to handle timestamps using startsWith
-       const getLatest = (prefix) => {
+       const getLatest = (dir, prefix) => {
+        if (!fs.existsSync(dir)) return null;
+        const files = fs.readdirSync(dir);
         return files
         // .filter(f => f.startsWith(prefix) && f.endsWith('.xlsx'))
         .filter(f => f.startsWith(prefix) && f.includes(`_${projectName}_`) && f.endsWith('.xlsx'))
         .sort((a, b) => {
-            const statA = fs.statSync(path.join(exportsDir, a));
-            const statB = fs.statSync(path.join(exportsDir, b));
+            const statA = fs.statSync(path.join(dir, a));
+            const statB = fs.statSync(path.join(dir, b));
             return statB.mtimeMs - statA.mtimeMs; // Latest file first
         })[0];
     };
 
      // 2. Update prefixes to match your Extraction Script output
      // Your script saves: Production_weld_data1_[timestamp].xlsx
-    const actual = getLatest('ActualData_'); 
-    const prod = getLatest('Production_Report'); 
+    const actual = getLatest(actualDir, 'ActualData_'); 
+    const prod = getLatest(prodDir, 'Production_Report'); 
 
     // 3. Improved error message for debugging
         if (!actual || !prod) {
-           throw new Error(`Files missing in ${exportsDir}. \nLooking for: "ActualData_" and "Production_report" \nFound: ${files.length} files total.`);
+           throw new Error(`Files missing. \nLooking for: "ActualData_" in ${actualDir} \nand "Production_Report" in ${prodDir}`);
       }
-      const actualPath = path.join(exportsDir, actual);
-      const prodPath = path.join(exportsDir, prod);
+      const actualPath = path.join(actualDir, actual);
+      const prodPath = path.join(prodDir, prod);
     //  console.log(`🚀 Starting Comparison:\nActual: ${actual}\nProd: ${prod}`); 
     //     await this.compareWorkbooks(actualPath, prodPath);
-    const finalOutPath = path.join(exportsDir, `Final_Comparison_${projectName}_${Date.now()}.xlsx`);
+    const finalOutPath = path.join(comparedDir, `Final_Comparison_${projectName}_${Date.now()}.xlsx`);
 
     console.log(`🚀 Comparison for ${projectName}:\nActual: ${actual}\nProd: ${prod}`); 
     await this.compareWorkbooks(actualPath, prodPath, finalOutPath);
@@ -129,7 +135,6 @@ class ComparePage {
     // 3. FINALIZING
     summarySheet.columns = [{ width: 30 }, { width: 15 }, { width: 25 }];
 
-    const out = path.join(__dirname, '..', 'exports', `Final_Comparison_${Date.now()}.xlsx`);
     await resultWb.xlsx.writeFile(outpath);
     console.log("✅ Comparison Saved: " + outpath);
 }

@@ -32,12 +32,18 @@ getProjectConfig(projectName) {
     if (!project || !project.setupConfig) return;
 
     // 1. OPEN PROJECT
-    // 1. OPEN PROJECT
-await this.page.getByPlaceholder('Search Project').fill(projectName);
+    console.log(`🔍 Searching and selecting project for setup: ${projectName}`);
+    const searchInput = this.page.locator('input[placeholder*="Search"]').first();
+    await searchInput.fill(projectName);
+    await this.page.keyboard.press('Enter');
 
-// REPLACE THE CLICK LINE WITH THESE:
-const projectRow = this.page.locator('tr, .ant-list-item', { hasText: projectName });
-await projectRow.getByRole('button', { name: /Select|Open/i }).click();
+    // This updated logic clicks the project container directly, which is more robust
+    // and consistent with other parts of the test suite.
+    const projectTile = this.page.getByText(
+      new RegExp(`^${projectName}$`, 'i')
+    ).first();
+    await projectTile.waitFor({ state: 'visible' });
+    await projectTile.click();
     await this.page.waitForLoadState('networkidle');
 
     // 2. NAVIGATION

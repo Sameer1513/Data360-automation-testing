@@ -1,4 +1,4 @@
-const { spawn } = require('child_process');
+const { spawn, exec, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -26,6 +26,25 @@ function resolveFile(fileName, description) {
   }
 
   throw new Error(`❌ ASSERTION FAILED: ${description} '${fileName}' not found.\nChecked locations:\n${searchPaths.join('\n')}`);
+}
+
+// Helper: Find first file with specific extension in Input folders
+function findFileByExtension(extension) {
+  const searchDirs = [
+    path.join(__dirname, '../input'),
+    path.join(__dirname, 'input'),
+    path.join(__dirname, '../Input'),
+    path.join(__dirname, 'Input')
+  ];
+
+  for (const dir of searchDirs) {
+    if (fs.existsSync(dir)) {
+      const files = fs.readdirSync(dir);
+      const match = files.find(file => file.toLowerCase().endsWith(extension.toLowerCase()));
+      if (match) return path.join(dir, match);
+    }
+  }
+  return null;
 }
 
 function runStep1(exeName) {
@@ -62,7 +81,17 @@ function runStep1(exeName) {
         // Wait 5 seconds for the EXE to finish registration before killing
         console.log("⏳ Waiting 5 seconds for registration to complete...");
         killTimeout = setTimeout(() => {
-          proc.kill();
+          console.log(`\n🔪 Terminating process tree for PID: ${proc.pid}...`);
+          // Use taskkill with /T flag to terminate the process and any child processes it may have spawned.
+          // The default proc.kill() on Windows does not use /T, which can leave child processes running.
+          exec(`taskkill /PID ${proc.pid} /F /T`, (err) => {
+            if (err) {
+              // This is not a critical error. It can fail if the process already exited on its own.
+              console.warn(`[Debug] taskkill command may have failed (this is often ok): ${err.message}`);
+            } else {
+              console.log('✅ Process tree termination signal sent.');
+            }
+          });
         }, 5000);
       }
     };
@@ -104,26 +133,60 @@ function runStep2(exeName, dbFile, paramFile) {
       return reject(e);
     }
 
+    // 1. PRE-CLEANUP: Kill any existing instances and delete files
+    const exeBaseName = path.basename(exePath);
+    const lockPath = dbPath + '.lock';
+    
+    try {
+        // console.log(`🔪 Killing any existing ${exeBaseName} processes...`);
+        execSync(`taskkill /F /IM "${exeBaseName}"`, { stdio: 'ignore' });
+    } catch (e) {}
+
+    try {
+        // if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
+        if (fs.existsSync(lockPath)) fs.unlinkSync(lockPath);
+    } catch (e) { console.log(`⚠️ Cleanup warning: ${e.message}`); }
+
     console.log(`\n🚀 Step 2: Running ${exeName} -db ${dbFile} -param ${paramFile}`);
 
     // FIX: Use pipe to capture output, and detach so it can loop in the background
     const proc = spawn(exePath, [`-db`, dbPath, `-param`, paramPath], {
       shell: false,
       detached: true, 
+      detached: false, 
       stdio: ['ignore', 'pipe', 'pipe'] 
     });
 
     let isSynced = false;
     let outputBuffer = "";
 
+    const cleanupAndExit = () => {
+        try {
+            execSync(`taskkill /PID ${proc.pid} /F /T`, { stdio: 'ignore' });
+        } catch(e) {
+            try { execSync(`taskkill /F /IM "${exeBaseName}"`, { stdio: 'ignore' }); } catch(ex) {}
+        }
+        
+        // Delete files
+        try {
+            // if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
+            if (fs.existsSync(lockPath)) fs.unlinkSync(lockPath);
+        } catch(e) {}
+    };
+
     const onData = (data) => {
       const output = data.toString();
       process.stdout.write(output); // Mirror output to Playwright console
       outputBuffer += output;
 
-      // 🛠️ THE FIX: Scan for the exact success string
-      if (!isSynced && outputBuffer.includes("No new logs to publish")) {
-        console.log(`\n✅ [SYNC COMPLETE] Detected 'No new logs to publish'. Proceeding to UI validation...`);
+      // Check for repeated MQTT status message (indicates sync loop is active/idle)
+      const mqttMsg = "( mqtt ) Status: Publish Ready (Sub: Running, HB: Running, Pub: Running)";
+      const mqttCount = outputBuffer.split(mqttMsg).length - 1;
+
+      // 🛠️ THE FIX: Scan for the exact success string OR sufficient MQTT heartbeats
+      if (!isSynced && (outputBuffer.includes("No new logs to publish") || outputBuffer.includes("(boltdb) Get all logs: Completed") || mqttCount > 3)) {
+        console.log(`\n✅ [SYNC COMPLETE] Detected completion signal (Log found or MQTT Status count: ${mqttCount}). Proceeding...`);
+        console.log(`\n✅ [SYNC COMPLETE] Detected completion signal. Terminating process...`);
         isSynced = true;
         
         // Detach the process from Node's event loop so Node can exit
@@ -133,6 +196,7 @@ function runStep2(exeName, dbFile, paramFile) {
         proc.stdout.removeAllListeners('data');
         proc.stderr.removeAllListeners('data');
         
+        cleanupAndExit();
         resolve(); // Tell the script to move on!
       }
     };
@@ -142,6 +206,7 @@ function runStep2(exeName, dbFile, paramFile) {
 
     proc.on('exit', code => {
       if (!isSynced) {
+        cleanupAndExit();
         if (code === 0) resolve();
         else reject(new Error(`❌ ${exeName} failed with exit code ${code}`));
       }
@@ -164,10 +229,28 @@ async function main() {
       process.exit(1);
     }
 
+    // CHECK: Global Enable Flag
+    if (regConfig.enabled === false) {
+      console.log("ℹ️ Device Registration is explicitly disabled in config.");
+      process.exit(0);
+    }
+
     // Step 1: Device registration (optional, config-controlled)
     if ((targetStep === 0 || targetStep === 1) && regConfig && regConfig.step1.enabled) {
       // Handle 'executables' array from JSON or fallback to 'exe' string
-      const exeName = regConfig.step1.exe || (regConfig.step1.executables && regConfig.step1.executables[0]);
+      let exeName = regConfig.step1.exe || (regConfig.step1.executables && regConfig.step1.executables[0]);
+
+      // 🔍 AUTO-DISCOVERY: EXE (Step 1)
+      if (!exeName || exeName.trim() === "") {
+        console.log("🔍 Step 1 Config 'exe' is empty. Searching for first .exe file in Input directory...");
+        const foundExe = findFileByExtension('.exe');
+        if (!foundExe) {
+          throw new Error("❌ ASSERTION FAILED: No .exe file found in Input directory for Step 1.");
+        }
+        exeName = foundExe;
+        console.log(`✅ Found EXE file: ${path.basename(exeName)}`);
+      }
+
       const deviceID = await runStep1(exeName);
 
       if (deviceID) {
@@ -188,12 +271,82 @@ async function main() {
     }
 
     // Step 2: Sync / registration process for files
-    if ((targetStep === 0 || targetStep === 2) && regConfig && regConfig.step2.enabled) {
-      for (const fileObj of regConfig.step2.files) {
-        await runStep2(fileObj.exe, fileObj.db, fileObj.param);
+    const dbFilesToDelete = [];
+    if ((targetStep === 0 || targetStep === 2) && regConfig && regConfig.step2 && regConfig.step2.enabled) {
+      if (Array.isArray(regConfig.step2.files)) {
+        console.log(`🔄 Processing ${regConfig.step2.files.length} sync configuration(s)...`);
+        for (const fileObj of regConfig.step2.files) {
+          let exeTarget = fileObj.exe;
+          let dbTarget = fileObj.db;
+          let paramTarget = fileObj.param;
+
+          // 🔍 AUTO-DISCOVERY: EXE (Step 2)
+          if (!exeTarget || exeTarget.trim() === "") {
+            console.log("🔍 Config 'exe' is empty. Searching for first .exe file...");
+            const foundExe = findFileByExtension('.exe');
+            if (!foundExe) {
+              throw new Error("❌ ASSERTION FAILED: No .exe file found in Input directory.");
+            }
+            exeTarget = foundExe;
+            console.log(`✅ Found EXE file: ${path.basename(exeTarget)}`);
+          }
+
+          // 🔍 AUTO-DISCOVERY: DB
+          if (!dbTarget || dbTarget.trim() === "") {
+            console.log("🔍 Config 'db' is empty. Searching for first .db file in Input directory...");
+            const foundDb = findFileByExtension('.db');
+            
+            if (!foundDb) {
+              throw new Error("❌ ASSERTION FAILED: No .db file found in Input directory, and none specified in config.");
+            }
+            dbTarget = foundDb;
+            console.log(`✅ Found DB file: ${path.basename(dbTarget)}`);
+          }
+
+          // Track DB file for cleanup
+          try {
+            const resolvedDb = resolveFile(dbTarget, "Database File");
+            if (!dbFilesToDelete.includes(resolvedDb)) {
+              dbFilesToDelete.push(resolvedDb);
+            }
+          } catch (e) { /* Ignore, runStep2 will fail if file missing */ }
+
+          // 🔍 AUTO-DISCOVERY: PARAM (.csv or .xml)
+          if (!paramTarget || paramTarget.trim() === "") {
+            console.log("🔍 Config 'param' is empty. Searching for .csv or .xml file...");
+            let foundParam = findFileByExtension('.csv');
+            if (!foundParam) {
+              foundParam = findFileByExtension('.xml');
+            }
+            
+            if (!foundParam) {
+              throw new Error("❌ ASSERTION FAILED: No .csv or .xml parameter file found in Input directory.");
+            }
+            paramTarget = foundParam;
+            console.log(`✅ Found Param file: ${path.basename(paramTarget)}`);
+          }
+
+          await runStep2(exeTarget, dbTarget, paramTarget);
+        }
+      } else {
+        console.warn("⚠️ 'step2.files' is not an array. Skipping Step 2.");
       }
     } else {
       console.log('ℹ Step 2 skipped (disabled in config)');
+    }
+
+    // Cleanup .db and .db.lock files
+    if (dbFilesToDelete.length > 0) {
+      console.log('\n🧹 Cleaning up database files...');
+      for (const dbPath of dbFilesToDelete) {
+        const lockPath = dbPath + '.lock';
+        try {
+          if (fs.existsSync(lockPath)) {
+            fs.unlinkSync(lockPath);
+            console.log(`✅ Deleted: ${path.basename(lockPath)}`);
+          }
+        } catch (err) { /* Ignore lock deletion errors */ }
+      }
     }
 
     console.log('\n🎉 Device registration and sync finished!');

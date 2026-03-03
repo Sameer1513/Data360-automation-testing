@@ -21,29 +21,20 @@
     ]
   },
   "deviceRegistration": {
+    "enabled": true,
     "step1": {
       "enabled": true,
       "executables": [
-        "filename1.exe"
+        ""
       ]
     },
     "step2": {
       "enabled": true,
       "files": [
         {
-          "exe": "filename1.exe",
-          "db": "filename1.db",
-          "param": "file1.csv"
-        },
-        {
-          "exe": "filename2.exe",
-          "db": "filename2.db",
-          "param": "file2.xml"
-        },
-        {
-          "exe": "filename3.exe",
-          "db": "filename3.db",
-          "param": "file3.csv"
+          "exe": "",
+          "db": "",
+          "param": ""
         }
       ]
     }
@@ -64,8 +55,8 @@
     }
   },
   "singleProject": {
-    "projectName": "Testing2",
-    "projectNumber": "123",
+    "projectName": "logstest123",
+    "projectNumber": "1234",
     "location": "ANDORRA",
     "customer": "advanced engg",
     "startDate": "19-Feb-2026",
@@ -84,7 +75,7 @@
       "P-625",
       "M-500"
     ],
-    "sourceFile": "textfile.txt",
+    "sourceFile": "bolt_2CW.txt",
     "weldIds": "",
     "slopeCombinations": [
       {
@@ -109,8 +100,8 @@
     "setupConfig": {
       "pipes": [
         {
-          "pipeSize": "10",
-          "wallThickness": "10",
+          "pipeSize": "36.000",
+          "wallThickness": "43.5",
           "pipeCount": "10",
           "pipeLength": "10",
           "manufacturer": [
@@ -118,20 +109,7 @@
             "API-5l"
           ],
           "wps": [
-            "abc"
-          ]
-        },
-        {
-          "pipeSize": "10",
-          "wallThickness": "10",
-          "pipeCount": "10",
-          "pipeLength": "10",
-          "manufacturer": [
-            "American",
-            "API-5l"
-          ],
-          "wps": [
-            "abc"
+            "Demo"
           ]
         }
       ]
@@ -288,5 +266,6 @@
         "slopeOut": 6
       }
     }
-  ]
+  ],
+  "capturedDeviceId": "DESKTOP-32QBMO9"
 }

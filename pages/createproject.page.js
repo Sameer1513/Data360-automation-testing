@@ -225,15 +225,21 @@ async selectDate(type, dateString) {
   // OPEN PROJECT (Click Select)
   // ==========================
   async selectProject(projectName) {
-
     await this.waitForLoader();
 
-    const row = this.page.locator('tr', { hasText: projectName });
+    console.log(`🔍 Searching for project to select: ${projectName}`);
+    const searchInput = this.page.locator('input[placeholder*="Search"]').first();
+    await searchInput.fill(projectName);
+    await this.page.keyboard.press('Enter');
 
-    await row.waitFor({ state: 'visible', timeout: 20000 });
+    // This locator is more robust as it finds the project by text and clicks the container,
+    // which aligns with modern UI patterns and the logic in other parts of the test suite.
+    const projectTile = this.page.getByText(
+      new RegExp(`^${projectName}$`, 'i')
+    ).first();
 
-    await row.getByRole('button', { name: 'Select' }).click();
-
+    await projectTile.waitFor({ state: 'visible', timeout: 20000 });
+    await projectTile.click();
     console.log(`Project "${projectName}" opened successfully.`);
   }
 

@@ -6,7 +6,7 @@ const ExcelJS = require('exceljs');
 class BoltDBTxtFileTOExcel {
     constructor() {
         // this.inputTxtPath = path.join(__dirname, 'textfile.txt');
-        this.outputDir = path.join(__dirname, '..', 'exports');
+        this.outputDir = path.join(process.cwd(), 'exports', 'ActualData');
         // this.outputFile = `ActualData_${Date.now()}.xlsx`;
 
         this.unitSystem = 'imperial'; 
@@ -108,6 +108,11 @@ parseAutomationFile() {
 
 async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default') {
     this.inputTxtPath = path.join(process.cwd(), 'Input', sourceFile); 
+
+    if (!fs.existsSync(this.inputTxtPath)) {
+        throw new Error(`❌ ASSERTION FAILED: Source file missing at ${this.inputTxtPath}`);
+    }
+
     console.log(`📂 Reading from: ${this.inputTxtPath}`);
     const weldSessions = this.parseAutomationFile();
     const workbook = new ExcelJS.Workbook();
@@ -218,6 +223,11 @@ async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default') 
     });
 
     // --- D. VIEW SHEETS (Calculated using combined data) ---
+    // ⚠️ VALIDATION: If we have sessions but no actual data points, it's a failure.
+    if (weldSessions.length > 0 && allDataForViews.length === 0) {
+        throw new Error(`❌ EXTRACTION FAILED: Processed ${weldSessions.length} weld sessions but found no valid T-records (data points) to analyze. Aborting Excel generation.`);
+    }
+
     this.addViewSheet(workbook, 'Pass_View', allDataForViews, d => `${d.WeldID}_${d.Torch}`);
     this.addViewSheet(workbook, 'Zone_View', allDataForViews, d => `${d.WeldID}_${d.Torch}_${d.Zone}`);
     this.addViewSheet(workbook, 'Tilt_View', allDataForViews, d => {
@@ -228,8 +238,17 @@ async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default') 
 
     const outputPath = path.join(this.outputDir, fileName);
     if (!fs.existsSync(this.outputDir)) fs.mkdirSync(this.outputDir, { recursive: true });
+    console.log(`✍️  Writing ActualData to: ${outputPath}`);
     await workbook.xlsx.writeFile(outputPath);
     console.log(`✅ Success: Processed ${weldSessions.length} weld sessions.`);
+
+    // Return extracted setup data for configuration derivation
+    const validSession = weldSessions.find(s => s.hasS && s.setupData);
+    return validSession ? {
+        pipeSize: validSession.setupData.Pipe_diameter,
+        wallThickness: validSession.setupData.Band_diameter,
+        wps: validSession.setupData.Job_number
+    } : null;
 }   
 
 
