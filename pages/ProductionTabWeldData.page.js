@@ -3,7 +3,6 @@ const ExcelJS = require('exceljs');
 const fs = require('fs');
 const path = require('path');
 const { autoScroll } = require('../utils/scroll.util');
-const locators = require('../Locators/ProductionTabLocators.page');
 
 
 
@@ -34,7 +33,7 @@ if (targets.length === 0) {
     console.log("⏳ Scrolling to load production data...");
     
     // 1. Find the table scroller and scroll down/up to trigger the network
-    const scroller = locators.scroller(this.page);
+    const scroller = this.page.locator('div.relative.overflow-auto, [role="region"]').first();
     if (await scroller.isVisible()) {
         await scroller.evaluate(el => el.scrollTop = 200);
         await this.page.waitForTimeout(500);
@@ -44,13 +43,13 @@ if (targets.length === 0) {
     // 2. WAIT for any cell to have text (Dynamic wait instead of fixed time)
     // This looks specifically for the Weld ID column cells to be non-empty
     const idColIndex = await this.getColumnIndexByName('Weld ID');
-    const firstDataCell = locators.tableRows(this.page).first().locator(`td:nth-child(${idColIndex})`);
+    const firstDataCell = this.page.locator(`table tbody tr:first-child td:nth-child(${idColIndex})`);
     
     // This waits as long as needed for the network to finish
     await firstDataCell.waitFor({ state: 'visible', timeout: 30000 });
 
     // 3. Capture all IDs currently in view
-    const idCells = await locators.tableRows(this.page).locator(`td:nth-child(${idColIndex})`).allInnerTexts();
+    const idCells = await this.page.locator(`table tbody tr td:nth-child(${idColIndex})`).allInnerTexts();
     targets = idCells.map(id => id.trim()).filter(id => id.length > 0);
     
     console.log(`✅ Captured ${targets.length} welds after scroll: ${targets.join(', ')}`);
@@ -63,11 +62,9 @@ if (targets.length === 0) {
     try {
       // Use the search helper if a specific ID is provided
      if (currentWeld) {
-        const tableRows = locators.tableRows(this.page);
         await this.searchAndFilterWeld(currentWeld);
-        // RELIABLE WAIT: Instead of a fixed timeout, wait for the table to show exactly one result.
-        // This confirms the filter has been successfully applied.
-        await expect(tableRows).toHaveCount(1, { timeout: 10000 });
+        // Give the UI a moment to replace the old rows with the new search results
+        await this.page.waitForTimeout(1500); 
       }
 
       // Step 1: Enter the detail view (Weld Data eye icon)
@@ -80,8 +77,8 @@ if (targets.length === 0) {
      
     await this.generateWeldSummarySheet(workbook, currentWeld);
       
-      const prodHeaders = await locators.tableHeaders(this.page).allInnerTexts();
-      const rows = locators.tableRows(this.page);
+      const prodHeaders = await this.page.locator('table thead th').allInnerTexts();
+      const rows = this.page.locator('table tbody tr');
       const prodRowData = await rows.nth(0).locator('td').allInnerTexts();
 
       const tabsToProcess = Object.entries(this.scanConfig)
@@ -115,7 +112,7 @@ if (targets.length === 0) {
 
 async searchAndFilterWeld(weldId) {
     const idStr = String(weldId).trim();
-    const searchInput = locators.searchInput(this.page);
+    const searchInput = this.page.locator('input[placeholder*="Search"], .search-bar input').first();
 
     // 1. Precise Clear and Search
     await searchInput.click({ clickCount: 3 });
@@ -129,7 +126,7 @@ async searchAndFilterWeld(weldId) {
 
     // 3. TARGET THE EXACT ROW
     // We use a regex to ensure "13" is not confused with "3"
-    const targetRow = locators.tableRows(this.page).filter({
+    const targetRow = this.page.locator('table tbody tr').filter({
         has: this.page.locator(`td:nth-child(${weldIdCol})`).getByText(idStr, { exact: true })
     }).first();
 
@@ -138,7 +135,7 @@ async searchAndFilterWeld(weldId) {
         await targetRow.waitFor({ state: 'visible', timeout: 15000 });
         
         // 4. CLICK THE EYE ICON IN THE CORRECT ROW
-        const eyeButton = locators.eyeBtn(targetRow, weldDataCol);
+        const eyeButton = targetRow.locator(`td:nth-child(${weldDataCol}) button, td:nth-child(${weldDataCol}) svg.lucide-eye`).first();
         
         await targetRow.scrollIntoViewIfNeeded();
         await eyeButton.click();
@@ -153,7 +150,7 @@ async searchAndFilterWeld(weldId) {
 }
 
 async clearSearch() {
-  const clearBtn = locators.clearSearchBtn(this.page);
+  const clearBtn = this.page.locator('button:has(svg.lucide-x), .clear-search').first();
   
   // Use a shorter timeout and force the click if necessary
   if (await clearBtn.isVisible()) {
@@ -161,14 +158,14 @@ async clearSearch() {
       await clearBtn.click({ timeout: 5000 });
     } catch (e) {
       // If clicking the "X" fails, fallback to manual clear
-      const input = locators.searchInput(this.page);
+      const input = this.page.locator('input[placeholder*="Search"]').first();
       await input.click();
       await this.page.keyboard.press('Control+A');
       await this.page.keyboard.press('Backspace');
       await this.page.keyboard.press('Enter');
     }
   } else {
-    await locators.searchInput(this.page).fill('');
+    await this.page.locator('input[placeholder*="Search"]').first().fill('');
     await this.page.keyboard.press('Enter');
   }
   await this.page.waitForTimeout(1000); // Wait for table to reset
@@ -176,23 +173,23 @@ async clearSearch() {
 
 async parseCellValue(cell) {
   return await cell.evaluate(el => {
-    if (el.querySelector('svg.lucide-thumbs-up')) return 'true'; // locators.thumbsUp
-    if (el.querySelector('svg.lucide-thumbs-down')) return 'false'; // locators.thumbsDown
-    if (el.querySelector('svg.lucide-alert-circle')) return '!'; // locators.alertCircle
-    if (el.querySelector('svg.lucide-minus')) return '-'; // locators.minus
-    if (el.querySelector('svg.lucide-x')) return 'x'; // locators.xIcon
+    if (el.querySelector('svg.lucide-thumbs-up')) return 'true';
+    if (el.querySelector('svg.lucide-thumbs-down')) return 'false';
+    if (el.querySelector('svg.lucide-alert-circle')) return '!';
+    if (el.querySelector('svg.lucide-minus')) return '-';
+    if (el.querySelector('svg.lucide-x')) return 'x';
     return el.innerText.trim();
   });
 }
 async processTabByName(workbook, tabName, prodHeaders, prodRowData,currentWeldId) {
   try {
     console.log(`--- Processing ${tabName} Tab ---`);
-    const tab = locators.tabByName(this.page, tabName);
+    const tab = this.page.getByRole('tab', { name: tabName });
 
     if (await tab.count() === 0) return;
 
     await tab.click({ timeout: 5000 });
-    await locators.tabContent(this.page).first().waitFor({ state: 'visible', timeout: 5000 });
+    await this.page.waitForSelector('table tbody tr', { state: 'visible', timeout: 5000 });
 
     // Reuse your existing logic for scraping the view
     await this.processTabView(workbook, tabName, prodHeaders, prodRowData,currentWeldId);
@@ -222,19 +219,19 @@ if (!analysisSheet && cfg.tlogs) {
   }
 
   // 1️⃣ Scroll the table for full data
-  const viewScroller = locators.scroller(this.page);
+  const viewScroller = this.page.locator('div.relative.overflow-auto, [role="region"]').first();
   if (await viewScroller.isVisible()) await autoScroll(viewScroller);
 
   // 2️⃣ Get headers (keep original logic)
   let headers = [];
   try {
-    headers = await locators.tableHeaders(this.page).allInnerTexts();
+    headers = await this.page.locator('table:has(tbody tr)').locator('thead th').allInnerTexts();
     if (headers.length > 10) console.log(`✅ Found ${headers.length} headers`);
   } catch(e) {}
 
   if (headers.length < 5) {
     try {
-      headers = await locators.tableRows(this.page).first().locator('td').allInnerTexts();
+      headers = await this.page.locator('table tbody tr:first-child td').allInnerTexts();
       console.log(`✅ Used data row as headers: ${headers.length} columns`);
     } catch(e) {}
   }
@@ -253,7 +250,7 @@ if (viewSheet && !viewSheet._headersWritten) {
   viewSheet._headersWritten = true;
 }
 
-  const rowsLocator = locators.tableRows(this.page);
+  const rowsLocator = this.page.locator('table tbody tr');
   const rowCount = await rowsLocator.count();
   const capturedRows = [];
 
@@ -274,7 +271,7 @@ if (viewSheet && !viewSheet._headersWritten) {
   if (analysisSheet) {
     for (const item of capturedRows) {
       const row = rowsLocator.nth(item.index);
-      const eye = locators.eyeBtnGeneric(row);
+      const eye = row.locator('button:has(svg.lucide-eye), svg.lucide-eye').first();
       if (await eye.count() > 0) {
         console.log(`   🔍 Row ${item.data[0]}: Opening Data Analysis`);
         await row.hover();
@@ -340,7 +337,7 @@ async scanDataAnalysis(sheet, viewName, prodHeaders, prodRowData, viewRowData,cu
 }
 
   // Scroll & capture (Keeping your logic exactly)
-  const scroller = locators.scroller(this.page);
+  const scroller = this.page.locator('div.relative.overflow-auto, [role="region"]').first();
   if (await scroller.isVisible()) {
      // You can keep your autoScroll(scroller) call here
      await scroller.evaluate(el => el.scrollTop = el.scrollHeight);
@@ -377,7 +374,7 @@ async scanDataAnalysis(sheet, viewName, prodHeaders, prodRowData, viewRowData,cu
     
 
   async goBackSafe() {
-    const backBtn = locators.backBtn(this.page);
+    const backBtn = this.page.locator('button:has(svg.lucide-arrow-left), button[aria-label="Back"]').first();
     if (await backBtn.isVisible()) {
       await backBtn.click();
       await this.page.waitForLoadState('networkidle');
@@ -386,12 +383,12 @@ async scanDataAnalysis(sheet, viewName, prodHeaders, prodRowData, viewRowData,cu
 
 async WelddataEye(index) {
     const weldDataCol = await this.getColumnIndexByName('Weld Data');
-    const row = locators.tableRows(this.page).nth(index);
+    const row = this.page.locator('table tbody tr').nth(index);
     
     // Scroll the specific row into view so the click doesn't miss
     await row.scrollIntoViewIfNeeded(); 
     
-    const eyeButton = locators.eyeBtn(row, weldDataCol);
+    const eyeButton = row.locator(`td:nth-child(${weldDataCol}) button`).first();
     await eyeButton.waitFor({ state: 'visible' });
     await eyeButton.click();
     
@@ -399,7 +396,7 @@ async WelddataEye(index) {
 }
 
   async getColumnIndexByName(name) {
-    const headers = locators.tableHeaders(this.page);
+    const headers = this.page.locator('table thead th');
     for (let i = 0; i < (await headers.count()); i++) {
       const txt = await headers.nth(i).innerText();
       if (txt.toLowerCase().includes(name.toLowerCase())) return i + 1;
@@ -412,12 +409,12 @@ async generateWeldSummarySheet(workbook, currentWeldId) { // Added parameter
   
   if (!sheet) {
     sheet = workbook.addWorksheet('WeldSummary');
-    const headers = await locators.tableHeaders(this.page).allInnerTexts();
+    const headers = await this.page.locator('table thead th').allInnerTexts();
     sheet.addRow(headers);
   }
 
   // Look for the row that specifically contains our Weld ID text
-  const row = locators.tableRows(this.page).filter({ 
+  const row = this.page.locator('table tbody tr').filter({ 
   has: this.page.locator('td'), 
   hasText: new RegExp(`^${currentWeldId}$`) // Regex for start-to-finish exact match
 }).first();
