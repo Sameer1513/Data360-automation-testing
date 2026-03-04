@@ -36,9 +36,7 @@
     "enabled": true,
     "step1": {
       "enabled": true,
-      "executables": [
-        ""
-      ]
+      "exe": ""
     },
     "step2": {
       "enabled": true,
@@ -54,7 +52,7 @@
   "mode": "single",
   "scanConfig": {
     "Pass": {
-      "view": false,
+      "view": true,
       "tlogs": true
     },
     "Zone": {
@@ -88,7 +86,7 @@
       "M-500"
     ],
     "sourceFile": "bolt_2CW.txt",
-    "weldIds": "",
+    "weldIds": "1",
     "slopeCombinations": [
       {
         "slopeIn": 0,

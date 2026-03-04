@@ -15,7 +15,7 @@ class BoltDBTxtFileTOExcel {
         this.roundingConfig = {
             'Tilt': 0,
             'Distance': 2,
-            'Travel Speed': 0, 
+            'Travel Speed': 1, 
             'Voltage': 1,
             'Current': 2,
             'Wire Speed': 0,
@@ -106,13 +106,14 @@ parseAutomationFile() {
 }
 
 
-async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default') {
+async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default', generateExcel = true) {
     this.inputTxtPath = path.join(process.cwd(), 'Input', sourceFile); 
 
     if (!fs.existsSync(this.inputTxtPath)) {
         throw new Error(`❌ ASSERTION FAILED: Source file missing at ${this.inputTxtPath}`);
     }
 
+    console.log(`DEBUG: BoltDBTxtFileTOExcel.run called for project ${projectName}, source ${sourceFile}, generateExcel = ${generateExcel}`);
     console.log(`📂 Reading from: ${this.inputTxtPath}`);
     const weldSessions = this.parseAutomationFile();
     const workbook = new ExcelJS.Workbook();

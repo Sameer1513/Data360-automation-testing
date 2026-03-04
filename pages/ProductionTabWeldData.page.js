@@ -223,36 +223,89 @@ if (!analysisSheet && cfg.tlogs) {
   if (await viewScroller.isVisible()) await autoScroll(viewScroller);
 
   // 2️⃣ Get headers (keep original logic)
+//   let headers = [];
+//   try {
+//     headers = await this.page.locator('table:has(tbody tr)').locator('thead th').allInnerTexts();
+//     if (headers.length > 10) console.log(`✅ Found ${headers.length} headers`);
+//   } catch(e) {}
+
+//   if (headers.length < 5) {
+//     try {
+//       headers = await this.page.locator('table tbody tr:first-child td').allInnerTexts();
+//       console.log(`✅ Used data row as headers: ${headers.length} columns`);
+//     } catch(e) {}
+//   }
+
+//   if (headers.length === 0) {
+//     headers = ['Sl.no', 'Status', 'Station', 'Welder ID', 'Direction', 'Action', 'Mode', 
+//                'Start Time', 'Duration', 'Auto?', 'Current(A)', 'Voltage(V)', 'Travel Speed', 
+//                'Heat Input', 'Wire Speed'];
+//     console.log('⚠️ Used hardcoded headers');
+//   }
+
+//   // 3️⃣ Only write headers to viewSheet if view enabled
+//   // 3️⃣ Only write headers once for the master sheet
+// if (viewSheet && !viewSheet._headersWritten) {
+//   viewSheet.addRow(['Weld ID', ...headers]);
+//   viewSheet._headersWritten = true;
+// }
+
+//   const rowsLocator = this.page.locator('table tbody tr');
+//   const rowCount = await rowsLocator.count();
+//   const capturedRows = [];
+
+const activeTable = this.page.locator('table:visible').last();
+
+  // 🌟 DYNAMIC CHECKBOX DETECTION 🌟
+  const firstTh = activeTable.locator('thead th').first();
+  let startIndex = 0;
+  if (await firstTh.isVisible() && await firstTh.locator('button[role="checkbox"], input[type="checkbox"]').count() > 0) {
+      startIndex = 1; // Skip the checkbox column
+  }
+
+  // 1. Get Headers using the dynamic startIndex
   let headers = [];
   try {
-    headers = await this.page.locator('table:has(tbody tr)').locator('thead th').allInnerTexts();
-    if (headers.length > 10) console.log(`✅ Found ${headers.length} headers`);
+      const thElements = activeTable.locator('thead th');
+      const thCount = await thElements.count();
+      for (let i = startIndex; i < thCount; i++) {
+          const text = await thElements.nth(i).innerText();
+          if (text.trim().length > 0) headers.push(text.trim());
+      }
   } catch(e) {}
 
-  if (headers.length < 5) {
-    try {
-      headers = await this.page.locator('table tbody tr:first-child td').allInnerTexts();
-      console.log(`✅ Used data row as headers: ${headers.length} columns`);
-    } catch(e) {}
-  }
-
   if (headers.length === 0) {
-    headers = ['Sl.no', 'Status', 'Station', 'Welder ID', 'Direction', 'Action', 'Mode', 
-               'Start Time', 'Duration', 'Auto?', 'Current(A)', 'Voltage(V)', 'Travel Speed', 
-               'Heat Input', 'Wire Speed'];
-    console.log('⚠️ Used hardcoded headers');
+      headers = ['Sl.no', 'Status', 'Station', 'Welder ID', 'Direction', 'Action', 'Mode', 
+                 'Start Time', 'Duration', 'Auto?', 'Current(A)', 'Voltage(V)', 'Travel Speed', 
+                 'Heat Input', 'Wire Speed'];
   }
 
-  // 3️⃣ Only write headers to viewSheet if view enabled
-  // 3️⃣ Only write headers once for the master sheet
-if (viewSheet && !viewSheet._headersWritten) {
-  viewSheet.addRow(['Weld ID', ...headers]);
-  viewSheet._headersWritten = true;
-}
+  if (viewSheet && !viewSheet._headersWritten) {
+    viewSheet.addRow(['Weld ID', ...headers]);
+    viewSheet._headersWritten = true;
+  }
 
-  const rowsLocator = this.page.locator('table tbody tr');
+  // 2. Capture Rows using the dynamic startIndex
+  const rowsLocator = activeTable.locator('tbody tr');
   const rowCount = await rowsLocator.count();
   const capturedRows = [];
+
+  for (let i = 0; i < rowCount; i++) {
+      const cells = await rowsLocator.nth(i).locator('td').all();
+      const rowData = [];
+      
+      // Start pushing row data from the dynamic startIndex
+      for (let j = startIndex; j < cells.length; j++) {
+          rowData.push(await this.parseCellValue(cells[j]));
+      }
+
+      // Keep rows with data (removed strict isNaN so Pass rows aren't deleted)
+      if (rowData.length >= 3 && rowData.some(d => d.trim() !== '')) {
+          const rowWithId = [currentWeldId, ...rowData];
+          if (viewSheet) viewSheet.addRow(rowWithId);  
+          if (analysisSheet) capturedRows.push({ index: i, data: rowWithId }); 
+      }
+  }
 
   // 4️⃣ Capture rows for viewSheet and/or analysis
   for (let i = 0; i < rowCount; i++) {
