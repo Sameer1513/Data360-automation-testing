@@ -9,7 +9,7 @@
     "setup": true,
     "deviceSync": true,
     "productionAnalysis": true,
-    "comparison": true
+    "comparison": false
   },
   "createProjectData": {
     "projectNumber": "123",
