@@ -892,8 +892,15 @@ test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
                 slope.slopeOut
             );
 
-            // Run Analysis (Extraction was done at the start)
-            await analysis.runFlow(targetWeldId, null, project.projectName);
+            // ----------------------------
+            // ⚡ RUN ANALYSIS & EXTRACTION
+            // ----------------------------
+            const extractor = new BoltDBTxtFileTOExcel();
+            
+            await Promise.all([
+                analysis.runFlow(targetWeldId, null, project.projectName),
+                extractor.run(slope.slopeIn, slope.slopeOut, project.projectName, project.sourceFile)
+            ]);
 
             // ----------------------------
             // 🧪 STEP 11: COMPARE
@@ -905,7 +912,7 @@ test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
                         targetWeldId
                     );
                     // Assert that there are no failures (hasDiffs should be false)
-                    expect(hasDiffs, 'Excel Comparison should not have failures').toBe(false);
+                    expect.soft(hasDiffs, 'Excel Comparison should not have failures').toBe(false);
                 });
             } else {
                 console.log("⏩ Skipping Comparison (Disabled in FlowControl)");
