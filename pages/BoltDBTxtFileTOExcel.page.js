@@ -54,6 +54,9 @@ class BoltDBTxtFileTOExcel {
         const p = {};
         parts.forEach(part => p[part.type] = part.value);
         
+        // FIX: Convert '0' hour to '12' to match UI 12-hour format (e.g., 0:18 AM -> 12:18 AM)
+        if (p.hour === '0') p.hour = '12';
+        
         // Matches format: 13-Dec-2024, 9:08:35 PM
         return `${p.day}-${p.month}-${p.year}, ${p.hour}:${p.minute}:${p.second} ${p.dayPeriod.toUpperCase()}`;
     }
@@ -257,7 +260,8 @@ async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default', 
     }
 
     // Return extracted setup data for configuration derivation
-    const validSession = weldSessions.find(s => s.hasS && s.setupData);
+    // FIX: Use the LAST valid session to ensure we get the most recent configuration from the log file
+    const validSession = [...weldSessions].reverse().find(s => s.hasS && s.setupData);
     return validSession ? {
         pipeSize: validSession.setupData.Pipe_diameter,
         wallThickness: validSession.setupData.Band_diameter,

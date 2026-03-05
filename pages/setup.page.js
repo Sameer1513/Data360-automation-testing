@@ -3,16 +3,14 @@ const path = require('path');
 const locators = require('../Locators/SetupLocators.page');
 const CommonHelper = require('../Helper/CommonHelper');
 
-const config = JSON.parse(
-  fs.readFileSync(path.join(__dirname, '../config/Combinations.json'), 'utf-8')
-);
-
 class SetupPage {
   constructor(page) {
     this.page = page;
     this.helper = new CommonHelper(page);
+    this.configPath = path.join(__dirname, '../config/Combinations.json');
   }
 getProjectConfig(projectName) {
+    const config = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
     // 1. Check if it's a simple single-project mode
     if (config.mode === "single") {
         return config.singleProject;
