@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { test, expect } = require('@playwright/test');
-const { execSync } = require('child_process');
+const { execSync, spawn } = require('child_process');
 
 // Page Objects
 const LoginAndProjectPage = require('../pages/loginAndProject.page');
@@ -72,16 +72,16 @@ test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
     if (fc.runExtraction) {
         await test.step('⚡ Pre-Computation: BoltDB to Excel Extraction', async () => {
             const extractor = new BoltDBTxtFileTOExcel();
-            console.log("⚡ Starting BoltDB to Excel Extraction (Pre-computation)...");
-            for (const slope of project.slopeCombinations) {
-                const result = await extractor.run(
-                    slope.slopeIn,
-                    slope.slopeOut,
-                    project.projectName,
-                    project.sourceFile
-                );
-                if (result) derivedSetup = result;
-            }
+            console.log("⚡ Running extractor once to derive setup data (no Excel generated)...");
+            // We only need to run this once to get setup data. Slopes don't affect setup data.
+            // The `false` argument prevents Excel file generation in this step.
+            derivedSetup = await extractor.run(
+                0, // slopeIn
+                0, // slopeOut
+                project.projectName,
+                project.sourceFile,
+                false // generateExcel
+            );
         });
     }
 
@@ -135,15 +135,18 @@ test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
 
     if (shouldRegisterDevice) {
         await test.step('🖥️ Run Device Register (Step 1)', async () => {
-            try {
-                // Capture stdout and print it to the report
-                const output = execSync(`node "${scriptPath}" --step=1`, { encoding: 'utf-8' });
-                console.log(output);
-            } catch (error) {
-                // If the command fails, log its output and re-throw to fail the test
-                console.error(error.stdout);
-                throw error;
-            }
+            console.log("Starting Device Registration Script...");
+            await new Promise((resolve, reject) => {
+                const child = spawn('node', [scriptPath, '--step=1'], { 
+                    stdio: 'inherit', 
+                    shell: true 
+                });
+                child.on('close', (code) => {
+                    if (code === 0) resolve();
+                    else reject(new Error(`Step 1 failed with exit code ${code}`));
+                });
+                child.on('error', (err) => reject(err));
+            });
         });
 
         // ----------------------------
@@ -198,13 +201,18 @@ test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
     // We use the 'deviceSync' flag from flowControl, combined with general config
     if (isDeviceRegConfigured && !isMultiBrowser && fc.deviceSync) {
         await test.step('🖥️ Run Device Sync (Step 2)', async () => {
-            try {
-                const output = execSync(`node "${scriptPath}" --step=2`, { encoding: 'utf-8' });
-                console.log(output);
-            } catch (error) {
-                console.error(error.stdout);
-                throw error;
-            }
+            console.log("Starting Device Sync Script...");
+            await new Promise((resolve, reject) => {
+                const child = spawn('node', [scriptPath, '--step=2'], { 
+                    stdio: 'inherit', 
+                    shell: true 
+                });
+                child.on('close', (code) => {
+                    if (code === 0) resolve();
+                    else reject(new Error(`Step 2 failed with exit code ${code}`));
+                });
+                child.on('error', (err) => reject(err));
+            });
         });
     } else {
         console.log("⏩ Skipping Device Sync (Step 2)");

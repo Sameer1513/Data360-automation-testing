@@ -248,11 +248,13 @@ async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default', 
         return `${d.WeldID}_${d.Torch}_${range}`;
     });
 
-    const outputPath = path.join(this.outputDir, fileName);
-    if (!fs.existsSync(this.outputDir)) fs.mkdirSync(this.outputDir, { recursive: true });
-    console.log(`✍️  Writing ActualData to: ${outputPath}`);
-    await workbook.xlsx.writeFile(outputPath);
-    console.log(`✅ Success: Processed ${weldSessions.length} weld sessions.`);
+    if (generateExcel) {
+        const outputPath = path.join(this.outputDir, fileName);
+        if (!fs.existsSync(this.outputDir)) fs.mkdirSync(this.outputDir, { recursive: true });
+        console.log(`✍️  Writing ActualData to: ${outputPath}`);
+        await workbook.xlsx.writeFile(outputPath);
+        console.log(`✅ Success: Processed ${weldSessions.length} weld sessions.`);
+    }
 
     // Return extracted setup data for configuration derivation
     const validSession = weldSessions.find(s => s.hasS && s.setupData);

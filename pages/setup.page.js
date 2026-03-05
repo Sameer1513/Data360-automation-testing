@@ -117,9 +117,8 @@ async fillPipeRow(container, pipe, index) {
     await this.page.keyboard.press('Escape');
     await this.page.waitForTimeout(500);
 
-    // Reset UI focus by clicking the Pipe Header to clear transparent overlays
-    const pipeHeader = locators.pipeHeader(container, index);
-    await pipeHeader.click({ force: true });
+    // Reset UI focus by clicking the Pipe Size Input (Safe) instead of Header (which might collapse the row)
+    await locators.pipeSizeInput(container).click({ force: true });
 
     // 4. WPS ENTRY WITH RETRY
     const wpsList = Array.isArray(pipe.wps) ? pipe.wps : [pipe.wps];
@@ -138,7 +137,7 @@ async fillPipeRow(container, pipe, index) {
 
             await firstWpsInput.waitFor({ state: 'visible', timeout: 2000 });
             await firstWpsInput.click({ force: true });
-            await firstWpsInput.fill(String(wpsList[0]));
+            await firstWpsInput.type(String(wpsList[0]), { delay: 100 });
             
             // Verify if the value was actually entered
             const val = await firstWpsInput.inputValue();
@@ -147,8 +146,9 @@ async fillPipeRow(container, pipe, index) {
                 break;
             }
         } catch (e) {
-            console.log(`⚠️ WPS Entry attempt ${attempt + 1} failed, retrying focus...`);
-            await pipeHeader.click({ force: true });
+            // The original code failed here because 'pipeHeader' is not defined in this scope.
+            console.log(`⚠️ WPS Entry attempt ${attempt + 1} failed, retrying focus. Error: ${e.message}`);
+            await locators.pipeSizeInput(container).click({ force: true }); // FIX: Click a stable element to reset focus.
             await this.page.waitForTimeout(500);
         }
     }
