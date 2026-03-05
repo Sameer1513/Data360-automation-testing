@@ -79,14 +79,16 @@ parseAutomationFile() {
         try {
             const obj = JSON.parse(line);
             
-            if (obj.Record === 'S') {
+           if (obj.Record === 'S') {
                 // If a previous session existed without a 'C', we close it automatically
                 currentSession = {
                     setupData: { ...obj, WeldID: obj.Weld_number || 'N/A' },
                     tRecords: [],
                     hasS: true,
                     hasC: false,
-                    hasT: false
+                    hasT: false,
+                    sTime: parseFloat(obj.Time),
+                    cTime: null
                 };
                 weldSessions.push(currentSession);
             } else if (obj.Record === 'T') {
@@ -98,7 +100,11 @@ parseAutomationFile() {
                 currentSession.tRecords.push(obj);
                 currentSession.hasT = true;
             } else if (obj.Record === 'C') {
-                if (currentSession) currentSession.hasC = true;
+                if (currentSession) {
+                    currentSession.hasC = true;
+                    currentSession.cTime = parseFloat(obj.Time);
+                }
+            
             }
         } catch (e) {}
     }
@@ -168,7 +174,10 @@ async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default', 
 
             return {
                 'WeldID': setupData.WeldID || 'N/A',
-                'Event': r.Event, 'Time': this.formatToIST(r.Time), 'rawTime': Number(r.Time),
+                 'Event': r.Event, 
+                'Time': this.formatToIST(r.Time), // 🌟 Keeps seconds for Tlogs
+                'ViewTime': this.formatToIST(r.Time).replace(/:\d{2}\s/, ' '), // 🌟 Strips seconds for Views
+                'rawTime': Number(r.Time),
                 'Tilt': this.applyRounding('Tilt', r.Tilt), 'Torch': type,
                 'Pass': r[p + 'pass_name'] || "NA", 'Zone': r[p + 'pass_name'] || "NA",
                 'Distance': this.applyRounding('Distance', r.Distance),
@@ -183,7 +192,9 @@ async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default', 
                 'Total Wire Consumed': this.applyRounding('Total Wire Consumed', r[p + 'total_wire_consumed']),
                 'True Energy': this.applyRounding('Heat', r[p + 'heat']),
                 'Heat': this.applyRounding('Heat', calcHeat),
-                'setupRef': setupData // Crucial for View Sheets
+                'setupRef': setupData, // Crucial for View Sheets
+                'sessionSTime': session.sTime,
+                'sessionCTime': session.cTime
             };
         };
 
@@ -264,24 +275,35 @@ addViewSheet(workbook, name, data, groupFn) {
     sheet.addRow(headers).font = { bold: true };
 
     // 2. Group the data
-    const groups = {};
-    data.forEach(d => {
-        const key = groupFn(d);
-        if (!groups[key]) {
-            groups[key] = { 
-                items: [], 
-                torch: d.Torch, 
-                zoneName: d.Zone, 
-                setup: d.setupRef // Each group now knows its own Weld ID / Station
-            };
-        }
-        groups[key].items.push(d);
-    });
+   const groups = {};
+        data.forEach(d => {
+            const key = groupFn(d);
+            if (!groups[key]) {
+                groups[key] = { 
+                    items: [], 
+                    torch: d.Torch, 
+                    zoneName: d.Zone, 
+                    setup: d.setupRef, // Each group now knows its own Weld ID / Station
+                    sTime: d.sessionSTime,
+                    cTime: d.sessionCTime
+                };
+            }
+            groups[key].items.push(d);
+        });
 
+    // 3. Process each group
     // 3. Process each group
     Object.values(groups).forEach(g => {
         const sortedItems = g.items.sort((a, b) => a.rawTime - b.rawTime);
-        const totalSeconds = Math.round((sortedItems[sortedItems.length - 1].rawTime - sortedItems[0].rawTime) * 1000);
+        
+        let totalSeconds = 0;
+        if (name === 'Pass_View' && g.sTime && g.cTime) {
+            totalSeconds = Math.round((g.cTime - g.sTime) * 1000);
+        } else {
+            totalSeconds = Math.round((sortedItems[sortedItems.length - 1].rawTime - sortedItems[0].rawTime) * 1000);
+        }
+        
+        if (totalSeconds < 0 || isNaN(totalSeconds)) totalSeconds = 0;
 
         const avg = (key) => {
             const list = g.items.map(i => i[key]);
@@ -290,15 +312,15 @@ addViewSheet(workbook, name, data, groupFn) {
             return key === 'Current' ? Math.round(averageValue) : this.applyRounding(key, averageValue);
         };
 
-        const rowData = [
-            g.setup.WeldID || 'N/A',
-            g.setup.Station_number ? `Station ${g.setup.Station_number}` : 'N/A',
-            g.setup.Welder_id || 'N/A',
-            (g.setup.Bug_type || '').toUpperCase().includes('CCW') ? 'CCW' : 'CW',
-            g.torch,
-            sortedItems[0].Time,
-            `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`
-        ];
+       const rowData = [
+                g.setup.WeldID || 'N/A',
+                g.setup.Station_number ? `Station ${g.setup.Station_number}` : 'N/A',
+                g.setup.Welder_id || 'N/A',
+                (g.setup.Bug_type || '').toUpperCase().includes('CCW') ? 'CCW' : 'CW',
+                g.torch,
+                sortedItems[0].ViewTime, // 🌟 Uses the version without seconds!
+                `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`
+            ];
 
         if (name === 'Zone_View') rowData.push(g.zoneName || 'N/A');
         if (name === 'Tilt_View') rowData.push(g.items[0].tiltRangeLabel || 'N/A');
