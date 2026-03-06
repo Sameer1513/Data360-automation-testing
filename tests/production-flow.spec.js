@@ -8,7 +8,7 @@ const StatusConfigPage = require('../pages/statusConfig.page');
 // const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page');
 // const ComparePage = require('../pages/compare.page');
 const StatusConfigPass = require('../pages/StatusConfigPass.page');
-const WeldParameterExcel = require('../pages/WeldParameterExcel.page');
+// const WeldParameterExcel = require('../pages/WeldParameterExcel.page');
 const WeldParametersCsvToExcel = require('../pages/WeldParametersCsvToExcel.page');
 const StatusConfigCompare = require('../pages/statusConfigCompare.page');
 
@@ -35,7 +35,7 @@ async function runSingleFlow(page, projectConfig) {
   // const extractor = new BoltDBTxtFileTOExcel();
   // const compare = new ComparePage();
   const statusPass = new StatusConfigPass(page);
-  const weldExcel = new WeldParameterExcel(page);
+  // const weldExcel = new WeldParameterExcel(page);
   const csvToExcel = new WeldParametersCsvToExcel();
 
 
@@ -64,26 +64,26 @@ async function runSingleFlow(page, projectConfig) {
     // await compare.runAutoCompare();
     console.log('📊 Extracting Final Status Configuration Snapshot...');
     // 1️⃣ Generate StatusConfigPass Excel and capture its path
-const statusPassPath = await statusPass.run(
+const uiData = await statusPass.run(
   projectConfig.projectName,
   slope.slopeIn,
   slope.slopeOut
 );
 
 // 2️⃣ Generate Weld Parameters Excel
-await weldExcel.run(
-  projectConfig.projectName,
-  slope.slopeIn,
-  slope.slopeOut
-);
+// await weldExcel.run(
+//   projectConfig.projectName,
+//   slope.slopeIn,
+//   slope.slopeOut
+// );
 
 // 3️⃣ Convert CSV to Excel and capture path
 const csvExcelPath = await csvToExcel.run();
 
 // 4️⃣ Create StatusConfigCompare with BOTH files
 const statusCompare = new StatusConfigCompare(
-  csvExcelPath,      // input file
-  statusPassPath     // pass comparison file
+  csvExcelPath,
+  uiData
 );
 
 await statusCompare.run();
