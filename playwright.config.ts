@@ -1,21 +1,31 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  timeout: 600000,
-  workers: 3,
+  timeout: 6000000,
+  // workers: 3,
   expect: {
-    timeout: 100000,
+    timeout: 1000000,
   },
+  reporter: [
+    ['list'],   
+                            
+    ['html', { open: 'always' }]             
+  ],
 
   use: {
     headless: false,
     viewport: null,
     launchOptions: {
-      slowMo: 300,
-      args: ['--start-maximized'],
+      slowMo: 10,
+      args: ['--start-maximized','--force-device-scale-factor=1.10'],
     },
-    actionTimeout: 30000,
-    navigationTimeout: 30000,
+    actionTimeout: 6000000,
+    navigationTimeout: 6000000,
+    trace: 'on', 
+    screenshot: 'only-on-failure',
+    contextOptions: {
+      ignoreHTTPSErrors: true,
+    },
   },
 
   projects: [

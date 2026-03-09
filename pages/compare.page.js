@@ -29,40 +29,56 @@ class ComparePage {
         return null;
     }
 
-    async runAutoCompare() {
-        const exportsDir = path.join(process.cwd(), 'exports');
-        const files = fs.readdirSync(exportsDir);
+    async runAutoCompare(projectName, targetWeldIds = []) {
+         // Convert targetWeldIds to strings for accurate comparison
+        const filterIds = Array.isArray(targetWeldIds) ? targetWeldIds.map(String) : [];
+        this.filterIds = filterIds.map(id => this.normalizeValue(id));
+        
+        const actualDir = path.join(process.cwd(), 'exports', 'ActualData');
+        const prodDir = path.join(process.cwd(), 'exports', 'ProductionData');
+        const comparedDir = path.join(process.cwd(), 'exports', 'ComparedData');
+
+        if (!fs.existsSync(comparedDir)) fs.mkdirSync(comparedDir, { recursive: true });
 
         // 1. Updated helper to handle timestamps using startsWith
-       const getLatest = (prefix) => {
+       const getLatest = (dir, prefix) => {
+        if (!fs.existsSync(dir)) return null;
+        const files = fs.readdirSync(dir);
         return files
-        .filter(f => f.startsWith(prefix) && f.endsWith('.xlsx'))
+        // .filter(f => f.startsWith(prefix) && f.endsWith('.xlsx'))
+        .filter(f => f.startsWith(prefix) && f.includes(`_${projectName}_`) && f.endsWith('.xlsx'))
         .sort((a, b) => {
-            const statA = fs.statSync(path.join(exportsDir, a));
-            const statB = fs.statSync(path.join(exportsDir, b));
+            const statA = fs.statSync(path.join(dir, a));
+            const statB = fs.statSync(path.join(dir, b));
             return statB.mtimeMs - statA.mtimeMs; // Latest file first
         })[0];
     };
 
      // 2. Update prefixes to match your Extraction Script output
      // Your script saves: Production_weld_data1_[timestamp].xlsx
-    const actual = getLatest('ActualData_'); 
-    const prod = getLatest('Production_Report'); 
+    const actual = getLatest(actualDir, 'ActualData_'); 
+    const prod = getLatest(prodDir, 'Production_Report'); 
 
     // 3. Improved error message for debugging
         if (!actual || !prod) {
-           throw new Error(`Files missing in ${exportsDir}. \nLooking for: "ActualData_" and "Production_weld_data1" \nFound: ${files.length} files total.`);
+           throw new Error(`Files missing. \nLooking for: "ActualData_" in ${actualDir} \nand "Production_Report" in ${prodDir}`);
       }
-      const actualPath = path.join(exportsDir, actual);
-      const prodPath = path.join(exportsDir, prod);
-     console.log(`🚀 Starting Comparison:\nActual: ${actual}\nProd: ${prod}`); 
-        await this.compareWorkbooks(actualPath, prodPath);
-    }
+      const actualPath = path.join(actualDir, actual);
+      const prodPath = path.join(prodDir, prod);
+    //  console.log(`🚀 Starting Comparison:\nActual: ${actual}\nProd: ${prod}`); 
+    //     await this.compareWorkbooks(actualPath, prodPath);
+    const finalOutPath = path.join(comparedDir, `Final_Comparison_${projectName}_${Date.now()}.xlsx`);
 
-   async compareWorkbooks(actualPath, prodPath) {
+    console.log(`🚀 Comparison for ${projectName}:\nActual: ${actual}\nProd: ${prod}`); 
+    return await this.compareWorkbooks(actualPath, prodPath, finalOutPath);
+    }
+    
+
+   async compareWorkbooks(actualPath, prodPath,outpath) {
     const actualWb = new ExcelJS.Workbook(); await actualWb.xlsx.readFile(actualPath);
     const prodWb = new ExcelJS.Workbook(); await prodWb.xlsx.readFile(prodPath);
     const resultWb = new ExcelJS.Workbook();
+    let globalFailure = false;
 
     // 1. CREATE SUMMARY SHEET
     const summarySheet = resultWb.addWorksheet('SUMMARY_DASHBOARD');
@@ -73,12 +89,12 @@ class ComparePage {
 
     // Define which keys belong to which sheet name
     const keyLookup = {
-        'Pass_View': [ 'Station', 'Bug Type', 'Torch'],
-        'Zone_View': [ 'Station', 'Bug Type', 'Torch', 'Zone'],
-        'Tilt_View': [ 'Station', 'Bug Type', 'Torch', 'Tilt Range'],
-        'Pass_DataAnalysis': [ 'Zone', 'Event'],
-        'Zone_DataAnalysis': [ 'Zone', 'Event'],
-        'Tilt_DataAnalysis': [ 'Zone', 'Event'],
+        'Pass_View': [ 'Weld ID','Station', 'Bug Type', 'Torch'],
+        'Zone_View': [ 'Weld ID','Station', 'Bug Type', 'Torch', 'Zone'],
+        'Tilt_View': [ 'Weld ID','Station', 'Bug Type', 'Torch', 'Tilt Range'],
+        'Pass_tlogs_data': [ 'Weld ID','Zone', 'Event'],
+        'Zone_tlogs_data': [ 'Weld ID','Zone', 'Event'],
+        'Tilt_tlogs_data': [ 'Weld ID','Zone', 'Event'],
         'WeldSummary': ['Job Number', 'Weld ID'] // This will match against 'Setup' in Actual
     };
 
@@ -99,6 +115,7 @@ class ComparePage {
         if (aSheet && keys) {
             console.log(`📊 Comparing Sheet: ${pName}`);
             const hasFailures = this.compare(aSheet, pSheet, resultWb, pName, keys);
+            if (hasFailures) globalFailure = true;
             const status = hasFailures ? 'FAIL' : 'PASS';
 
             const row = summarySheet.addRow([
@@ -120,102 +137,132 @@ class ComparePage {
     // 3. FINALIZING
     summarySheet.columns = [{ width: 30 }, { width: 15 }, { width: 25 }];
 
-    const out = path.join(__dirname, '..', 'exports', `Final_Comparison_${Date.now()}.xlsx`);
-    await resultWb.xlsx.writeFile(out);
-    console.log("✅ Comparison Saved: " + out);
+    await resultWb.xlsx.writeFile(outpath);
+    console.log("✅ Comparison Saved: " + outpath);
+    return globalFailure;
 }
 
+compare(aSheet, pSheet, resultWb, title, keyCols) {
+    const resSheet = resultWb.addWorksheet(title);
+    const ignoreList = ['Weld ID', 'pass', 'status', 'slno', 'record', 'event', 'pipe', 'band', 'logging', 'year', 'month', 'day', 'hour', 'minute', 'second', 'iwm', 'm500'];
+    let sheetHasFail = false;
 
-    compare(aSheet, pSheet, resultWb, title, keyCols) {
-        const resSheet = resultWb.addWorksheet(title);
-        const ignoreList = ['time', 'pass', 'passname', 'weldstarttime', 'status', 'slno'];
-        let sheetHasFail = false;
+    const getHMap = (s) => {
+        const m = {};
+        s.getRow(1).eachCell({ includeEmpty: true }, (c, i) => { m[this.clean(c.value)] = i; });
+        return m;
+    };
 
-        const getHMap = (s) => {
-            const m = {};
-            s.getRow(1).eachCell({ includeEmpty: true }, (c, i) => { m[this.clean(c.value)] = i; });
-            return m;
-        };
+    const aHMap = getHMap(aSheet);
+    const pHMap = getHMap(pSheet);
+    const weldIdColIdx = this.findColIdx(aHMap, 'Weld ID') || 1;
 
-        const aHMap = getHMap(aSheet);
-        const pHMap = getHMap(pSheet);
-        const headers = [];
-        aSheet.getRow(1).eachCell(c => headers.push(c.value));
-
-        const pMap = new Map();
-        pSheet.eachRow((row, i) => {
-            if (i === 1) return;
-            const k = keyCols.map(col => {
-                const idx = this.findColIdx(pHMap, col);
-                return idx ? this.normalizeValue(row.getCell(idx).value) : '';
-            }).join('_');
-            pMap.set(k, row);
-        });
-
-        resSheet.addRow(['Source', 'Status', ...headers]);
-
-        aSheet.eachRow((aRow, i) => {
-            if (i === 1) return;
-            const k = keyCols.map(col => {
-                const idx = this.findColIdx(aHMap, col);
-                return idx ? this.normalizeValue(aRow.getCell(idx).value) : '';
-            }).join('_');
-
-            const pRow = pMap.get(k);
-            const aDisp = ['ACTUAL', ''];
-            const pDisp = ['PRODUCTION', ''];
-            let rowFails = false;
-
-               // Inside the compare() method
-headers.forEach((h, idx) => {
-    const aVal = aRow.getCell(idx + 1).value;
-    aDisp.push(aVal);
-
-    // Dynamic lookup: This allows "Weld ID" to match "Search Weld ID"
-    const pIdx = this.findColIdx(pHMap, h);
-    
-    let pVal;
-    if (!pRow) {
-        pVal = 'NOT FOUND'; // The entire row is missing in Production
-    } else if (pIdx === null) {
-        pVal = 'COL MISSING'; // This specific column wasn't scraped
-    } else {
-        pVal = pRow.getCell(pIdx).value;
-    }
-    pDisp.push(pVal);
-
-    const cleanHeader = this.clean(h);
-    const isIgnored = ignoreList.some(item => cleanHeader.includes(item));
-
-    // Only mark as FAIL if the column actually exists in Production
-    if (!isIgnored && pVal !== 'COL MISSING' && pVal !== 'NOT FOUND') {
-        if (this.normalizeValue(aVal) !== this.normalizeValue(pVal)) {
-            rowFails = true;
-            sheetHasFail = true;
+    // 1. Prepare Headers (Only shared columns)
+    const headers = [];
+    aSheet.getRow(1).eachCell(c => {
+        if (this.findColIdx(pHMap, c.value) !== null) {
+            headers.push(c.value);
         }
-    }
-});
+    });
 
-            const status = (pRow && !rowFails) ? 'PASS' : (pRow ? 'FAIL' : 'NOT FOUND');
-            aDisp[1] = status; pDisp[1] = status;
+    // 2. Map Actual Data
+    const aMap = new Map();
+    aSheet.eachRow((row, i) => {
+        if (i === 1) return;
+        const weldVal = this.normalizeValue(row.getCell(weldIdColIdx).value);
+        if (this.filterIds.length > 0 && !this.filterIds.includes(weldVal)) return;
+
+        const k = keyCols.map(col => {
+            const idx = this.findColIdx(aHMap, col);
+            return idx ? this.normalizeValue(row.getCell(idx).value) : '';
+        }).join('_');
+        aMap.set(k, row);
+    });
+
+    resSheet.addRow(['Source', 'Status', ...headers]);
+
+    // 3. Process Production Rows
+    pSheet.eachRow((pRow, i) => {
+        if (i === 1) return;
+
+        const pWeldIdIdx = this.findColIdx(pHMap, 'Weld ID') || 1;
+        const pWeldVal = this.normalizeValue(pRow.getCell(pWeldIdIdx).value);
+        if (this.filterIds.length > 0 && !this.filterIds.includes(pWeldVal)) return;
+
+        const k = keyCols.map(col => {
+            const idx = this.findColIdx(pHMap, col);
+            return idx ? this.normalizeValue(pRow.getCell(idx).value) : '';
+        }).join('_');
+
+        const aRow = aMap.get(k);
+        if (!aRow) return; // Skip if not in Actual database
+
+        const aDisp = ['ACTUAL', ''];
+        const pDisp = ['PRODUCTION', ''];
+        let rowFails = false;
+        let diffColumnIndices = []; // Track which columns are different
+
+        headers.forEach((h, index) => {
+            const aIdx = this.findColIdx(aHMap, h);
+            const pIdx = this.findColIdx(pHMap, h);
             
-            const ar = resSheet.addRow(aDisp);
-            const pr = resSheet.addRow(pDisp);
+            const aVal = aRow.getCell(aIdx).value;
+            const pVal = pRow.getCell(pIdx).value;
 
-            [ar, pr].forEach(row => {
-                row.eachCell({ includeEmpty: true }, (cell) => {
-                    cell.alignment = { horizontal: 'left' }; 
-                    if (status !== 'PASS' && row === pr) {
-                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } };
-                    }
-                });
-            });
-            resSheet.addRow([]); 
+            aDisp.push(aVal);
+            pDisp.push(pVal);
+
+            const cleanHeader = this.clean(h);
+            const isIgnored = ignoreList.some(item => cleanHeader.includes(item));
+
+            if (!isIgnored) {
+                const normA = this.normalizeValue(aVal);
+                const normP = this.normalizeValue(pVal);
+
+                // Check if values are actually different (and not both empty)
+                if (normA !== normP && (normA !== '' || normP !== '')) {
+                    rowFails = true;
+                    sheetHasFail = true;
+                    // Position is index + 3 (Source + Status + column offset)
+                    diffColumnIndices.push(index + 3); 
+                }
+            }
         });
-        resSheet.getRow(1).font = { bold: true };
-        return sheetHasFail;
-    }
-    
-}
 
+        const status = rowFails ? 'FAIL' : 'PASS';
+        aDisp[1] = status;
+        pDisp[1] = status;
+
+        const ar = resSheet.addRow(aDisp);
+        const pr = resSheet.addRow(pDisp);
+
+        // Apply Formatting
+        [ar, pr].forEach(row => {
+            row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                cell.alignment = { horizontal: 'left' };
+                
+                // Row fill for FAIL status on the Production row
+                if (status === 'FAIL' && row === pr) {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } };
+                }
+
+                // RED TEXT PART: Apply to mismatched cells in the Production row
+                if (row === pr && diffColumnIndices.includes(colNumber)) {
+                    cell.font = {
+                        color: { argb: 'FFFF0000' }, // Red
+                        bold: true
+                    };
+                }
+            });
+        });
+        resSheet.addRow([]); // Spacer
+    });
+
+    // Formatting for the whole sheet
+    resSheet.getRow(1).font = { bold: true };
+    resSheet.columns.forEach(col => { col.width = 10; });
+
+    return sheetHasFail;
+}
+}
 module.exports = ComparePage;

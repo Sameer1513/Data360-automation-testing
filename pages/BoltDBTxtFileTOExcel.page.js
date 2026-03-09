@@ -5,9 +5,9 @@ const ExcelJS = require('exceljs');
 
 class BoltDBTxtFileTOExcel {
     constructor() {
-        this.inputTxtPath = path.join(__dirname, 'AUTOMATION.txt');
-        this.outputDir = path.join(__dirname, '..', 'exports');
-        this.outputFile = `ActualData_${Date.now()}.xlsx`;
+        // this.inputTxtPath = path.join(__dirname, 'textfile.txt');
+        this.outputDir = path.join(process.cwd(), 'exports', 'ActualData');
+        // this.outputFile = `ActualData_${Date.now()}.xlsx`;
 
         this.unitSystem = 'imperial'; 
 
@@ -15,7 +15,7 @@ class BoltDBTxtFileTOExcel {
         this.roundingConfig = {
             'Tilt': 0,
             'Distance': 2,
-            'Travel Speed': 0, 
+            'Travel Speed': 1, 
             'Voltage': 1,
             'Current': 2,
             'Wire Speed': 0,
@@ -54,6 +54,9 @@ class BoltDBTxtFileTOExcel {
         const p = {};
         parts.forEach(part => p[part.type] = part.value);
         
+        // FIX: Convert '0' hour to '12' to match UI 12-hour format (e.g., 0:18 AM -> 12:18 AM)
+        if (p.hour === '0') p.hour = '12';
+        
         // Matches format: 13-Dec-2024, 9:08:35 PM
         return `${p.day}-${p.month}-${p.year}, ${p.hour}:${p.minute}:${p.second} ${p.dayPeriod.toUpperCase()}`;
     }
@@ -67,56 +70,119 @@ class BoltDBTxtFileTOExcel {
         return parseFloat(num.toFixed(precision));
     }
 
-    parseAutomationFile() {
-        const raw = fs.readFileSync(this.inputTxtPath, 'utf-8');
-        const lines = raw.split(/\r?\n/).filter(l => l.trim());
-        const tRecords = [];
-        let setupData = {};
+parseAutomationFile() {
+    const raw = fs.readFileSync(this.inputTxtPath, 'utf-8');
+    const lines = raw.split(/\r?\n/).filter(l => l.trim());
+    
+    const weldSessions = [];
+    let currentSession = null;
 
-        for (const line of lines) {
-            if (!line.startsWith('{')) continue;
-            try {
-                const obj = JSON.parse(line);
-                if (obj.Record === 'S') {
-                    setupData = obj;
-                    // DERIVATION POINT: Map "Weld_number" to "Weld ID"
-                    setupData.WeldID = obj.Weld_number || 'N/A';
-                } else if (obj.Record === 'T') {
-                    tRecords.push(obj);
+    for (const line of lines) {
+        if (!line.startsWith('{')) continue;
+        try {
+            const obj = JSON.parse(line);
+            
+           if (obj.Record === 'S') {
+                // If a previous session existed without a 'C', we close it automatically
+                currentSession = {
+                    setupData: { ...obj, WeldID: obj.Weld_number || 'N/A' },
+                    tRecords: [],
+                    hasS: true,
+                    hasC: false,
+                    hasT: false,
+                    sTime: parseFloat(obj.Time),
+                    cTime: null
+                };
+                weldSessions.push(currentSession);
+            } else if (obj.Record === 'T') {
+                if (!currentSession) {
+                    // Scenario: T records found before any S record
+                    currentSession = { setupData: { WeldID: 'Unknown (S Missing)' }, tRecords: [], hasS: false, hasC: false, hasT: false };
+                    weldSessions.push(currentSession);
                 }
-            } catch (e) {}
-        }
-        return { tRecords, setupData };
+                currentSession.tRecords.push(obj);
+                currentSession.hasT = true;
+            } else if (obj.Record === 'C') {
+                if (currentSession) {
+                    currentSession.hasC = true;
+                    currentSession.cTime = parseFloat(obj.Time);
+                }
+            
+            }
+        } catch (e) {}
+    }
+    return weldSessions;
+}
+
+
+async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default', generateExcel = true) {
+    this.inputTxtPath = path.join(process.cwd(), 'Input', sourceFile); 
+
+    if (!fs.existsSync(this.inputTxtPath)) {
+        throw new Error(`❌ ASSERTION FAILED: Source file missing at ${this.inputTxtPath}`);
     }
 
+    console.log(`DEBUG: BoltDBTxtFileTOExcel.run called for project ${projectName}, source ${sourceFile}, generateExcel = ${generateExcel}`);
+    console.log(`📂 Reading from: ${this.inputTxtPath}`);
+    const weldSessions = this.parseAutomationFile();
+    const workbook = new ExcelJS.Workbook();
+    const fileName = `ActualData_${projectName}_${Date.now()}.xlsx`;
+    
+    // --- A. SETUP SHEET LOGIC ---
+    const setupSheet = workbook.addWorksheet('Setup');
+    let setupHeadersAdded = false;
 
-async run(slopeIn = 0, slopeOut = 0) { // 1. Added slope variables as arguments
-        const { tRecords, setupData } = this.parseAutomationFile();
-        const weldIdValue = setupData.WeldID;
-        const workbook = new ExcelJS.Workbook();
+    // --- B. PREPARE ANALYSIS SHEETS ---
+    const analysisHeaders = [
+        'Weld ID', 'Event', 'Time', 'Tilt', 'Pass', 'Zone', 'Distance',
+        'Travel Speed', 'Voltage', 'Current', 'Wire Speed', 'Oscillation Width',
+        'Target', 'Horizontal Bias', 'Frequency', 'Total Wire Consumed', 'True Energy', 'Heat'
+    ];
+    const analysisSheetNames = ['Pass_tlogs_data', 'Zone_tlogs_data', 'Tilt_tlogs_data'];
+    const analysisSheets = {};
+    analysisSheetNames.forEach(name => {
+        const sheet = workbook.addWorksheet(name);
+        sheet.addRow(analysisHeaders);
+        sheet.getRow(1).font = { bold: true };
+        analysisSheets[name] = sheet;
+    });
 
-        // 1. SETUP SHEET
-        const setupSheet = workbook.addWorksheet('Setup');
-        setupSheet.addRow(Object.keys(setupData));
-        setupSheet.addRow(Object.values(setupData));
-        setupSheet.getRow(1).font = { bold: true };
+    let allDataForViews = [];
 
+    // --- C. LOOP THROUGH EACH SESSION ---
+    weldSessions.forEach((session, index) => {
+        const { setupData, tRecords, hasS, hasT, hasC } = session;
+
+        // 1. Add to Setup Sheet with "Missing" Status
+        let missing = [];
+        if (!hasS) missing.push('S-Record missing');
+        if (!hasT) missing.push('T-Records missing');
+        if (!hasC) missing.push('C-Record missing');
+        const status = missing.length > 0 ? `⚠️ ${missing.join(', ')}` : '✅ Complete';
+
+        const setupRowData = { ...setupData, Processing_Status: status };
+        if (!setupHeadersAdded) {
+            setupSheet.addRow(Object.keys(setupRowData)).font = { bold: true };
+            setupHeadersAdded = true;
+        }
+        setupSheet.addRow(Object.values(setupRowData));
+
+        // 2. Local Helper: mapRecord (Updated to include setupRef)
         const mapRecord = (r, type) => {
             const p = type === 'Lead' ? 'Lead_' : 'Trail_';
-            
             const current = parseFloat(r[p + 'amps'] || 0);
             const volts = parseFloat(r[p + 'volts'] || 0);
-            const travelSpeed = parseFloat(r.Travel_speed || 1); 
-
+            const travelSpeed = parseFloat(r.Travel_speed || 1);
             const calcHeat = (0.06 * current * volts) / travelSpeed;
 
             return {
-                'Event': r.Event,
-                'Time': this.formatToIST(r.Time),
-                'Tilt': this.applyRounding('Tilt', r.Tilt),
-                'Torch': type,
-                'Pass': r[p + 'pass_name'] || "NA", 
-                'Zone': r[p + 'pass_name'] || "NA",
+                'WeldID': setupData.WeldID || 'N/A',
+                 'Event': r.Event, 
+                'Time': this.formatToIST(r.Time), // 🌟 Keeps seconds for Tlogs
+                'ViewTime': this.formatToIST(r.Time).replace(/:\d{2}\s/, ' '), // 🌟 Strips seconds for Views
+                'rawTime': Number(r.Time),
+                'Tilt': this.applyRounding('Tilt', r.Tilt), 'Torch': type,
+                'Pass': r[p + 'pass_name'] || "NA", 'Zone': r[p + 'pass_name'] || "NA",
                 'Distance': this.applyRounding('Distance', r.Distance),
                 'Travel Speed': this.applyRounding('Travel Speed', r.Travel_speed),
                 'Voltage': this.applyRounding('Voltage', volts),
@@ -127,162 +193,154 @@ async run(slopeIn = 0, slopeOut = 0) { // 1. Added slope variables as arguments
                 'Horizontal Bias': this.applyRounding('Horizontal Bias', r[p + 'horizontal_bias']),
                 'Frequency': this.applyRounding('Frequency', r[p + 'frequency']),
                 'Total Wire Consumed': this.applyRounding('Total Wire Consumed', r[p + 'total_wire_consumed']),
-                'True Energy': this.applyRounding('Heat', r[p + 'heat']), 
-                'Heat': this.applyRounding('Heat', calcHeat)
+                'True Energy': this.applyRounding('Heat', r[p + 'heat']),
+                'Heat': this.applyRounding('Heat', calcHeat),
+                'setupRef': setupData, // Crucial for View Sheets
+                'sessionSTime': session.sTime,
+                'sessionCTime': session.cTime
             };
         };
 
-        // --- SLOPE FILTERING LOGIC ---
+        // 3. Local Helper: applySlope
         const applySlope = (records, sIn, sOut) => {
             if (records.length === 0) return [];
-            // Sort by raw time to find start and end
             const sorted = [...records].sort((a, b) => parseFloat(a.Time) - parseFloat(b.Time));
             const startT = parseFloat(sorted[0].Time);
             const endT = parseFloat(sorted[sorted.length - 1].Time);
-
             return sorted.filter(r => {
                 const curT = parseFloat(r.Time);
-                // Convert kiloseconds diff to seconds
                 const diffStart = Math.round((curT - startT) * 1000);
                 const diffEnd = Math.round((endT - curT) * 1000);
                 return (diffStart >= sIn) && (diffEnd >= sOut);
             });
         };
 
-        // 2. Separate data by torch to apply slope and ensure "Lead then Trail" order
+        // 4. Process Data for this session
         const leadRecords = tRecords.filter(r => r.Lead_amps !== undefined && r.Lead_amps !== "");
         const trailRecords = tRecords.filter(r => r.Trail_amps !== undefined && r.Trail_amps !== "");
 
-        const filteredLead = applySlope(leadRecords, slopeIn, slopeOut);
-        const filteredTrail = applySlope(trailRecords, slopeIn, slopeOut);
-
-        // 3. COMBINE DATA: Lead block first, then Trail block
-        const allData = [
-            ...filteredLead.map(r => mapRecord(r, 'Lead')),
-            ...filteredTrail.map(r => mapRecord(r, 'Trail'))
+        const sessionProcessedData = [
+            ...applySlope(leadRecords, slopeIn, slopeOut).map(r => mapRecord(r, 'Lead')),
+            ...applySlope(trailRecords, slopeIn, slopeOut).map(r => mapRecord(r, 'Trail'))
         ].filter(d => d.Zone !== "NA");
 
-        // --- END OF UPDATED LOGIC ---
-
-        // Updated Headers to include True Energy
-        const analysisHeaders = [
-             'Weld ID','Event', 'Time', 'Tilt', 'Pass', 'Zone', 'Distance', 
-            'Travel Speed', 'Voltage', 'Current', 'Wire Speed', 'Oscillation Width', 
-            'Target', 'Horizontal Bias', 'Frequency', 'Total Wire Consumed', 'True Energy', 'Heat'
-        ];
-
-        // 2. DATA ANALYSIS SHEETS
-        ['Pass_DataAnalysis', 'Zone_DataAnalysis', 'Tilt_DataAnalysis'].forEach(name => {
-            const sheet = workbook.addWorksheet(name);
-            sheet.addRow(analysisHeaders);
-            allData.forEach(d => {
-                sheet.addRow([weldIdValue,
-                    d['Event'], d['Time'], d['Tilt'], d['Pass'], d['Zone'], d['Distance'],
-                    d['Travel Speed'], d['Voltage'], d['Current'], d['Wire Speed'], d['Oscillation Width'],
-                    d['Target'], d['Horizontal Bias'], d['Frequency'], d['Total Wire Consumed'], 
-                    d['True Energy'], d['Heat']
-                ]);
-            });
-            sheet.getRow(1).font = { bold: true };
+        // 5. Add rows to Analysis Sheets
+        sessionProcessedData.forEach(d => {
+            const row = [
+                d.WeldID, d.Event, d.Time, d.Tilt, d.Pass, d.Zone, d.Distance,
+                d['Travel Speed'], d.Voltage, d.Current, d['Wire Speed'], d['Oscillation Width'],
+                d.Target, d['Horizontal Bias'], d.Frequency, d['Total Wire Consumed'], d['True Energy'], d.Heat
+            ];
+            analysisSheetNames.forEach(name => analysisSheets[name].addRow(row));
         });
 
-        // 3. VIEW SHEETS
-        this.addViewSheet(workbook, 'Pass_View', allData, d => d.Torch, setupData);
-        this.addViewSheet(workbook, 'Zone_View', allData, d => `${d.Torch}_${d.Zone}`, setupData);
-        this.addViewSheet(workbook, 'Tilt_View', allData, d => {
-            const range = (d.Tilt >= 0 && d.Tilt <= 90) ? '0 - 90' : '90 - 180';
-            d.tiltRangeLabel = range;
-            return `${d.Torch}_${range}`;
-        }, setupData);
+        allDataForViews.push(...sessionProcessedData);
+    });
 
-        const outputPath = path.join(this.outputDir, this.outputFile);
+    // --- D. VIEW SHEETS (Calculated using combined data) ---
+    // ⚠️ VALIDATION: If we have sessions but no actual data points, it's a failure.
+    if (weldSessions.length > 0 && allDataForViews.length === 0) {
+        throw new Error(`❌ EXTRACTION FAILED: Processed ${weldSessions.length} weld sessions but found no valid T-records (data points) to analyze. Aborting Excel generation.`);
+    }
+
+    this.addViewSheet(workbook, 'Pass_View', allDataForViews, d => `${d.WeldID}_${d.Torch}`);
+    this.addViewSheet(workbook, 'Zone_View', allDataForViews, d => `${d.WeldID}_${d.Torch}_${d.Zone}`);
+    this.addViewSheet(workbook, 'Tilt_View', allDataForViews, d => {
+        const range = (d.Tilt >= 0 && d.Tilt <= 90) ? '0 - 90' : '90 - 180';
+        d.tiltRangeLabel = range;
+        return `${d.WeldID}_${d.Torch}_${range}`;
+    });
+
+    if (generateExcel) {
+        const outputPath = path.join(this.outputDir, fileName);
         if (!fs.existsSync(this.outputDir)) fs.mkdirSync(this.outputDir, { recursive: true });
+        console.log(`✍️  Writing ActualData to: ${outputPath}`);
         await workbook.xlsx.writeFile(outputPath);
-        console.log(`✅ Success: Slope applied (${slopeIn}s/${slopeOut}s) and order set to Lead -> Trail.`);
-    }    
+        console.log(`✅ Success: Processed ${weldSessions.length} weld sessions.`);
+    }
+
+    // Return extracted setup data for configuration derivation
+    // FIX: Use the LAST valid session to ensure we get the most recent configuration from the log file
+    const validSession = [...weldSessions].reverse().find(s => s.hasS && s.setupData);
+    return validSession ? {
+        pipeSize: validSession.setupData.Pipe_diameter,
+        wallThickness: validSession.setupData.Band_diameter,
+        wps: validSession.setupData.Job_number
+    } : null;
+}   
 
 
-addViewSheet(workbook, name, data, groupFn, setupData) {
+addViewSheet(workbook, name, data, groupFn) {
     const sheet = workbook.addWorksheet(name);
 
-    // 1. Build Headers
-    const headers = ['Weld ID','Station', 'Welder ID', 'Bug Type', 'Torch'];
-    
-    // NEW: Add 'Zone' header only for Zone_View
+    // 1. Headers
+    const headers = ['Weld ID', 'Station', 'Welder ID', 'Bug Type', 'Torch', 'Weld Start Time', 'Weld Time'];
     if (name === 'Zone_View') headers.push('Zone');
     if (name === 'Tilt_View') headers.push('Tilt Range');
-
-    headers.push(
-      'Distance', 'Travel Speed', 'Voltage', 'Current', 'Wire Speed',
-      'Oscillation Width', 'Target', 'Horizontal Bias', 'Frequency',
-      'Total Wire Consumed', 'True Energy', 'Heat'
-    );
-    sheet.addRow(headers);
+    headers.push('Distance', 'Travel Speed', 'Voltage', 'Current', 'Wire Speed', 'Oscillation Width', 'Target', 'Horizontal Bias', 'Frequency', 'Total Wire Consumed', 'True Energy', 'Heat');
+    sheet.addRow(headers).font = { bold: true };
 
     // 2. Group the data
-    const groups = {};
-    data.forEach(d => {
-      const key = groupFn(d);
-      if (!groups[key]) {
-        groups[key] = { 
-          items: [], 
-          torch: d.Torch,
-          zoneName: d.Zone // Store the Zone name (HO, TT, TM, etc.)
-        };
-      }
-      groups[key].items.push(d);
-    });
+   const groups = {};
+        data.forEach(d => {
+            const key = groupFn(d);
+            if (!groups[key]) {
+                groups[key] = { 
+                    items: [], 
+                    torch: d.Torch, 
+                    zoneName: d.Zone, 
+                    setup: d.setupRef, // Each group now knows its own Weld ID / Station
+                    sTime: d.sessionSTime,
+                    cTime: d.sessionCTime
+                };
+            }
+            groups[key].items.push(d);
+        });
 
     // 3. Process each group
+    // 3. Process each group
     Object.values(groups).forEach(g => {
-      const avg = (key, list) => {
-        const sum = list.reduce((a, b) => a + Number(b || 0), 0);
-        const averageValue = sum / list.length;
+        const sortedItems = g.items.sort((a, b) => a.rawTime - b.rawTime);
+        
+        let totalSeconds = 0;
+        if (name === 'Pass_View' && g.sTime && g.cTime) {
+            totalSeconds = Math.round((g.cTime - g.sTime) * 1000);
+        } else {
+            totalSeconds = Math.round((sortedItems[sortedItems.length - 1].rawTime - sortedItems[0].rawTime) * 1000);
+        }
+        
+        if (totalSeconds < 0 || isNaN(totalSeconds)) totalSeconds = 0;
 
-        if (key === 'Current') return Math.round(averageValue);
-        return this.applyRounding(key, averageValue);
-      };
+        const avg = (key) => {
+            const list = g.items.map(i => i[key]);
+            const sum = list.reduce((a, b) => a + Number(b || 0), 0);
+            const averageValue = sum / list.length;
+            return key === 'Current' ? Math.round(averageValue) : this.applyRounding(key, averageValue);
+        };
 
-      const rawBugType = (setupData.Bug_type || '').toUpperCase();
-      const displayBugType = rawBugType.includes('CCW') ? 'CCW' : 'CW';
+       const rowData = [
+                g.setup.WeldID || 'N/A',
+                g.setup.Station_number ? `Station ${g.setup.Station_number}` : 'N/A',
+                g.setup.Welder_id || 'N/A',
+                (g.setup.Bug_type || '').toUpperCase().includes('CCW') ? 'CCW' : 'CW',
+                g.torch,
+                sortedItems[0].ViewTime, // 🌟 Uses the version without seconds!
+                `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`
+            ];
 
-      const rowData = [
-        setupData.Station_number ? `Station ${setupData.Station_number}` : 'N/A',
-        setupData.Welder_id || 'N/A',
-        displayBugType,
-        g.torch
-      ];
+        if (name === 'Zone_View') rowData.push(g.zoneName || 'N/A');
+        if (name === 'Tilt_View') rowData.push(g.items[0].tiltRangeLabel || 'N/A');
 
-      // NEW: Push the actual Zone name into the row ONLY for Zone_View
-      if (name === 'Zone_View') {
-        rowData.push(g.zoneName || 'N/A');
-      }
+        rowData.push(
+            avg('Distance'), avg('Travel Speed'), avg('Voltage'), avg('Current'),
+            avg('Wire Speed'), avg('Oscillation Width'), avg('Target'),
+            avg('Horizontal Bias'), avg('Frequency'), avg('Total Wire Consumed'),
+            avg('True Energy'), avg('Heat')
+        );
 
-      if (name === 'Tilt_View') {
-        rowData.push(g.items[0].tiltRangeLabel || 'N/A');
-      }
-
-      // 4. Add the average values
-      rowData.push(
-        avg('Distance', g.items.map(i => i['Distance'])),
-        avg('Travel Speed', g.items.map(i => i['Travel Speed'])),
-        avg('Voltage', g.items.map(i => i['Voltage'])),
-        avg('Current', g.items.map(i => i['Current'])),
-        avg('Wire Speed', g.items.map(i => i['Wire Speed'])),
-        avg('Oscillation Width', g.items.map(i => i['Oscillation Width'])),
-        avg('Target', g.items.map(i => i['Target'])),
-        avg('Horizontal Bias', g.items.map(i => i['Horizontal Bias'])),
-        avg('Frequency', g.items.map(i => i['Frequency'])),
-        avg('Total Wire Consumed', g.items.map(i => i['Total Wire Consumed'])),
-        avg('True Energy', g.items.map(i => i['True Energy'])),
-        avg('Heat', g.items.map(i => i['Heat']))
-      );
-
-      sheet.addRow(rowData);
+        sheet.addRow(rowData);
     });
-
-    sheet.getRow(1).font = { bold: true };
-  }
+}
 }
 
 module.exports = BoltDBTxtFileTOExcel;

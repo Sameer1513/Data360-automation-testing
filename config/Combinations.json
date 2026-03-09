@@ -1,54 +1,281 @@
 {
-  "mode": "single",
-
- "scanConfig": {
-    "Pass": { "view": false,  "tlogs": false },
-    "Zone": { "view": true, "tlogs": false },
-    "Tilt": { "view": false, "tlogs": false }
+  "flowControl": {
+    "cleanExports": true,
+    "checkSourceFile": true,
+    "runExtraction": true,
+    "login": true,
+    "createProject": true,
+    "deviceRegistration": true,
+    "setup": true,
+    "deviceSync": true,
+    "productionAnalysis": true,
+    "comparison": true
   },
-
-
-  "singleProject": {
-    "projectName": "datacomparetest",
-    "weldIds": "",
-    "slopeCombinations": [
-      { "slopeIn": 0, "slopeOut": 5 }
-     
+  "createProjectData": {
+    "projectNumber": "123",
+    "location": "ANDORRA",
+    "customer": "advanced engg",
+    "startDate": "19-Feb-2026",
+    "endDate": "20-Feb-2026",
+    "projectStatus": "Initiated",
+    "projectType": "Pipeline",
+    "pipelineFeatures": [
+      "Welding"
+    ],
+    "subFeatures": [
+      "CRCE Machines"
+    ],
+    "machines": [
+      "IWM",
+      "P-600Z",
+      "P-625",
+      "M-500"
     ]
   },
-
+  "deviceRegistration": {
+    "enabled": true,
+    "step1": {
+      "enabled": true,
+      "exe": ""
+    },
+    "step2": {
+      "enabled": true,
+      "files": [
+        {
+          "exe": "",
+          "db": "",
+          "param": ""
+        }
+      ]
+    }
+  },
+  "mode": "single",
+  "scanConfig": {
+    "Pass": {
+      "view": true,
+      "tlogs": true
+    },
+    "Zone": {
+      "view": false,
+      "tlogs": false
+    },
+    "Tilt": {
+      "view": false,
+      "tlogs": false
+    }
+  },
+  "singleProject": {
+    "projectName": "logstesting",
+    "projectNumber": "1234",
+    "location": "ANDORRA",
+    "customer": "advanced engg",
+    "startDate": "19-Feb-2026",
+    "endDate": "20-Feb-2026",
+    "projectStatus": "Initiated",
+    "projectType": "Pipeline",
+    "pipelineFeatures": [
+      "Welding"
+    ],
+    "subFeatures": [
+      "CRCE Machines"
+    ],
+    "machines": [
+      "IWM",
+      "P-600Z",
+      "P-625",
+      "M-500"
+    ],
+    "sourceFile": "bolt_2CW.txt",
+    "weldIds": "1",
+    "slopeCombinations": [
+      {
+        "slopeIn": 0,
+        "slopeOut": 0
+      }
+    ],
+    "specificationData": {
+      "excelTemplate": "Project_Specification_Template.xlsx",
+      "documents": [
+        "Pipeline_Specs_Part1.pdf"
+      ],
+      "newSpecification": {
+        "projectType": "Pipeline",
+        "pipe": "Pipe (10\"-12\")",
+        "specType": "Drawing",
+        "files": [
+          "Drawing_001.pdf"
+        ]
+      }
+    },
+    "setupConfig": {
+      "pipes": [
+        {
+          "pipeSize": "36.000",
+          "wallThickness": "43.5",
+          "pipeCount": "10",
+          "pipeLength": "10",
+          "manufacturer": [
+            "American",
+            "API-5l"
+          ],
+          "wps": [
+            "Demo"
+          ]
+        }
+      ]
+    }
+  },
   "multiProject": [
     {
       "browserId": 1,
       "projectName": "Project-A",
-      "weldIds": ["123", "125"],
+      "sourceFile": "textfile.txt",
+      "weldIds": "",
       "slopeCombinations": [
-        { "slopeIn": 1, "slopeOut": 1 }
-      ]
+        {
+          "slopeIn": 5,
+          "slopeOut": 0
+        }
+      ],
+      "specificationData": {
+        "excelTemplate": "Project_A_Template.xlsx",
+        "documents": [
+          "Spec_A_Part1.pdf"
+        ],
+        "newSpecification": {
+          "projectType": "Pipeline",
+          "pipe": "Pipe (10\")",
+          "specType": "Drawing",
+          "files": [
+            "Drawing_A.pdf"
+          ]
+        }
+      },
+      "setupConfig": {
+        "pipes": [
+          {
+            "pipeSize": "10",
+            "wallThickness": "10",
+            "pipeCount": "10",
+            "pipeLength": "10",
+            "manufacturer": [
+              "American",
+              "API-5l"
+            ],
+            "wps": [
+              "abc"
+            ]
+          },
+          {
+            "pipeSize": "12",
+            "wallThickness": "0.8",
+            "pipeCount": "5",
+            "pipeLength": "20",
+            "manufacturer": "AZOUSTAL",
+            "wps": [
+              "WPS-B1"
+            ]
+          },
+          {
+            "pipeSize": "12",
+            "wallThickness": "0.8",
+            "pipeCount": "5",
+            "pipeLength": "20",
+            "manufacturer": "AZOUSTAL",
+            "wps": [
+              "WPS-B1"
+            ]
+          }
+        ]
+      }
     },
     {
       "browserId": 2,
       "projectName": "Project-B",
-      "weldIds": ["201", "202"],
+      "sourceFile": "textfile.txt",
+      "weldIds": "",
       "slopeCombinations": [
-        { "slopeIn": 0, "slopeOut": 5 }
-       
-      ]
+        {
+          "slopeIn": 0,
+          "slopeOut": 5
+        }
+      ],
+      "specificationData": {
+        "excelTemplate": "Project_B_Template.xlsx",
+        "documents": [
+          "Spec_B_Part1.pdf"
+        ],
+        "newSpecification": {
+          "projectType": "Pipeline",
+          "pipe": "Pipe (12\")",
+          "specType": "Drawing",
+          "files": [
+            "Drawing_B.pdf"
+          ]
+        }
+      },
+      "setupConfig": {
+        "pipes": [
+          {
+            "pipeSize": "10",
+            "wallThickness": "10",
+            "pipeCount": "10",
+            "pipeLength": "10",
+            "manufacturer": [
+              "American",
+              "API-5l"
+            ],
+            "wps": [
+              "abc"
+            ]
+          },
+          {
+            "pipeSize": "12",
+            "wallThickness": "0.8",
+            "pipeCount": "5",
+            "pipeLength": "20",
+            "manufacturer": "AZOUSTAL",
+            "wps": [
+              "WPS-B1"
+            ]
+          },
+          {
+            "pipeSize": "12",
+            "wallThickness": "0.8",
+            "pipeCount": "5",
+            "pipeLength": "20",
+            "manufacturer": "AZOUSTAL",
+            "wps": [
+              "WPS-B1"
+            ]
+          }
+        ]
+      }
     }
   ],
-
   "multiBrowser": [
     {
       "browserId": 1,
       "projectName": "Project-A",
-      "weldIds": ["123"],
-      "slope": { "slopeIn": 1, "slopeOut": 1 }
+      "weldIds": [
+        "123"
+      ],
+      "slope": {
+        "slopeIn": 1,
+        "slopeOut": 1
+      }
     },
     {
       "browserId": 2,
       "projectName": "Project-A",
-      "weldIds": ["125"],
-      "slope": { "slopeIn": 2, "slopeOut": 6 }
+      "weldIds": [
+        "125"
+      ],
+      "slope": {
+        "slopeIn": 2,
+        "slopeOut": 6
+      }
     }
-  ]
+  ],
+  "capturedDeviceId": "DESKTOP-32QBMO9"
 }
