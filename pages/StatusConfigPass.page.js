@@ -1,20 +1,28 @@
 const fs = require('fs');
 const path = require('path');
+const ExcelJS = require('exceljs');
 const {
     autoScroll
 } = require('../utils/scroll.util');
 
 class StatusConfigPass {
     constructor(page) {
-        this.page = page;
-        this.exportDir = path.join(process.cwd(), 'exports');
+    this.page = page;
 
-        if (!fs.existsSync(this.exportDir)) {
-            fs.mkdirSync(this.exportDir, {
-                recursive: true
-            });
-        }
+    // Base exports folder
+    const baseExportDir = path.join(process.cwd(), 'exports');
+
+    if (!fs.existsSync(baseExportDir)) {
+        fs.mkdirSync(baseExportDir, { recursive: true });
     }
+
+    // 🔹 Create StatusConfig UI folder inside exports
+    this.exportDir = path.join(baseExportDir, 'StatusConfig UI');
+
+    if (!fs.existsSync(this.exportDir)) {
+        fs.mkdirSync(this.exportDir, { recursive: true });
+    }
+}
 
 
     async navigateToStatusConfig() {
@@ -145,6 +153,7 @@ class StatusConfigPass {
         });
 
         console.log("✅ UI Data Extracted");
+        await this.writeToExcel(projectName, weldDetails, gridData);
 
         return {
             weldDetails,
@@ -208,6 +217,59 @@ class StatusConfigPass {
         return details;
     }
 
+    async goBackToProduction() {
+
+    console.log("⬅ Returning to Production tab...");
+
+    const backArrow = this.page
+        .locator('svg.lucide-arrow-left')
+        .locator('xpath=..');
+
+    await backArrow.waitFor({ state: 'visible', timeout: 15000 });
+
+    await backArrow.click();
+
+    console.log("🔁 Clicked back arrow");
+
+    await this.page.getByRole('tab', { name: /Production/i })
+        .waitFor({ state: 'visible', timeout: 15000 });
+
+    console.log("✅ Successfully returned to Production tab");
+}
+
+async writeToExcel(projectName, weldDetails, gridData) {
+
+    const filePath = path.join(this.exportDir, `${projectName}_StatusConfig_UI.xlsx`);
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Status_Config_UI');
+
+    let rowIndex = 1;
+
+    // Write Weld Details
+    sheet.getCell(`A${rowIndex}`).value = "Weld Details";
+    rowIndex += 2;
+
+    for (const key in weldDetails) {
+        sheet.getCell(`A${rowIndex}`).value = key;
+        sheet.getCell(`B${rowIndex}`).value = weldDetails[key];
+        rowIndex++;
+    }
+
+    rowIndex += 2;
+
+    // Write Table Headers
+    sheet.addRow(gridData.headers);
+
+    // Write Table Rows
+    gridData.rows.forEach(row => {
+        sheet.addRow(row);
+    });
+
+    await workbook.xlsx.writeFile(filePath);
+
+    console.log(`📄 Status Config UI Excel generated: ${filePath}`);
+}
 
 }
 

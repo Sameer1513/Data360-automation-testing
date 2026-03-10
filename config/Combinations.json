@@ -4,11 +4,13 @@
     "checkSourceFile": true,
     "runExtraction": true,
     "login": true,
-    "createProject": true,
-    "deviceRegistration": true,
-    "setup": true,
-    "deviceSync": true,
+    "createProject": false,
+    "deviceRegistration": false,
+    "setup": false,
+    "deviceSync": false,
     "productionAnalysis": true,
+    "statusConfigExtraction": true,
+    "statusConfigComparison": true,
     "comparison": true
   },
   "createProjectData": {
@@ -65,7 +67,7 @@
     }
   },
   "singleProject": {
-    "projectName": "logstesting",
+    "projectName": "B",
     "projectNumber": "1234",
     "location": "ANDORRA",
     "customer": "advanced engg",
@@ -86,7 +88,7 @@
       "M-500"
     ],
     "sourceFile": "bolt_2CW.txt",
-    "weldIds": "1",
+    "weldIds": "152",
     "slopeCombinations": [
       {
         "slopeIn": 0,
@@ -277,5 +279,5 @@
       }
     }
   ],
-  "capturedDeviceId": "DESKTOP-32QBMO9"
+  "capturedDeviceId": "DESKTOP-22BSEM2"
 }

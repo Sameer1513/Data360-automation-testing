@@ -5,15 +5,26 @@ const { parse } = require('csv-parse/sync');
 
 class WeldParametersCsvToExcel {
   constructor() {
-    this.csvPath = path.join(process.cwd(), 'test-data', 'WeldParameters.csv');
+  this.csvPath = path.join(process.cwd(), 'Input', 'p600z_example.csv');
 
-    this.exportDir = path.join(process.cwd(), 'exports');
-    if (!fs.existsSync(this.exportDir)) {
-      fs.mkdirSync(this.exportDir, { recursive: true });
-    }
+  // Base exports directory
+  const baseExportDir = path.join(process.cwd(), 'exports');
 
-    this.outputPath = path.join(this.exportDir, 'WeldParametersCsvToExcel.xlsx');
+  // Create main exports folder if missing
+  if (!fs.existsSync(baseExportDir)) {
+    fs.mkdirSync(baseExportDir, { recursive: true });
   }
+
+  // 🔹 Create WeldParametersCsvToExcel subfolder
+  this.exportDir = path.join(baseExportDir, 'WeldParametersCsvToExcel');
+
+  if (!fs.existsSync(this.exportDir)) {
+    fs.mkdirSync(this.exportDir, { recursive: true });
+  }
+
+  // Output file inside that folder
+  this.outputPath = path.join(this.exportDir, 'WeldParametersCsvToExcel.xlsx');
+}
 
   async run() {
     console.log('📄 Reading WeldParameters.csv...');

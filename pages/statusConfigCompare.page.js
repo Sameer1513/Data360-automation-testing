@@ -6,18 +6,25 @@ class StatusConfigCompare {
     constructor(inputFilePath, uiData = null) {
         this.inputFilePath = inputFilePath;
         this.uiData = uiData; // UI extracted data
-        this.exportDir = path.join(process.cwd(), 'exports');
+        // Base exports directory
+const baseExportDir = path.join(process.cwd(), 'exports');
 
-        if (!fs.existsSync(this.exportDir)) {
-            fs.mkdirSync(this.exportDir, {
-                recursive: true
-            });
-        }
+// New folder for StatusConfig comparison
+this.exportDir = path.join(
+    baseExportDir,
+    'StatusConfig Compared with WeldParam'
+);
 
-        this.outputPath = path.join(
-            this.exportDir,
-            `StatusConfigCompare_${Date.now()}.xlsx`
-        );
+// Create folder if it does not exist
+if (!fs.existsSync(this.exportDir)) {
+    fs.mkdirSync(this.exportDir, { recursive: true });
+}
+
+// Excel output path
+this.outputPath = path.join(
+    this.exportDir,
+    `StatusConfigCompare_${Date.now()}.xlsx`
+);
     }
 
     async addComparisonSheet() {
@@ -363,7 +370,6 @@ class StatusConfigCompare {
                     return record !== undefined;
                 });
 
-                console.log("pass map: ", JSON.stringify(passMap, null, 2));
 
                 if (parameter === 'Current (A)' && isShortArcPass) {
 
