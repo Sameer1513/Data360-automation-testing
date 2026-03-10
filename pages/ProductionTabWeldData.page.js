@@ -75,7 +75,7 @@ if (targets.length === 0) {
 
       // Step 2: Generate Summary and process Tabs
      
-    await this.generateWeldSummarySheet(workbook, currentWeld);
+      await this.generateWeldSummarySheet(workbook, currentWeld);
       
       const prodHeaders = await this.page.locator('table thead th').allInnerTexts();
       const rows = this.page.locator('table tbody tr');
@@ -171,16 +171,47 @@ async clearSearch() {
   await this.page.waitForTimeout(1000); // Wait for table to reset
 }
 
+
+
 async parseCellValue(cell) {
   return await cell.evaluate(el => {
-    if (el.querySelector('svg.lucide-thumbs-up')) return 'true';
-    if (el.querySelector('svg.lucide-thumbs-down')) return 'false';
-    if (el.querySelector('svg.lucide-alert-circle')) return '!';
-    if (el.querySelector('svg.lucide-minus')) return '-';
-    if (el.querySelector('svg.lucide-x')) return 'x';
-    return el.innerText.trim();
+
+    const text = el.innerText.trim();
+
+    // icon detection
+    if (el.querySelector('svg.lucide-thumbs-up')) return { value: 'true' };
+    if (el.querySelector('svg.lucide-thumbs-down')) return { value: 'false' };
+    if (el.querySelector('svg.lucide-alert-circle')) return { value: '!' };
+    if (el.querySelector('svg.lucide-minus')) return { value: '-' };
+    if (el.querySelector('svg.lucide-x')) return { value: 'x' };
+
+    let bgColor = null;
+
+    const elements = el.querySelectorAll('*');
+
+    elements.forEach(child => {
+      const style = window.getComputedStyle(child);
+      const bg = style.backgroundColor;
+
+      if (
+        bg &&
+        bg !== 'rgba(0, 0, 0, 0)' &&
+        bg !== 'transparent' &&
+        !bg.includes('249, 250, 251') &&  // ignore grey
+        !bg.includes('243, 244, 246')
+      ) {
+        bgColor = bg; // keep updating → deepest element wins
+      }
+    });
+
+    return {
+      value: text,
+      bgColor
+    };
   });
 }
+
+
 async processTabByName(workbook, tabName, prodHeaders, prodRowData,currentWeldId) {
   try {
     console.log(`--- Processing ${tabName} Tab ---`);
@@ -196,6 +227,47 @@ async processTabByName(workbook, tabName, prodHeaders, prodRowData,currentWeldId
   } catch (err) {
     console.warn(`⚠️ ${tabName} Tab failed:`, err.message);
   }
+}
+
+// 🔥 NEW: Bulk extraction helper to speed up table scraping
+async extractTableData(tableLocator, startIndex = 0) {
+  return await tableLocator.evaluate((table, startIdx) => {
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+    return rows.map(row => {
+      const cells = Array.from(row.querySelectorAll('td'));
+      return cells.slice(startIdx).map(cell => {
+        const text = cell.innerText.trim();
+
+        // icon detection
+        if (cell.querySelector('svg.lucide-thumbs-up')) return { value: 'true' };
+        if (cell.querySelector('svg.lucide-thumbs-down')) return { value: 'false' };
+        if (cell.querySelector('svg.lucide-alert-circle')) return { value: '!' };
+        if (cell.querySelector('svg.lucide-minus')) return { value: '-' };
+        if (cell.querySelector('svg.lucide-x')) return { value: 'x' };
+
+        let bgColor = null;
+        const elements = cell.querySelectorAll('*');
+        elements.forEach(child => {
+          const style = window.getComputedStyle(child);
+          const bg = style.backgroundColor;
+          if (
+            bg &&
+            bg !== 'rgba(0, 0, 0, 0)' &&
+            bg !== 'transparent' &&
+            !bg.includes('249, 250, 251') &&  // ignore grey
+            !bg.includes('243, 244, 246')
+          ) {
+            bgColor = bg;
+          }
+        });
+
+        return {
+          value: text,
+          bgColor
+        };
+      });
+    });
+  }, startIndex);
 }
 
  async processTabView(workbook, viewName, prodHeaders, prodRowData,currentWeldId) {
@@ -222,37 +294,7 @@ if (!analysisSheet && cfg.tlogs) {
   const viewScroller = this.page.locator('div.relative.overflow-auto, [role="region"]').first();
   if (await viewScroller.isVisible()) await autoScroll(viewScroller);
 
-  // 2️⃣ Get headers (keep original logic)
-//   let headers = [];
-//   try {
-//     headers = await this.page.locator('table:has(tbody tr)').locator('thead th').allInnerTexts();
-//     if (headers.length > 10) console.log(`✅ Found ${headers.length} headers`);
-//   } catch(e) {}
 
-//   if (headers.length < 5) {
-//     try {
-//       headers = await this.page.locator('table tbody tr:first-child td').allInnerTexts();
-//       console.log(`✅ Used data row as headers: ${headers.length} columns`);
-//     } catch(e) {}
-//   }
-
-//   if (headers.length === 0) {
-//     headers = ['Sl.no', 'Status', 'Station', 'Welder ID', 'Direction', 'Action', 'Mode', 
-//                'Start Time', 'Duration', 'Auto?', 'Current(A)', 'Voltage(V)', 'Travel Speed', 
-//                'Heat Input', 'Wire Speed'];
-//     console.log('⚠️ Used hardcoded headers');
-//   }
-
-//   // 3️⃣ Only write headers to viewSheet if view enabled
-//   // 3️⃣ Only write headers once for the master sheet
-// if (viewSheet && !viewSheet._headersWritten) {
-//   viewSheet.addRow(['Weld ID', ...headers]);
-//   viewSheet._headersWritten = true;
-// }
-
-//   const rowsLocator = this.page.locator('table tbody tr');
-//   const rowCount = await rowsLocator.count();
-//   const capturedRows = [];
 
 const activeTable = this.page.locator('table:visible').last();
 
@@ -287,38 +329,20 @@ const activeTable = this.page.locator('table:visible').last();
 
   // 2. Capture Rows using the dynamic startIndex
   const rowsLocator = activeTable.locator('tbody tr');
-  const rowCount = await rowsLocator.count();
+  // const rowCount = await rowsLocator.count(); // Removed: No longer needed for iteration
   const capturedRows = [];
 
-  for (let i = 0; i < rowCount; i++) {
-      const cells = await rowsLocator.nth(i).locator('td').all();
-      const rowData = [];
-      
-      // Start pushing row data from the dynamic startIndex
-      for (let j = startIndex; j < cells.length; j++) {
-          rowData.push(await this.parseCellValue(cells[j]));
-      }
+  // ⚡ OPTIMIZED: Extract all rows in one go instead of iterating with locators
+  const allRowsData = await this.extractTableData(activeTable, startIndex);
 
+  allRowsData.forEach((rowData, i) => {
       // Keep rows with data (removed strict isNaN so Pass rows aren't deleted)
-      if (rowData.length >= 3 && rowData.some(d => d.trim() !== '')) {
+      if (rowData.length >= 3 && rowData.some(d => (typeof d === 'object' ? d.value : d).trim() !== '')) {
           const rowWithId = [currentWeldId, ...rowData];
-          if (viewSheet) viewSheet.addRow(rowWithId);  
+          if (viewSheet) this.addRowWithColor(viewSheet, rowWithId);
           if (analysisSheet) capturedRows.push({ index: i, data: rowWithId }); 
       }
-  }
-
-  // 4️⃣ Capture rows for viewSheet and/or analysis
-  for (let i = 0; i < rowCount; i++) {
-    const cells = await rowsLocator.nth(i).locator('td').all();
-    const rowData = [];
-    for (const cell of cells) rowData.push(await this.parseCellValue(cell));
-
-    if (rowData[0] && !isNaN(rowData[0].trim())) {
-  const rowWithId = [currentWeldId, ...rowData];
-  if (viewSheet) viewSheet.addRow(rowWithId);  // ✅ Use rowWithId
-  if (analysisSheet) capturedRows.push({ index: i, data: rowWithId }); 
-}
-  }
+  });
 
   // 5️⃣ Click eye-icon only if tlogs is enabled
   if (analysisSheet) {
@@ -337,7 +361,29 @@ const activeTable = this.page.locator('table:visible').last();
   }
 }
 
+addRowWithColor(sheet, rowData) {
+  const values = rowData.map(c => typeof c === 'object' ? c.value : c);
+  const excelRow = sheet.addRow(values);
 
+  rowData.forEach((cell, i) => {
+    if (cell && typeof cell === 'object' && cell.bgColor && cell.bgColor !== 'rgba(0, 0, 0, 0)') {
+      const rgb = cell.bgColor.match(/\d+/g);
+      if (!rgb) return;
+
+      const hex =
+        ((1 << 24) + (parseInt(rgb[0]) << 16) + (parseInt(rgb[1]) << 8) + parseInt(rgb[2]))
+          .toString(16)
+          .slice(1)
+          .toUpperCase();
+
+      excelRow.getCell(i + 1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: `FF${hex}` }
+      };
+    }
+  });
+}
 
 async scanDataAnalysis(sheet, viewName, prodHeaders, prodRowData, viewRowData,currentWeldId) {
   sheet._headersWritten = sheet._headersWritten ?? false;
@@ -407,20 +453,16 @@ async scanDataAnalysis(sheet, viewName, prodHeaders, prodRowData, viewRowData,cu
   }
   const target = analysisTable || this.page.locator('table').first();
 
-  const rows = await target.locator('tbody tr').all();
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    const cells = await row.locator('td').all();
-    const rowData = [];
-    for (const cell of cells) {
-      rowData.push(await this.parseCellValue(cell));
-    }
+  // ⚡ OPTIMIZED: Extract all rows in one go
+  const allRowsData = await this.extractTableData(target, 0);
 
-    if (rowData[0] && !isNaN(rowData[0].trim())) {
-    // We put the actual weld ID value as the first item in the row
-    sheet.addRow([currentWeldId, ...rowData]);
-}
-  }
+  allRowsData.forEach(rowData => {
+    const firstVal = typeof rowData[0] === 'object' ? rowData[0].value : rowData[0];
+    if (firstVal && !isNaN(firstVal.trim())) {
+      // We put the actual weld ID value as the first item in the row
+      this.addRowWithColor(sheet, [currentWeldId, ...rowData]);
+    }
+  });
 
   await this.goBackSafe();
 }
@@ -457,28 +499,30 @@ async WelddataEye(index) {
     throw new Error(`Column "${name}" not found`);
   }
 
-async generateWeldSummarySheet(workbook, currentWeldId) { // Added parameter
+async generateWeldSummarySheet(workbook, currentWeldId) {
+
   let sheet = workbook.getWorksheet('WeldSummary');
-  
+
   if (!sheet) {
     sheet = workbook.addWorksheet('WeldSummary');
-    const headers = await this.page.locator('table thead th').allInnerTexts();
+    const headers = await this.page.locator('table').first().locator('thead th').allInnerTexts();
     sheet.addRow(headers);
   }
 
-  // Look for the row that specifically contains our Weld ID text
-  const row = this.page.locator('table tbody tr').filter({ 
-  has: this.page.locator('td'), 
-  hasText: new RegExp(`^${currentWeldId}$`) // Regex for start-to-finish exact match
-}).first();
-  
-  if (await row.isVisible()) {
+  // After search filter, the first row is the weld we want
+  const row = this.page.locator('table tbody tr').first();
+
+  if (await row.count() > 0) {
+
     const cells = await row.locator('td').all();
     const rowData = [];
+
     for (const cell of cells) {
       rowData.push(await this.parseCellValue(cell));
     }
-    sheet.addRow(rowData);
+
+    this.addRowWithColor(sheet, rowData);
+
   } else {
     console.warn(`⚠️ Summary row for ${currentWeldId} not found.`);
   }
