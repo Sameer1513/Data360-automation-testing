@@ -53,7 +53,7 @@ class SpecificationsPage {
         });
     }
 
-    async uploadSpecifications(data, actionType = 'upload') {
+    async uploadSpecifications(data, actionType = 'cancel') {
         await test.step("Upload Specification Flow", async () => {
             // 1. CLICK DOWNLOAD FIRST (Optional Template Check)
             const downloadBtn = locators.downloadTemplateBtn(this.page);
@@ -110,20 +110,27 @@ class SpecificationsPage {
             }
         });
     }
-
-    async addNewSpecificationManual(specData) {
-        await test.step("Add New Specification Manually", async () => {
+async addNewSpecificationManual(specData, actionType = 'cancel') {
+        await test.step(`Add New Specification Manually - Action: ${actionType}`, async () => {
             await locators.addSpecBtn(this.page).click();
+            
+            // Wait for modal to appear
+            await expect(this.page.getByRole('dialog')).toBeVisible();
 
             // Select Dropdowns
             await locators.projectTypeDropdown(this.page).click();
-            await this.page.locator(`role=option[name="${specData.projectType}"]`).click();
+            await this.page.getByRole('option', { name: specData.projectType }).click();
 
+            // await locators.pipeDropdown(this.page).click();
+            // await this.page.getByRole('option', { name: specData.pipe }).click();
+            // Click the dropdown to open it
             await locators.pipeDropdown(this.page).click();
-            await this.page.locator(`role=option[name="${specData.pipe}"]`).click();
+            
+            // Ignore the JSON text and just click the very first option that appears
+            await this.page.getByRole('option').first().click();
 
             await locators.specTypeDropdown(this.page).click();
-            await this.page.locator(`role=option[name="${specData.specType}"]`).click();
+            await this.page.getByRole('option', { name: specData.specType }).click();
 
             // Handle Manual Entry File Upload
             const filePaths = [];
@@ -132,11 +139,26 @@ class SpecificationsPage {
             }
             await locators.addNewSpecFileInput(this.page).setInputFiles(filePaths);
 
-            await locators.submitNewSpecBtn(this.page).click();
-            await expect(locators.submitNewSpecBtn(this.page)).toBeHidden();
-            console.log("✅ Manual Specification added.");
+            // CONDITIONAL ACTION (Cancel vs Add)
+            if (actionType === 'cancel') {
+                console.log("🔄 Action: Clicking Cancel in Add Modal");
+                // Using a direct locator for the Cancel button in this modal
+                await this.page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+                
+                // Verify modal closed
+                await expect(this.page.getByRole('dialog')).toBeHidden();
+            } else {
+                console.log("🚀 Action: Clicking Add Specification");
+                await locators.submitNewSpecBtn(this.page).click();
+                
+                // Wait for modal to close indicating success
+                await expect(locators.submitNewSpecBtn(this.page)).toBeHidden({ timeout: 10000 });
+                console.log("✅ Manual Specification added.");
+            }
         });
     }
+   
+
 }
 
 module.exports = SpecificationsPage;

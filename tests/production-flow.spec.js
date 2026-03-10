@@ -7,6 +7,7 @@ const { execSync, spawn } = require('child_process');
 // Page Objects
 const LoginAndProjectPage = require('../pages/loginAndProject.page');
 const CreateProjectPage = require('../pages/createproject.page');
+const SpecificationPage = require('../pages/Specification.page');
 const DeviceAssigningPage = require('../pages/DeviceAssigning.page');
 const SetupPage = require('../pages/setup.page');
 const StatusConfigPage = require('../pages/statusConfig.page');
@@ -99,6 +100,7 @@ test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
     // ----------------------------
     const login = new LoginAndProjectPage(page);
     const createPage = new CreateProjectPage(page);
+    const specPage = new SpecificationPage(page);
     const deviceAssign = new DeviceAssigningPage(page);
     const setupPage = new SetupPage(page);
     const status = new StatusConfigPage(page);
@@ -126,6 +128,35 @@ test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
         });
     } else {
         console.log("⏩ Skipping Create Project (Disabled in FlowControl)");
+    }
+
+    // ----------------------------
+    // 📑 STEP 2.5: SPECIFICATIONS
+    // ----------------------------
+    if (fc.specification) {
+        await test.step('📑 Configure Specifications', async () => {
+            if (!project.specificationData) {
+                console.log("⚠️ No specificationData found in config for this project.");
+                return;
+            }
+
+            // Navigate to Specifications tab (handles searching if project not open)
+            await specPage.navigateToSpecifications(project.projectName);
+
+            // 1. Upload Template & Docs
+            if (project.specificationData.excelTemplate) {
+                console.log("   📤 Uploading Specification Documents...");
+                await specPage.uploadSpecifications(project.specificationData);
+            }
+
+            // 2. Add Manual Specification
+            if (project.specificationData.newSpecification) {
+                console.log("   ➕ Adding New Specification Manually...");
+                await specPage.addNewSpecificationManual(project.specificationData.newSpecification);
+            }
+        });
+    } else {
+        console.log("⏩ Skipping Specifications (Disabled in FlowControl)");
     }
 
     // ----------------------------
