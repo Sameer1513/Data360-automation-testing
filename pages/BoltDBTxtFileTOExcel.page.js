@@ -251,8 +251,9 @@ async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default', 
         return `${d.WeldID}_${d.Torch}_${range}`;
     });
 
+    let outputPath = null;
     if (generateExcel) {
-        const outputPath = path.join(this.outputDir, fileName);
+        outputPath = path.join(this.outputDir, fileName);
         if (!fs.existsSync(this.outputDir)) fs.mkdirSync(this.outputDir, { recursive: true });
         console.log(`✍️  Writing ActualData to: ${outputPath}`);
         await workbook.xlsx.writeFile(outputPath);
@@ -262,11 +263,13 @@ async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default', 
     // Return extracted setup data for configuration derivation
     // FIX: Use the LAST valid session to ensure we get the most recent configuration from the log file
     const validSession = [...weldSessions].reverse().find(s => s.hasS && s.setupData);
-    return validSession ? {
+    const setupData = validSession ? {
         pipeSize: validSession.setupData.Pipe_diameter,
         wallThickness: validSession.setupData.Band_diameter,
         wps: validSession.setupData.Job_number
     } : null;
+
+    return { setupData, outputPath };
 }   
 
 

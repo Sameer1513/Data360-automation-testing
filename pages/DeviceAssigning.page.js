@@ -72,7 +72,7 @@ class DeviceAssigningPage {
                 await this.page.waitForTimeout(500); 
 
                 // Human-like Typing
-                await searchInput.pressSequentially(deviceId, { delay: 150 });
+                await searchInput.pressSequentially(deviceId, { delay: 50 });
                 await this.page.keyboard.press('Enter');
                 
                 console.log("⏳ Waiting for filtered device card to appear...");
@@ -171,7 +171,11 @@ class DeviceAssigningPage {
         console.log(`✅ SUCCESS: Assigned ${projectName} to ${deviceId}`);
 
         // Wait for the success toast to disappear before proceeding
-        await successToast.waitFor({ state: 'hidden', timeout: 5000 });
+        try {
+            await successToast.waitFor({ state: 'hidden', timeout: 5000 });
+        } catch (e) {
+            console.log("⚠️ Success toast did not disappear quickly, proceeding anyway.");
+        }
 
         // ==========================================
         // 7. Navigate Back to Projects Dashboard

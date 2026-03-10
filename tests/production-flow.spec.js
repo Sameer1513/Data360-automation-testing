@@ -20,23 +20,30 @@ const CommonHelper = require('../Helper/CommonHelper');
 const configPath = path.join(__dirname, '../config/Combinations.json');
 const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
-test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
+// By wrapping the entire flow in `test.describe.serial`, we ensure each `test()`
+// block runs sequentially. This allows us to break the flow into logical,
+// independently reported steps while preserving state (like being logged in)
+// from one step to the next.
+test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
 
-    const helper = new CommonHelper(page);
+    // --- SHARED STATE ---
+    // These variables are declared here and will be shared across all tests in this file.
+    let page;
+    let helper, login, createPage, specPage, deviceAssign, setupPage, status, analysis, compare;
+
     const project = flowConfig.singleProject;
-    const targetWeldId = helper.resolveTargetWelds(project.weldIds);
-
-    // 🎛️ FLOW CONTROL
     const fc = flowConfig.flowControl || {};
+    const targetWeldId = new CommonHelper(null).resolveTargetWelds(project.weldIds);
 
-    // ----------------------------
-    // 🧹 PRE-CLEANUP: DELETE OLD EXPORTS
-    // ----------------------------
-    if (fc.cleanExports) {
-        await test.step('🧹 Cleanup Old Export Files', async () => {
+    let derivedSetup = null;
+    let deviceId = null;
+
+    // This block runs once before any tests in this file.
+    test.beforeAll(async () => {
+        if (fc.cleanExports) {
             const exportsDir = path.join(process.cwd(), 'exports');
             const dirsToClean = ['ActualData', 'ProductionData', 'ComparedData'];
-            
+
             console.log("🧹 Cleaning up old export files...");
             for (const dir of dirsToClean) {
                 const fullPath = path.join(exportsDir, dir);
@@ -45,278 +52,197 @@ test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
                     console.log(`   🗑️ Deleted: ${dir}`);
                 }
             }
-        });
-    }
+        }
 
-    // ----------------------------
-    // 🛡️ ASSERTION: CHECK SOURCE FILE
-    // ----------------------------
-    if (fc.checkSourceFile) {
-        await test.step('📂 Verify Input Source File Exists', async () => {
+        if (fc.checkSourceFile) {
             const sourceFilePath = path.join(process.cwd(), 'Input', project.sourceFile);
             expect(fs.existsSync(sourceFilePath), `❌ Source file '${project.sourceFile}' not found in Input directory.`).toBe(true);
-        });
-    }
+        }
 
-    // ⚙️ CONFIG: Determine if Device Registration is needed
-    const isDeviceRegConfigured = flowConfig.deviceRegistration && flowConfig.deviceRegistration.enabled !== false;
-    const isMultiBrowser = flowConfig.mode === 'multiBrowser';
-    
-    // We now use the JSON flag 'deviceRegistration' to gate Step 1 specifically
-    const shouldRegisterDevice = isDeviceRegConfigured && !isMultiBrowser && fc.deviceRegistration;
-    console.log(`ℹ️ Device Registration (Step 1) Mode: ${shouldRegisterDevice ? 'ENABLED' : 'DISABLED'}`);
-
-    // ----------------------------
-    // ⚡ PRE-STEP: RUN EXTRACTOR
-    // ----------------------------
-    let derivedSetup = null;
-    if (fc.runExtraction) {
-        await test.step('⚡ Pre-Computation: BoltDB to Excel Extraction', async () => {
+        if (fc.runExtraction) {
             const extractor = new BoltDBTxtFileTOExcel();
             console.log("⚡ Running extractor once to derive setup data (no Excel generated)...");
-            // We only need to run this once to get setup data. Slopes don't affect setup data.
-            // The `false` argument prevents Excel file generation in this step.
-            derivedSetup = await extractor.run(
-                0, // slopeIn
-                0, // slopeOut
-                project.projectName,
-                project.sourceFile,
-                false // generateExcel
-            );
-        });
-    }
+            const { setupData } = await extractor.run(0, 0, project.projectName, project.sourceFile, false);
+            derivedSetup = setupData;
+        }
+    });
 
-    // ----------------------------
-    // 🔁 RESET DEVICE ID
-    // ----------------------------
-    if (shouldRegisterDevice && fc.deviceRegistration) {
-        const resetConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        delete resetConfig.capturedDeviceId;
-        fs.writeFileSync(configPath, JSON.stringify(resetConfig, null, 2));
-    }
+    // This block runs before each test. We use it to initialize the page
+    // and page objects a single time, preserving the state between steps.
+    test.beforeEach(async ({ browser }) => {
+        if (page) return;
+        page = await browser.newPage();
+        helper = new CommonHelper(page);
+        login = new LoginAndProjectPage(page);
+        createPage = new CreateProjectPage(page);
+        specPage = new SpecificationPage(page);
+        deviceAssign = new DeviceAssigningPage(page);
+        setupPage = new SetupPage(page);
+        status = new StatusConfigPage(page);
+        analysis = new ProductionTabWeldData(page, flowConfig.scanConfig);
+        compare = new ComparePage();
+    });
 
-    // ----------------------------
-    // 📄 INIT PAGES
-    // ----------------------------
-    const login = new LoginAndProjectPage(page);
-    const createPage = new CreateProjectPage(page);
-    const specPage = new SpecificationPage(page);
-    const deviceAssign = new DeviceAssigningPage(page);
-    const setupPage = new SetupPage(page);
-    const status = new StatusConfigPage(page);
-    const analysis = new ProductionTabWeldData(page, flowConfig.scanConfig);
-    const compare = new ComparePage();
+    test.afterAll(async () => {
+        await page?.close();
+    });
 
-    console.log(`🚀 START FLOW: ${project.projectName}`);
+    // --- INDIVIDUAL TEST BLOCKS ---
+    // Each `test()` block below represents a distinct step in the flow.
+    // It will have its own entry and pass/fail status in the final report.
 
-    // ----------------------------
-    // 🔐 STEP 1: LOGIN
-    // ----------------------------
-    if (fc.login) {
+    test('Step 1: 🔐 Login', async () => {
+        test.skip(!fc.login, "Login is disabled in flowControl.");
         await login.loginAndOpenProject();
-    } else {
-        console.log("⏩ Skipping Login (Disabled in FlowControl)");
-    }
+    });
 
-    // ----------------------------
-    // 🏗️ STEP 2: CREATE PROJECT
-    // ----------------------------
-    if (fc.createProject) {
+    test('Step 2: 🏗️ Create Project', async () => {
+        test.skip(!fc.createProject, "Create Project is disabled in flowControl.");
         await createPage.createProject({
             ...flowConfig.createProjectData,
             projectName: project.projectName
         });
-    } else {
-        console.log("⏩ Skipping Create Project (Disabled in FlowControl)");
-    }
+    });
 
-    // ----------------------------
-    // 📑 STEP 2.5: SPECIFICATIONS
-    // ----------------------------
-    if (fc.specification) {
-        await test.step('📑 Configure Specifications', async () => {
-            if (!project.specificationData) {
-                console.log("⚠️ No specificationData found in config for this project.");
-                return;
-            }
+    test('Step 3 & 4: 🖥️ Device Registration & Assignment', async () => {
+        const isDeviceRegConfigured = flowConfig.deviceRegistration && flowConfig.deviceRegistration.enabled !== false;
+        const isMultiBrowser = flowConfig.mode === 'multiBrowser';
+        const shouldRegisterDevice = isDeviceRegConfigured && !isMultiBrowser && fc.deviceRegistration;
+        test.skip(!shouldRegisterDevice, "Device Registration is disabled in flowControl or config.");
 
-            // Navigate to Specifications tab (handles searching if project not open)
-            await specPage.navigateToSpecifications(project.projectName);
+        const resetConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        delete resetConfig.capturedDeviceId;
+        fs.writeFileSync(configPath, JSON.stringify(resetConfig, null, 2));
 
-            // 1. Upload Template & Docs
-            if (project.specificationData.excelTemplate) {
-                console.log("   📤 Uploading Specification Documents...");
-                await specPage.uploadSpecifications(project.specificationData);
-            }
+        const scriptPath = path.join(__dirname, '..', 'terminal_execution_files', 'device_register.js');
 
-            // 2. Add Manual Specification
-            if (project.specificationData.newSpecification) {
-                console.log("   ➕ Adding New Specification Manually...");
-                await specPage.addNewSpecificationManual(project.specificationData.newSpecification);
-            }
-        });
-    } else {
-        console.log("⏩ Skipping Specifications (Disabled in FlowControl)");
-    }
-
-    // ----------------------------
-    // 🖥️ STEP 3: DEVICE REGISTER (STEP 1)
-    // ----------------------------
-    const scriptPath = path.join(__dirname, '..', 'terminal_execution_files', 'device_register.js');
-
-    if (shouldRegisterDevice) {
-        await test.step('🖥️ Run Device Register (Step 1)', async () => {
-            console.log("Starting Device Registration Script...");
+        await test.step('Run Device Register (Step 1)', async () => {
             await new Promise((resolve, reject) => {
-                const child = spawn('node', [scriptPath, '--step=1'], { 
-                    stdio: 'inherit', 
-                    shell: true 
-                });
-                child.on('close', (code) => {
-                    if (code === 0) resolve();
-                    else reject(new Error(`Step 1 failed with exit code ${code}`));
-                });
+                const child = spawn('node', [scriptPath, '--step=1'], { stdio: 'inherit', shell: true });
+                child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`Step 1 failed with exit code ${code}`)));
                 child.on('error', (err) => reject(err));
             });
         });
 
-        // ----------------------------
-        // ⏳ STEP 4: WAIT FOR DEVICE ID
-        // ----------------------------
-        const deviceId = await test.step('⏳ Wait for Device ID', async () => {
+        deviceId = await test.step('Wait for Device ID', async () => {
             const id = await helper.waitForDeviceId(configPath);
-            console.log(`🎯 Device ID: ${id}`);
             expect(id, 'Device ID should be generated').toBeTruthy();
             return id;
         });
 
-        // ----------------------------
-        // 🔗 STEP 5: ASSIGN DEVICE
-        // ----------------------------
-        await test.step('🔗 Assign Device to Project', async () => {
+        await test.step('Assign Device to Project', async () => {
             await deviceAssign.assignProjectToDevice(deviceId, project.projectName);
         });
-    } else {
-        console.log("⏩ Skipping Device Registration & Assignment (Disabled or Multi-Browser)");
-    }
+    });
 
-    // ----------------------------
-    // ⚙️ STEP 6: SETUP
-    // ----------------------------
-    if (fc.setup) {
+    test('Step 5: ⚙️ Perform Project Setup', async () => {
+        test.skip(!fc.setup, "Setup is disabled in flowControl.");
         if (derivedSetup) {
-            await test.step('📝 Apply Derived Setup Config', async () => {
-                console.log("📝 Updating Combinations.json with derived data:", derivedSetup);
-                const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-                
-                if (cfg.singleProject && cfg.singleProject.setupConfig && cfg.singleProject.setupConfig.pipes && cfg.singleProject.setupConfig.pipes.length > 0) {
-                    const p = cfg.singleProject.setupConfig.pipes[0];
-                    if (derivedSetup.pipeSize) p.pipeSize = String(derivedSetup.pipeSize);
-                    if (derivedSetup.wallThickness) p.wallThickness = String(derivedSetup.wallThickness);
-                    if (derivedSetup.wps) p.wps = [String(derivedSetup.wps)];
-                    fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2));
-                }
-            });
+            const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+            if (cfg.singleProject?.setupConfig?.pipes?.[0]) {
+                const p = cfg.singleProject.setupConfig.pipes[0];
+                if (derivedSetup.pipeSize) p.pipeSize = String(derivedSetup.pipeSize);
+                if (derivedSetup.wallThickness) p.wallThickness = String(derivedSetup.wallThickness);
+                if (derivedSetup.wps) p.wps = [String(derivedSetup.wps)];
+                fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2));
+            }
         }
+        await setupPage.performSetup(project.projectName);
+    });
 
-        await test.step('⚙️ Perform Project Setup', async () => {
-            await setupPage.performSetup(project.projectName);
+    test('Step 6: 📑 Configure Specifications', async () => {
+        test.skip(!fc.specification, "Specification is disabled in flowControl.");
+        if (!project.specificationData) {
+            console.log("⚠️ No specificationData found in config for this project. Skipping.");
+            return;
+        }
+        await specPage.navigateToSpecifications(project.projectName);
+        if (project.specificationData.excelTemplate) {
+            await specPage.uploadSpecifications(project.specificationData);
+        }
+        if (project.specificationData.newSpecification) {
+            await specPage.addNewSpecificationManual(project.specificationData.newSpecification);
+        }
+    });
+
+    test('Step 7: 🖥️ Run Device Sync', async () => {
+        const isDeviceRegConfigured = flowConfig.deviceRegistration && flowConfig.deviceRegistration.enabled !== false;
+        const isMultiBrowser = flowConfig.mode === 'multiBrowser';
+        test.skip(!(isDeviceRegConfigured && !isMultiBrowser && fc.deviceSync), "Device Sync is disabled.");
+
+        const scriptPath = path.join(__dirname, '..', 'terminal_execution_files', 'device_register.js');
+        await new Promise((resolve, reject) => {
+            const child = spawn('node', [scriptPath, '--step=2'], { stdio: 'inherit', shell: true });
+            child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`Step 2 failed with exit code ${code}`)));
+            child.on('error', (err) => reject(err));
         });
-    } else {
-        console.log("⏩ Skipping Setup (Disabled in FlowControl)");
-    }
+    });
 
-    // ----------------------------
-    // 🖥️ STEP 7: DEVICE SYNC (STEP 2)
-    // ----------------------------
-    // We use the 'deviceSync' flag from flowControl, combined with general config
-    if (isDeviceRegConfigured && !isMultiBrowser && fc.deviceSync) {
-        await test.step('🖥️ Run Device Sync (Step 2)', async () => {
-            console.log("Starting Device Sync Script...");
-            await new Promise((resolve, reject) => {
-                const child = spawn('node', [scriptPath, '--step=2'], { 
-                    stdio: 'inherit', 
-                    shell: true 
-                });
-                child.on('close', (code) => {
-                    if (code === 0) resolve();
-                    else reject(new Error(`Step 2 failed with exit code ${code}`));
-                });
-                child.on('error', (err) => reject(err));
-            });
-        });
-    } else {
-        console.log("⏩ Skipping Device Sync (Step 2)");
-    }
-
-    // ----------------------------
-    // 📊 PRODUCTION & ANALYSIS BLOCK
-    // ----------------------------
-    if (fc.productionAnalysis) {
-    // ----------------------------
-    // � STEP 8: OPEN PROJECT
-    // ----------------------------
+    test('Step 8 & 9: 📊 Open Project and Verify Production Tab', async () => {
+        test.skip(!fc.productionAnalysis, "Production Analysis is disabled in flowControl.");
         await helper.selectProject(project.projectName);
 
-    // ----------------------------
-    // 📊 STEP 9: PRODUCTION TAB
-    // ----------------------------
-    await test.step('📊 Verify Production Tab Data', async () => {
         const productionTab = page.getByRole('tab', { name: /Production/i });
         await productionTab.click();
-
         await expect(productionTab).toHaveAttribute('aria-selected', 'true');
 
         const weldRows = page.locator('table tbody tr');
         await weldRows.first().waitFor({ state: 'visible' });
-
         const count = await weldRows.count();
-        console.log(`✅ Weld Count: ${count}`);
         expect(count, 'Production table should have at least one weld row').toBeGreaterThan(0);
     });
 
-    // ----------------------------
-    // 🔁 STEP 10: SLOPE LOOP
-    // ----------------------------
-        for (const slope of project.slopeCombinations) {
+    // --- DYNAMIC TESTS FOR EACH SLOPE COMBINATION ---
+    // This loop generates a separate, top-level test for each slope combination,
+    // giving you a clear pass/fail status for each one in the report.
+    for (const slope of project.slopeCombinations) {
+        test(`Analysis & Comparison for Slope (In: ${slope.slopeIn}, Out: ${slope.slopeOut})`, async () => {
+            test.skip(!fc.productionAnalysis, "Production Analysis is disabled in flowControl.");
 
-            console.log(`🚀 In=${slope.slopeIn}, Out=${slope.slopeOut}`);
+            await status.applyStatusConfiguration(slope.slopeIn, slope.slopeOut);
 
-            await status.applyStatusConfiguration(
-                slope.slopeIn,
-                slope.slopeOut
-            );
-
-            // ----------------------------
-            // ⚡ RUN ANALYSIS & EXTRACTION
-            // ----------------------------
             const extractor = new BoltDBTxtFileTOExcel();
             
-            await Promise.all([
+            const [prodFilePath, actualResult] = await Promise.all([
                 analysis.runFlow(targetWeldId, null, project.projectName),
                 extractor.run(slope.slopeIn, slope.slopeOut, project.projectName, project.sourceFile)
             ]);
 
-            // ----------------------------
-            // 🧪 STEP 11: COMPARE
-            // ----------------------------
             if (fc.comparison) {
-                await test.step(`🧪 Run Comparison (In:${slope.slopeIn}, Out:${slope.slopeOut})`, async () => {
-                    const hasDiffs = await compare.runAutoCompare(
-                        project.projectName,
-                        targetWeldId
-                    );
-                    // Assert that there are no failures (hasDiffs should be false)
-                    // expect.soft(hasDiffs).toBe(false);
-                    if (hasDiffs) console.log("⚠️ Comparison found differences (Assertion disabled)");
-                });
-            } else {
-                console.log("⏩ Skipping Comparison (Disabled in FlowControl)");
+                const { hasFailure, reportPath } = await compare.runAutoCompare(
+                    project.projectName,
+                    targetWeldId
+                );
+
+                if (prodFilePath) {
+                    await test.info().attach(`Production Data (${slope.slopeIn}-${slope.slopeOut})`, {
+                        path: prodFilePath,
+                        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    });
+                }
+
+                if (actualResult?.outputPath) {
+                    await test.info().attach(`Actual Data (${slope.slopeIn}-${slope.slopeOut})`, {
+                        path: actualResult.outputPath,
+                        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    });
+                }
+
+                if (reportPath) {
+                    await test.info().attach(`Comparison Report (${slope.slopeIn}-${slope.slopeOut})`, {
+                        path: reportPath,
+                        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    });
+                }
+
+                if (hasFailure) console.log("⚠️ Comparison found differences (Assertion disabled)");
+                expect.soft(hasFailure, `Comparison for slope ${slope.slopeIn}-${slope.slopeOut} found differences.`).toBe(false);
             }
-        }
-    } else {
-        console.log("⏩ Skipping Production Analysis (Disabled in FlowControl)");
+        });
     }
 
-    console.log("🎉 END-TO-END FLOW COMPLETED");
+    test('🎉 Flow Complete', async () => {
+        console.log("🎉 END-TO-END FLOW COMPLETED");
+        expect(true).toBe(true);
+    });
 });

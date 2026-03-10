@@ -68,8 +68,15 @@ getProjectConfig(projectName) {
     const saveButton = locators.saveBtn(this.page);
     await saveButton.scrollIntoViewIfNeeded();
     await saveButton.click();
-    await this.page.waitForLoadState('networkidle');
+
+    // Wait for the success message to appear.
+    const successToast = locators.successToast(this.page);
+    await successToast.waitFor({ state: 'visible', timeout: 15000 });
     console.log("✅ Setup Saved Successfully");
+    // Optional: wait for it to disappear to avoid interfering with next steps.
+    await successToast.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {
+      console.log("⚠️ Save success toast did not disappear quickly, proceeding anyway.");
+    });
   } // <--- THIS WAS MISSING. Closes performSetup.
 
 

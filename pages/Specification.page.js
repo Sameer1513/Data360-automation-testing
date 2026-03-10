@@ -24,23 +24,8 @@ class SpecificationsPage {
 
     async navigateToSpecifications(projectName) {
         await test.step(`Maps to Specifications: ${projectName}`, async () => {
-            console.log(`🔍 Searching for project: ${projectName}`);
-            
-            // 1. Back to Dashboard if needed
-            const searchInput = this.page.getByPlaceholder('Search Project');
-            if (!(await searchInput.isVisible())) {
-                await this.page.locator('header').getByText('Projects', { exact: true }).click();
-            }
-
-            // 2. Search and Click Project
-            await searchInput.waitFor({ state: 'visible' });
-            await searchInput.click({ clickCount: 3 });
-            await this.page.keyboard.press('Backspace');
-            await searchInput.fill(projectName);
-            await this.page.keyboard.press('Enter');
-            
-            // Select project tile from main content area to avoid header conflicts
-            await this.page.locator('main').getByText(projectName, { exact: true }).first().click();
+            console.log(` Navigating to Specifications Tab for: ${projectName}`);
+            // Assumes we are already inside the project view (from Setup step)
 
             // 3. Select Specifications Tab
             const specTab = this.page.getByRole('tab', { name: 'Specifications' });

@@ -91,6 +91,7 @@ if (targets.length === 0) {
 
     } catch (error) {
       console.error(`❌ Failed processing ${currentWeld}:`, error.message);
+      throw error; // Re-throw to ensure the test fails and shows in the report
     } finally {
       // Clear search to reset table for next iteration
       await this.goBackSafe();
@@ -108,6 +109,7 @@ if (targets.length === 0) {
     if (prodLimit && i + 1 >= prodLimit) break;
   }
   console.log(`\n final report saved: ${filepath}`);
+  return filepath;
 }
 
 async searchAndFilterWeld(weldId) {
@@ -145,6 +147,10 @@ async searchAndFilterWeld(weldId) {
         console.log(`🎯 Successfully entered Detail View for Weld ID: ${idStr}`);
         
     } catch (e) {
+        // Check if the table is empty (search returned no results)
+        if (await this.page.getByText('No weld data available').isVisible()) {
+            throw new Error(`❌ Search for Weld ID "${idStr}" returned no results (Table says 'No weld data available').`);
+        }
         throw new Error(`❌ Exact Weld ID ${idStr} not found or eye button missing.`);
     }
 }
