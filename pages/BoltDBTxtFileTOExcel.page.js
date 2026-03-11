@@ -115,18 +115,18 @@ parseAutomationFile() {
 }
 
 
-async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default', generateExcel = true) {
+async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default', BoltDBExcel = false) {
     this.inputTxtPath = path.join(process.cwd(), 'Input', sourceFile); 
 
     if (!fs.existsSync(this.inputTxtPath)) {
         throw new Error(`❌ ASSERTION FAILED: Source file missing at ${this.inputTxtPath}`);
     }
 
-    console.log(`DEBUG: BoltDBTxtFileTOExcel.run called for project ${projectName}, source ${sourceFile}, generateExcel = ${generateExcel}`);
+    console.log(`DEBUG: BoltDBTxtFileTOExcel.run called for project ${projectName}, source ${sourceFile}, BoltDBExcel = ${BoltDBExcel}`);
     console.log(`📂 Reading from: ${this.inputTxtPath}`);
     const weldSessions = this.parseAutomationFile();
     const workbook = new ExcelJS.Workbook();
-    const fileName = `ActualData_${projectName}_${Date.now()}.xlsx`;
+    const fileName = `BoltD_${projectName}_${Date.now()}.xlsx`;
     
     // --- A. SETUP SHEET LOGIC ---
     const setupSheet = workbook.addWorksheet('Setup');
@@ -252,7 +252,7 @@ async run(slopeIn = 0, slopeOut = 0,projectName='Default',sourceFile='default', 
     });
 
     let outputPath = null;
-    if (generateExcel) {
+    if (BoltDBExcel) {
         outputPath = path.join(this.outputDir, fileName);
         if (!fs.existsSync(this.outputDir)) fs.mkdirSync(this.outputDir, { recursive: true });
         console.log(`✍️  Writing ActualData to: ${outputPath}`);
@@ -308,7 +308,7 @@ addViewSheet(workbook, name, data, groupFn) {
         let totalSeconds = 0;
         if (name === 'Pass_View' && g.sTime && g.cTime) {
             totalSeconds = Math.round((g.cTime - g.sTime) * 1000);
-        } else {
+        } else if (sortedItems.length > 0) {
             totalSeconds = Math.round((sortedItems[sortedItems.length - 1].rawTime - sortedItems[0].rawTime) * 1000);
         }
         
@@ -320,6 +320,13 @@ addViewSheet(workbook, name, data, groupFn) {
             const averageValue = sum / list.length;
             return key === 'Current' ? Math.round(averageValue) : this.applyRounding(key, averageValue);
         };
+      
+    let passStartTimeStr = '';
+        if (g.sTime) {
+            passStartTimeStr = this.formatToIST(g.sTime).replace(/:\d{2}\s/, ' ');
+        } else {
+            passStartTimeStr = sortedItems[0].ViewTime; 
+        }
 
        const rowData = [
                 g.setup.WeldID || 'N/A',
@@ -327,7 +334,7 @@ addViewSheet(workbook, name, data, groupFn) {
                 g.setup.Welder_id || 'N/A',
                 (g.setup.Bug_type || '').toUpperCase().includes('CCW') ? 'CCW' : 'CW',
                 g.torch,
-                sortedItems[0].ViewTime, // 🌟 Uses the version without seconds!
+                passStartTimeStr,
                 `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`
             ];
 

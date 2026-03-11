@@ -56,12 +56,12 @@ class ComparePage {
 
      // 2. Update prefixes to match your Extraction Script output
      // Your script saves: Production_weld_data1_[timestamp].xlsx
-    const actual = getLatest(actualDir, 'ActualData_'); 
+    const actual = getLatest(actualDir, 'BoltD_'); 
     const prod = getLatest(prodDir, 'Production_Report'); 
 
     // 3. Improved error message for debugging
         if (!actual || !prod) {
-           throw new Error(`Files missing. \nLooking for: "ActualData_" in ${actualDir} \nand "Production_Report" in ${prodDir}`);
+           throw new Error(`Files missing. \nLooking for: "BoltD_" in ${actualDir} \nand "Production_Report" in ${prodDir}`);
       }
       const actualPath = path.join(actualDir, actual);
       const prodPath = path.join(prodDir, prod);
@@ -139,7 +139,7 @@ class ComparePage {
 
     await resultWb.xlsx.writeFile(outpath);
     console.log("✅ Comparison Saved: " + outpath);
-    return globalFailure;
+    return { hasFailure: globalFailure, reportPath: outpath };
 }
 
 compare(aSheet, pSheet, resultWb, title, keyCols) {
