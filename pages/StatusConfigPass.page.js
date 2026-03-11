@@ -7,22 +7,24 @@ const {
 
 class StatusConfigPass {
     constructor(page) {
-    this.page = page;
-
-    // Base exports folder
-    const baseExportDir = path.join(process.cwd(), 'exports');
-
-    if (!fs.existsSync(baseExportDir)) {
-        fs.mkdirSync(baseExportDir, { recursive: true });
+        this.page = page;
+        // Base exports folder - only reference, actual creation in run()
+        this.baseExportDir = path.join(process.cwd(), 'exports');
     }
 
-    // 🔹 Create StatusConfig UI folder inside exports
-    this.exportDir = path.join(baseExportDir, 'StatusConfig UI');
+    // Initialize export directory only when needed
+    async initializeExportDir() {
+        if (!fs.existsSync(this.baseExportDir)) {
+            fs.mkdirSync(this.baseExportDir, { recursive: true });
+        }
 
-    if (!fs.existsSync(this.exportDir)) {
-        fs.mkdirSync(this.exportDir, { recursive: true });
+        // 🔹 Create StatusConfig UI folder inside exports
+        this.exportDir = path.join(this.baseExportDir, 'StatusConfig UI');
+
+        if (!fs.existsSync(this.exportDir)) {
+            fs.mkdirSync(this.exportDir, { recursive: true });
+        }
     }
-}
 
 
     async navigateToStatusConfig() {
@@ -153,6 +155,10 @@ class StatusConfigPass {
         });
 
         console.log("✅ UI Data Extracted");
+        
+        // Initialize export directory only when needed
+        await this.initializeExportDir();
+        
         await this.writeToExcel(projectName, weldDetails, gridData);
 
         return {

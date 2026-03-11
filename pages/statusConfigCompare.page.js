@@ -6,25 +6,28 @@ class StatusConfigCompare {
     constructor(inputFilePath, uiData = null) {
         this.inputFilePath = inputFilePath;
         this.uiData = uiData; // UI extracted data
-        // Base exports directory
-const baseExportDir = path.join(process.cwd(), 'exports');
+        // Base exports directory - only reference, actual creation in run()
+        this.baseExportDir = path.join(process.cwd(), 'exports');
+    }
 
-// New folder for StatusConfig comparison
-this.exportDir = path.join(
-    baseExportDir,
-    'StatusConfig Compared with WeldParam'
-);
+    // Initialize export directory only when needed
+    initializeExportDir() {
+        // New folder for StatusConfig comparison
+        this.exportDir = path.join(
+            this.baseExportDir,
+            'StatusConfig Compared with WeldParam'
+        );
 
-// Create folder if it does not exist
-if (!fs.existsSync(this.exportDir)) {
-    fs.mkdirSync(this.exportDir, { recursive: true });
-}
+        // Create folder if it does not exist
+        if (!fs.existsSync(this.exportDir)) {
+            fs.mkdirSync(this.exportDir, { recursive: true });
+        }
 
-// Excel output path
-this.outputPath = path.join(
-    this.exportDir,
-    `StatusConfigCompare_${Date.now()}.xlsx`
-);
+        // Excel output path
+        this.outputPath = path.join(
+            this.exportDir,
+            `StatusConfigCompare_${Date.now()}.xlsx`
+        );
     }
 
     async addComparisonSheet() {
@@ -171,6 +174,9 @@ this.outputPath = path.join(
         console.log('✅ Styled Comparison Sheet Added Successfully');
     }
     async run() {
+        // Initialize export directory only when needed
+        this.initializeExportDir();
+        
         console.log('🚀 Running StatusConfigCompare...');
         console.log(`📘 Reading: ${this.inputFilePath}`);
         const workbook = new ExcelJS.Workbook();

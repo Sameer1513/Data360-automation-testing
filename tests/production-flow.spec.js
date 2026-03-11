@@ -223,7 +223,77 @@ test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({ page }) => {
     } else {
         console.log("⏩ Skipping Device Sync (Step 2)");
     }
- 
+
+    // ----------------------------
+    // 📊 INDEPENDENT STATUS CONFIG EXTRACTION
+    // ----------------------------
+    // This runs independently based on statusConfigExtraction flag
+    if (fc.statusConfigExtraction) {
+        await test.step('📊 Run Status Config Extraction (Independent)', async () => {
+            // Open the project first
+            await helper.selectProject(project.projectName);
+            
+            // Navigate to production tab
+            const productionTab = page.getByRole('tab', { name: /Production/i });
+            await productionTab.click();
+            await expect(productionTab).toHaveAttribute('aria-selected', 'true');
+            
+            // Apply status configuration for each slope combination
+            for (const slope of project.slopeCombinations) {
+                console.log(`🔧 StatusConfig: In=${slope.slopeIn}, Out=${slope.slopeOut}`);
+                
+                await status.applyStatusConfiguration(slope.slopeIn, slope.slopeOut);
+                
+                // Extract Status Config Pass Data
+                await statusPass.run(project.projectName, slope.slopeIn, slope.slopeOut);
+                
+                // Go back to production tab
+                await statusPass.goBackToProduction();
+            }
+            
+            console.log("✅ Status Config Extraction Completed");
+        });
+
+        // ----------------------------
+        // 🧪 INDEPENDENT STATUS CONFIG COMPARISON
+        // ----------------------------
+        // Run comparison after extraction if both flags are true
+        if (fc.statusConfigComparison) {
+            await test.step('🧪 Run Status Config Comparison (Independent)', async () => {
+                // Generate Weld Parameters CSV to Excel
+                const csvExcelPath = await weldCsv.run(project.projectName);
+                
+                // Read the generated UI data from the StatusConfigPass run
+                // The uiData is already extracted, we need to pass it to comparison
+                // Since we're running independently, we need to re-extract or store the data
+                
+                // Navigate back to production and re-extract for comparison
+                const productionTab = page.getByRole('tab', { name: /Production/i });
+                await productionTab.click();
+                
+                for (const slope of project.slopeCombinations) {
+                    console.log(`🔧 StatusConfig Comparison: In=${slope.slopeIn}, Out=${slope.slopeOut}`);
+                    
+                    await status.applyStatusConfiguration(slope.slopeIn, slope.slopeOut);
+                    
+                    // Re-extract UI data for comparison
+                    const uiData = await statusPass.run(project.projectName, slope.slopeIn, slope.slopeOut);
+                    
+                    // Run comparison
+                    const statusCompare = new StatusConfigComparePage(csvExcelPath, uiData);
+                    await statusCompare.run();
+                    
+                    // Go back to production
+                    await statusPass.goBackToProduction();
+                }
+                
+                console.log("✅ Status Config Comparison Completed");
+            });
+        }
+    } else {
+        console.log("⏩ Skipping Status Config Extraction (Disabled in FlowControl)");
+    }
+
     // ----------------------------
     // 📊 PRODUCTION & ANALYSIS BLOCK
     // ----------------------------
@@ -279,6 +349,9 @@ if (fc.statusConfigExtraction) {
             );
         }
     );
+
+    // Go back to production tab after extraction
+    await statusPass.goBackToProduction();
 
 } else {
     console.log("⏩ Skipping Status Config Extraction");

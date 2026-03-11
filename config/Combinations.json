@@ -1,5 +1,5 @@
 {
-  "flowControl": {
+"flowControl": {
     "cleanExports": true,
     "checkSourceFile": true,
     "runExtraction": true,
@@ -8,10 +8,11 @@
     "deviceRegistration": false,
     "setup": false,
     "deviceSync": false,
-    "productionAnalysis": true,
+    "productionAnalysis":false,
     "statusConfigExtraction": true,
-    "statusConfigComparison": true,
-    "comparison": true
+    "statusConfigComparison": false,
+    "csvToExcel": true,
+    "comparison": false
   },
   "createProjectData": {
     "projectNumber": "123",
