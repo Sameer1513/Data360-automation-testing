@@ -12,6 +12,43 @@ class StatusConfigPass {
         this.baseExportDir = path.join(process.cwd(), 'exports');
     }
 
+    async applyCalculationMethod(method) {
+
+    if (!method || method === "Instantaneous") {
+        console.log("ℹ️ Using default Status Calculation Method: Instantaneous");
+        return;
+    }
+
+    console.log(`⚙️ Setting Status Calculation Method → ${method}`);
+
+    // Locate dropdown using label
+    const dropdown = this.page
+        .locator('label:has-text("Status Calculation Method")')
+        .locator('xpath=following::button[@role="combobox"][1]');
+
+    await dropdown.waitFor({ state: 'visible', timeout: 15000 });
+    await dropdown.click();
+
+    // Select option from Radix dropdown
+    const option = this.page.locator(`div[role="option"]:has-text("${method}")`);
+
+    await option.waitFor({ state: 'visible', timeout: 10000 });
+    await option.click();
+
+    console.log(`✅ Selected ${method}`);
+
+    // Click Save
+    const saveBtn = this.page.getByRole('button', { name: /Save/i });
+
+    await saveBtn.waitFor({ state: 'visible', timeout: 10000 });
+    await saveBtn.click();
+
+    console.log("💾 Status Calculation Method saved");
+
+    // Wait for UI refresh
+    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForTimeout(1500);
+}
     // Initialize export directory only when needed
     async initializeExportDir() {
         if (!fs.existsSync(this.baseExportDir)) {
@@ -50,8 +87,9 @@ class StatusConfigPass {
         console.log('✅ Status Configuration Loaded');
     }
 
-    async run(projectName, slopeIn, slopeOut) {
+    async run(projectName, slopeIn, slopeOut, calculationMethod = "Instantaneous") {
         await this.navigateToStatusConfig();
+        await this.applyCalculationMethod(calculationMethod);
 
         console.log('🔎 Extracting Weld Details...');
         const weldDetails = await this.extractWeldDetails();
@@ -159,12 +197,13 @@ class StatusConfigPass {
         // Initialize export directory only when needed
         await this.initializeExportDir();
         
-        await this.writeToExcel(projectName, weldDetails, gridData);
+        const excelPath = await this.writeToExcel(projectName, weldDetails, gridData);
 
-        return {
-            weldDetails,
-            gridData
-        };
+return {
+    weldDetails,
+    gridData,
+    excelPath
+};
     }
     async extractWeldDetails() {
         const details = {};
@@ -252,7 +291,6 @@ async writeToExcel(projectName, weldDetails, gridData) {
 
     let rowIndex = 1;
 
-    // Write Weld Details
     sheet.getCell(`A${rowIndex}`).value = "Weld Details";
     rowIndex += 2;
 
@@ -264,10 +302,8 @@ async writeToExcel(projectName, weldDetails, gridData) {
 
     rowIndex += 2;
 
-    // Write Table Headers
     sheet.addRow(gridData.headers);
 
-    // Write Table Rows
     gridData.rows.forEach(row => {
         sheet.addRow(row);
     });
@@ -275,8 +311,10 @@ async writeToExcel(projectName, weldDetails, gridData) {
     await workbook.xlsx.writeFile(filePath);
 
     console.log(`📄 Status Config UI Excel generated: ${filePath}`);
+
+    return filePath;
+}
 }
 
-}
 
 module.exports = StatusConfigPass;

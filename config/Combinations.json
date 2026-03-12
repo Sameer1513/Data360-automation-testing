@@ -1,5 +1,5 @@
 {
-"flowControl": {
+  "flowControl": {
     "cleanExports": true,
     "checkSourceFile": true,
     "runExtraction": true,
@@ -8,9 +8,9 @@
     "deviceRegistration": false,
     "setup": false,
     "deviceSync": false,
-    "productionAnalysis":false,
+    "productionAnalysis": false,
     "statusConfigExtraction": true,
-    "statusConfigComparison": false,
+    "statusConfigComparison": true,
     "csvToExcel": true,
     "comparison": false
   },
@@ -90,6 +90,7 @@
     ],
     "sourceFile": "bolt_2CW.txt",
     "weldIds": "152",
+    "statusCalculationMethod": "Average Pass",
     "slopeCombinations": [
       {
         "slopeIn": 0,

@@ -384,7 +384,7 @@ class WeldParametersCsvToExcel {
     const sheet = workbook.addWorksheet('Pass Level (CSV)');
 
     // Fixed Parameter Order
-    const fixedParameters = ['Current (A)', 'Volts (V)', 'Wire Speed', 'Travel Speed', 'Oscillation Width'];
+    const fixedParameters = ['Current (A)', 'Volts (V)', 'Wire Speed', 'Travel Speed', 'True Energy', 'Heat', 'Oscillation Width'];
 
     // Group data by base pass name (remove trailing number)
     const basePassMap = {};
