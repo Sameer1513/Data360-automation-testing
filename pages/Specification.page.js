@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const locators = require('../Locators/SpecificationsLocators.page');
 const { test, expect } = require('@playwright/test');
+const assertion = require('../Helper/AssertionHelper.js');
 
 class SpecificationsPage {
     constructor(page) {
@@ -85,6 +86,12 @@ class SpecificationsPage {
                 console.log("🔄 Action: Clicking Cancel");
                 await locators.cancelUploadBtn(this.page).click();
                 await expect(uploadBtn).toBeVisible(); 
+                assertion.log(
+                    `Spec Upload (Cancel)`, 
+                    'Cancelled successfully', 
+                    'Upload Cancelled', 
+                    'PASS'
+                );
             } 
             else {
                 console.log("🚀 Action: Clicking Upload All");
@@ -92,6 +99,12 @@ class SpecificationsPage {
                 
                 // Assert success message
                 await expect(locators.successToast(this.page)).toBeVisible({ timeout: 15000 });
+                assertion.log(
+                    `Spec Upload (Submit)`, 
+                    'Success Toast Visible', 
+                    'Specifications Uploaded Successfully', 
+                    'PASS'
+                );
             }
         });
     }
@@ -132,6 +145,12 @@ async addNewSpecificationManual(specData, actionType = 'cancel') {
                 
                 // Verify modal closed
                 await expect(this.page.getByRole('dialog')).toBeHidden();
+                assertion.log(
+                    `Manual Spec (Cancel)`, 
+                    'Dialog Closed', 
+                    'Manual Add Cancelled', 
+                    'PASS'
+                );
             } else {
                 console.log("🚀 Action: Clicking Add Specification");
                 await locators.submitNewSpecBtn(this.page).click();
@@ -139,6 +158,12 @@ async addNewSpecificationManual(specData, actionType = 'cancel') {
                 // Wait for modal to close indicating success
                 await expect(locators.submitNewSpecBtn(this.page)).toBeHidden({ timeout: 10000 });
                 console.log("✅ Manual Specification added.");
+                assertion.log(
+                    `Manual Spec (Submit)`, 
+                    'Dialog Closed (Submitted)', 
+                    'Manual Specification Added Successfully', 
+                    'PASS'
+                );
             }
         });
     }

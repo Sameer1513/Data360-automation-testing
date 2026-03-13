@@ -14,7 +14,7 @@
   "devDependencies": {
     "@playwright/test": "^1.57.0",
     "@types/node": "^25.0.3",
-    "monocart-reporter": "^2.10.1"
+    "monocart-reporter": "^2.10.0"
   },
   "dependencies": {
     "dotenv": "^17.2.3",

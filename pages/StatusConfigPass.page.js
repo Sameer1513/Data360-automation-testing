@@ -4,6 +4,8 @@ const ExcelJS = require('exceljs');
 const {
     autoScroll
 } = require('../utils/scroll.util');
+const { expect } = require('@playwright/test');
+const assertion = require('../Helper/AssertionHelper.js');
  
 class StatusConfigPass {
     constructor(page) {
@@ -160,7 +162,15 @@ class StatusConfigPass {
         await this.initializeExportDir();
        
         const filePath = await this.writeToExcel(projectName, weldDetails, gridData);
+        const fileExists = fs.existsSync(filePath);
  
+        assertion.log(
+            `Status Config Extraction: ${projectName}`, 
+            fileExists ? `File Generated: ${path.basename(filePath)}` : 'File Missing', 
+            'Status Config UI Data Extracted', 
+            fileExists ? 'PASS' : 'FAIL'
+        );
+
         return {
             weldDetails,
             gridData,

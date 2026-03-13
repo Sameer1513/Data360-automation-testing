@@ -1,4 +1,6 @@
 const locators = require('../Locators/CreateProjectLocators.page');
+const { expect } = require('@playwright/test');
+const assertion = require('../Helper/AssertionHelper.js');
 
 class CreateProjectPage {
   constructor(page) {
@@ -204,6 +206,12 @@ async selectDate(type, dateString) {
     await this.closeToastIfVisible();
 
     console.log(`Project "${projectData.projectName}" created successfully.`);
+    assertion.log(
+      `Create Project: ${projectData.projectName}`,
+      `Project Creation Flow Completed`, 
+      `Project Created Successfully`,
+      'PASS'
+    );
   }
 
   // ==========================
@@ -224,6 +232,13 @@ async selectDate(type, dateString) {
     await projectTile.waitFor({ state: 'visible', timeout: 20000 });
     await projectTile.click();
     console.log(`Project "${projectName}" opened successfully.`);
+    
+    assertion.log(
+      `Open Project: ${projectName}`,
+      `Project Tile Clicked & Opened`, 
+      `Project Opened Successfully`,
+      'PASS'
+    );
   }
 
   // used to assign device

@@ -1,5 +1,6 @@
 const { expect } = require('@playwright/test');
 const locators = require('../Locators/DeviceAssigningLocators.page');
+const assertion = require('../Helper/AssertionHelper.js');
 
 class DeviceAssigningPage {
     constructor(page) {
@@ -164,8 +165,15 @@ class DeviceAssigningPage {
         // ==========================================
         console.log(`⏳ Verifying success message...`);
         const successToast = locators.successMessage(this.page).first();
-        await successToast.waitFor({ state: 'visible', timeout: 15000 });
         
+        let assigned = false;
+        try {
+            await successToast.waitFor({ state: 'visible', timeout: 15000 });
+            assigned = true;
+        } catch(e) {}
+
+        assertion.log(`Assign Project: ${projectName} to ${deviceId}`, assigned ? 'Success Toast Visible' : 'Toast Not Found', 'Device Assigned Successfully', assigned ? 'PASS' : 'FAIL');
+
         // 🧪 ASSERTION: Hard check that the success message appeared
         await expect(successToast).toBeVisible();
         console.log(`✅ SUCCESS: Assigned ${projectName} to ${deviceId}`);
@@ -205,6 +213,13 @@ class DeviceAssigningPage {
         // 🧪 ASSERTION: Hard check that we successfully returned to the projects URL
         await expect(this.page).toHaveURL(/.*\/projects/i);
         console.log(`✅ Successfully returned to Projects page.`);
+        
+        assertion.log(
+            `Navigation`, 
+            'Returned to Projects Page', 
+            'On Projects Page', 
+            'PASS'
+        );
     }
 }
 
