@@ -17,7 +17,10 @@
  const StatusConfigPage = require('../pages/statusConfig.page');
  const StatusConfigPassPage = require('../pages/StatusConfigPass.page');
  const StatusConfigComparePage = require('../pages/statusConfigCompare.page');
- const WeldParametersCsvToExcel = require('../pages/WeldParametersCsvToExcel.page');
+ const {
+     WeldParametersCsvToExcel,
+     WeldParametersXmlToExcel
+ } = require('../pages/WeldParametersFileToExcel.page');
  const ProductionTabWeldData = require('../pages/ProductionTabWeldData.page');
  const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page');
  const ComparePage = require('../pages/compare.page');
@@ -37,7 +40,40 @@
 
      // 🎛️ FLOW CONTROL
      const fc = flowConfig.flowControl || {};
+     const fileConversion = flowConfig.fileConversion || {};
+     // ----------------------------
 
+     // Shared variables
+     let weldParamExcelPath = null;
+     let statusExtractionResults = [];
+
+     let weldConverter = null;
+     let weldSheetName = null;
+
+     // Ensure only one conversion is enabled
+     if (fileConversion.csv?.enabled && fileConversion.xml?.enabled) {
+         throw new Error("❌ Config Error: Both CSV and XML conversion are enabled. Enable only one.");
+     }
+
+     if (fileConversion.csv?.enabled) {
+
+         console.log("📄 Weld Parameter Source: CSV");
+
+         weldConverter = new WeldParametersCsvToExcel(fileConversion.csv.inputFile);
+         weldSheetName = 'Pass Level (CSV)';
+
+     } else if (fileConversion.xml?.enabled) {
+
+         console.log("📄 Weld Parameter Source: XML");
+
+         weldConverter = new WeldParametersXmlToExcel(fileConversion.xml.inputFile);
+         weldSheetName = 'Pass Level (XML)';
+
+     } else {
+
+         console.log("⏩ No Weld Parameter Conversion Enabled");
+
+     }
      // ----------------------------
      // 🧹 PRE-CLEANUP: DELETE OLD EXPORTS
      // ----------------------------
@@ -117,13 +153,10 @@
      const status = new StatusConfigPage(page);
      const statusPass = new StatusConfigPassPage(page);
      const statusCompare = new StatusConfigComparePage();
-     const weldCsv = new WeldParametersCsvToExcel();
      const analysis = new ProductionTabWeldData(page, flowConfig.scanConfig);
      const compare = new ComparePage();
 
-     // Shared variable for CSV Excel path
-     let csvExcelPath = null;
-     let statusExtractionResults = [];
+
 
      console.log(`🚀 START FLOW: ${project.projectName}`);
 
@@ -238,24 +271,28 @@
          console.log("⏩ Skipping Device Sync (Step 2)");
      }
 
-     // ----------------------------
-     // 📄 INDEPENDENT WELD PARAMETERS CSV TO EXCEL
-     // ----------------------------
-     // This runs independently based on csvToExcel flag
-     if (fc.csvToExcel) {
-         await test.step('📄 Convert Weld Parameters CSV → Excel (Independent)', async () => {
-             csvExcelPath = await weldCsv.run(project.projectName);
-             console.log("✅ Weld Parameters CSV to Excel Completed");
+     // 📄 INDEPENDENT WELD PARAMETERS CONVERSION
+     if (weldConverter) {
+
+         await test.step('📄 Convert Weld Parameters → Excel (Independent)', async () => {
+
+             weldParamExcelPath = await weldConverter.run(project.projectName);
+
+             console.log(`✅ Weld Parameters Conversion Completed → ${weldParamExcelPath}`);
+
          });
+
      } else {
-         console.log("⏩ Skipping Weld Parameters CSV to Excel (csvToExcel disabled)");
+
+         console.log("⏩ Skipping Weld Parameters Conversion (Disabled)");
+
      }
 
      // ----------------------------
      // 📊 INDEPENDENT STATUS CONFIG EXTRACTION
      // ----------------------------
      // This runs independently based on statusConfigExtraction flag
-     if (fc.statusConfigExtraction) {
+     if (fc.statusConfigUIExtraction) {
          await test.step('📊 Run Status Config Extraction (Independent)', async () => {
              // Open the project first
              await helper.selectProject(project.projectName);
@@ -295,26 +332,27 @@
          });
 
          // ----------------------------
-// 🧪 INDEPENDENT STATUS CONFIG COMPARISON
-// ----------------------------
-if (fc.statusConfigComparison) {
-    await test.step('🧪 Run Status Config Comparison (Independent)', async () => {
+         // 🧪 INDEPENDENT STATUS CONFIG COMPARISON
+         // ----------------------------
+         if (fc.statusConfigComparison) {
+             await test.step('🧪 Run Status Config Comparison (Independent)', async () => {
 
-        for (const result of statusExtractionResults) {
+                 for (const result of statusExtractionResults) {
 
-            console.log(`🔧 Comparing Status Config: In=${result.slope.slopeIn}, Out=${result.slope.slopeOut}`);
+                     console.log(`🔧 Comparing Status Config: In=${result.slope.slopeIn}, Out=${result.slope.slopeOut}`);
 
-            const statusCompare = new StatusConfigComparePage(
-                csvExcelPath,
-                result.excelPath
-            );
+                     const statusCompare = new StatusConfigComparePage(
+                         weldParamExcelPath,
+                         result.excelPath,
+                         weldSheetName
+                     );
 
-            await statusCompare.run();
-        }
+                     await statusCompare.run();
+                 }
 
-        console.log("✅ Status Config Comparison Completed");
-    });
-}
+                 console.log("✅ Status Config Comparison Completed");
+             });
+         }
      } else {
          console.log("⏩ Skipping Status Config Extraction (Disabled in FlowControl)");
      }
@@ -362,42 +400,46 @@ if (fc.statusConfigComparison) {
              );
 
              // ----------------------------
-// 📊 GET PRE-EXTRACTED STATUS CONFIG DATA
-// ----------------------------
-let uiData = statusExtractionResults.find(
-    r =>
-        r.slope.slopeIn === slope.slopeIn &&
-        r.slope.slopeOut === slope.slopeOut
-);
+             // 📊 GET PRE-EXTRACTED STATUS CONFIG DATA
+             // ----------------------------
+             let uiData = statusExtractionResults.find(
+                 r =>
+                 r.slope.slopeIn === slope.slopeIn &&
+                 r.slope.slopeOut === slope.slopeOut
+             );
 
-if (!uiData) {
-    console.log(`⚠️ No extracted UI data found for slope In=${slope.slopeIn}, Out=${slope.slopeOut}`);
-}
+             if (!uiData) {
+                 console.log(`⚠️ No extracted UI data found for slope In=${slope.slopeIn}, Out=${slope.slopeOut}`);
+             }
 
 
              // ----------------------------
              // 📄 GENERATE WELD PARAMETER EXCEL (CSV → Excel)
              // ----------------------------
-             if (fc.csvToExcel && !csvExcelPath) {
-                 csvExcelPath = await test.step(
-                     '📄 Convert Weld Parameters CSV → Excel',
+             if (weldConverter && !weldParamExcelPath) {
+
+                 weldParamExcelPath = await test.step(
+                     '📄 Convert Weld Parameters → Excel',
                      async () => {
-                         return await weldCsv.run(project.projectName);
+                         return await weldConverter.run(project.projectName);
                      }
                  );
+
              }
 
 
              // ----------------------------
              // 🧪 STATUS CONFIG COMPARISON
              // ----------------------------
-             if (fc.statusConfigComparison && csvExcelPath && uiData) {
+             if (fc.statusConfigComparison && weldParamExcelPath && uiData) {
 
                  await test.step('🧪 Compare Status Config Data', async () => {
 
                      const statusCompare = new StatusConfigComparePage(
-                         csvExcelPath,
-                         uiData.excelPath
+                         weldParamExcelPath,
+                         uiData.excelPath,
+                         weldSheetName
+
                      );
 
                      await statusCompare.run();

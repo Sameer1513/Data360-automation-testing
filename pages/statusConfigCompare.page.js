@@ -4,10 +4,11 @@ const fs = require('fs');
 
 class StatusConfigCompare {
 
-constructor(csvExcelPath, statusPassExcelPath) {
+constructor(weldParamExcelPath, statusPassExcelPath, weldSheetName) {
 
-    this.csvExcelPath = csvExcelPath;
+    this.weldParamExcelPath = weldParamExcelPath;
     this.statusPassExcelPath = statusPassExcelPath;
+    this.weldSheetName = weldSheetName;
 
     this.baseExportDir = path.join(process.cwd(), 'exports');
 }
@@ -62,18 +63,23 @@ async run() {
     console.log('🚀 Running Status Config Comparison');
 
     const csvWorkbook = new ExcelJS.Workbook();
-    await csvWorkbook.xlsx.readFile(this.csvExcelPath);
+    await csvWorkbook.xlsx.readFile(this.weldParamExcelPath);
 
     const uiWorkbook = new ExcelJS.Workbook();
     await uiWorkbook.xlsx.readFile(this.statusPassExcelPath);
 
-    const passSheet = csvWorkbook.getWorksheet('Pass Level (CSV)');
+    const passSheet = csvWorkbook.getWorksheet(this.weldSheetName);
     const uiSheet = uiWorkbook.getWorksheet('Status_Config_UI');
 
-    if (!passSheet || !uiSheet) {
-        console.log('❌ Required sheets not found.');
-        return;
-    }
+    if (!passSheet) {
+    console.log(`❌ Weld parameter sheet not found: ${this.weldSheetName}`);
+    return;
+}
+
+if (!uiSheet) {
+    console.log('❌ UI sheet not found: Status_Config_UI');
+    return;
+}
 
     const workbook = new ExcelJS.Workbook();
     const comparisonSheet = workbook.addWorksheet('Comparison');
@@ -130,7 +136,7 @@ async run() {
             csvValues.push(passSheet.getRow(row).getCell(col).value);
         }
 
-        const csvRow = ['CSV', parameter];
+        const csvRow = ['Weld Parameter File', parameter];
         const uiRow = ['UI', parameter];
 
         const maxLength = Math.max(csvValues.length, uiValues.length);
