@@ -125,19 +125,38 @@ async function generateDashboard(excelPath) {
                     const header  = headers[c];
                     if (!header) continue;
 
-                    const prodStr = getCellValue(row.getCell(c));
-                    const actStr  = getCellValue(actualRow.getCell(c));
+                    const prodStr  = getCellValue(row.getCell(c));
+                    const actStr   = getCellValue(actualRow.getCell(c));
 
-                    let isMismatch = false;
+                    // Two mismatch types, detected from result Excel cell formatting:
+                    //   'value'     → red font (FFFF0000) = value differs between Actual and Production
+                    //   'highlight' → purple fill (FFFFFF99) = values same but limit highlight disagrees
+                    // Detect cell types from result Excel formatting:
+                    //   Production red font (FFFF0000)  → value mismatch
+                    //   Light yellow (FFFFFF99) on either → highlight mismatch (both rows get it)
+                    //   Red fill (FFFEE2E2) on ACTUAL    → BoltDB flagged this as out-of-limits
+                    //   Red fill (FFFEE2E2) on PROD      → UI flagged this as out-of-limits
+                    let mismatchType  = null;  // 'value' | 'highlight' | null
+                    let actualIsRed   = false; // BoltDB source had red fill
+                    let prodIsRed     = false; // Production source had red fill
+
                     if (c > 2) {
-                        const font = row.getCell(c).font;
-                        if (font && font.color && font.color.argb === 'FFFF0000') {
-                            isMismatch        = true;
-                            hasActualMismatch = true;
-                        }
+                        const prodFont = row.getCell(c).font;
+                        const prodFill = row.getCell(c).fill;
+                        const actFill  = actualRow.getCell(c).fill;
+
+                        const isRedFont       = prodFont && prodFont.color && prodFont.color.argb === 'FFFF0000';
+                        const isHighlightFill    = prodFill && prodFill.fgColor && prodFill.fgColor.argb === 'FFFFFF99';
+                        const isActualRedFill = actFill  && actFill.fgColor  && actFill.fgColor.argb  === 'FFFEE2E2';
+                        const isProdRedFill   = prodFill && prodFill.fgColor && prodFill.fgColor.argb  === 'FFFEE2E2';
+
+                        if (isRedFont)    { mismatchType = 'value';     hasActualMismatch = true; }
+                        if (isHighlightFill) { mismatchType = 'highlight'; hasActualMismatch = true; }
+                        if (isActualRedFill) actualIsRed = true;
+                        if (isProdRedFill)   prodIsRed   = true;
                     }
 
-                    rowCells.push({ header, actual: actStr, production: prodStr, isMismatch });
+                    rowCells.push({ header, actual: actStr, production: prodStr, mismatchType, actualIsRed, prodIsRed });
                 }
 
                 if (hasActualMismatch) failures.push({ rowId: i, cells: rowCells });
@@ -193,7 +212,13 @@ async function generateDashboard(excelPath) {
         .data-table th { background:#f4f7f6; font-weight:600; color:#444; border-bottom:2px solid #aaa; }
         .actual-row td     { background:#fafafa; color:#888; font-style:italic; border-top:2px solid #ccc; border-bottom:0!important; padding-bottom:2px; }
         .production-row td { background:#fff; font-weight:500; color:#222; border-bottom:2px solid #ccc; border-top:0!important; padding-top:2px; }
-        .mismatch { background:var(--fail)!important; color:#fff!important; font-weight:bold!important; }
+        /* Value mismatch — red text only, no background */
+        .mismatch-value   { color:#FF0000!important; font-weight:bold!important; }
+        /* Highlight mismatch — yellow on the NON-red cell only */
+        .highlight-yellow { background:#FFFF99!important; }
+        /* Source red fills — light pink only, no text color change */
+        .actual-red { background:#FEE2E2!important; }
+        .prod-red   { background:#FEE2E2!important; }
         .success-msg { text-align:center; padding:20px; color:var(--pass); font-size:1.1rem; font-weight:bold; background:#e6ffe6; border-radius:8px; }
     </style>
 </head>
@@ -202,10 +227,31 @@ async function generateDashboard(excelPath) {
     <h1>📊 Weld Comparison Report</h1>
 
     <div class="stats">
-        <div class="stat-card"><div class="stat-val">${passed + failed}</div><div class="stat-lbl">Total Tlogs</div></div>
+        <div class="stat-card"><div class="stat-val">${passed + failed}</div><div class="stat-lbl">Total Rows</div></div>
         <div class="stat-card"><div class="stat-val text-pass">${passed}</div><div class="stat-lbl">Passed</div></div>
         <div class="stat-card"><div class="stat-val text-fail">${failed}</div><div class="stat-lbl">Failed</div></div>
         <div class="stat-card"><div class="stat-val">${Math.round((passed / ((passed + failed) || 1)) * 100)}%</div><div class="stat-lbl">Pass Rate</div></div>
+    </div>
+
+    <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:8px;background:#fff;padding:10px 14px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+            <div style="width:14px;height:14px;background:#FFC7CE;border:1px solid #ccc;border-radius:3px"></div>
+            <span style="font-size:.82rem;color:#333"><b>Dark Pink row</b> — Production row has at least one mismatch</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;background:#fff;padding:10px 14px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+            <div style="width:14px;height:14px;background:#FEE2E2;border:1px solid #ccc;border-radius:3px"></div>
+            <span style="font-size:.82rem;color:#333"><b>Light Pink cell</b> — Both Actual and Production agree this cell is out-of-limits (red circle in both)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;background:#fff;padding:10px 14px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+            <div style="width:14px;height:14px;background:#FFFF99;border:1px solid #ccc;border-radius:3px"></div>
+            <span style="font-size:.82rem;color:#333"><b>Light Yellow cell</b> — Highlight mismatch: one source marks cell red, the other does not</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;background:#fff;padding:10px 14px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+            <div style="width:30px;height:14px;background:#fff;border:1px solid #ccc;border-radius:3px;display:flex;align-items:center;justify-content:center">
+                <span style="color:#FF0000;font-weight:bold;font-size:10px">19</span>
+            </div>
+            <span style="font-size:.82rem;color:#333"><b style="color:#FF0000">Red text</b> — Value mismatch: the number or text differs between Actual and Production</span>
+        </div>
     </div>
 
     ${sheetsData.map(sheet => {
@@ -238,8 +284,28 @@ async function generateDashboard(excelPath) {
                     <thead><tr>${sheet.failures[0].cells.map(c => `<th>${c.header}</th>`).join('')}</tr></thead>
                     <tbody>
                         ${sheet.failures.map(fail => `
-                        <tr class="actual-row">${fail.cells.map(c => `<td>${c.actual || '-'}</td>`).join('')}</tr>
-                        <tr class="production-row">${fail.cells.map(c => `<td class="${c.isMismatch ? 'mismatch' : ''}">${c.production || '-'}</td>`).join('')}</tr>
+                        <tr class="actual-row">${fail.cells.map(c => {
+                            // Highlight mismatch → yellow on the NON-red cell
+                            //   actualIsRed=false → actual is NOT red → gets yellow
+                            //   actualIsRed=true  → actual IS red → gets pink
+                            if (c.mismatchType === 'highlight' && !c.actualIsRed) return `<td class="highlight-yellow">${c.actual || '-'}</td>`;
+                            if (c.actualIsRed) return `<td class="actual-red">${c.actual || '-'}</td>`;
+                            return `<td>${c.actual || '-'}</td>`;
+                        }).join('')}</tr>
+                        <tr class="production-row">${fail.cells.map(c => {
+                            // Value mismatch → red text
+                            if (c.mismatchType === 'value') return `<td class="mismatch-value">${c.production || '-'}</td>`;
+                            // Highlight mismatch → yellow goes on the NON-red cell
+                            //   actualIsRed=true  → actual has pink, production gets yellow
+                            //   actualIsRed=false → production is the red one, gets pink
+                            if (c.mismatchType === 'highlight') {
+                                const cls = c.actualIsRed ? 'highlight-yellow' : 'prod-red';
+                                return `<td class="${cls}">${c.production || '-'}</td>`;
+                            }
+                            // No mismatch but production was red in source → light pink
+                            if (c.prodIsRed) return `<td class="prod-red">${c.production || '-'}</td>`;
+                            return `<td>${c.production || '-'}</td>`;
+                        }).join('')}</tr>
                         `).join('')}
                     </tbody>
                 </table>

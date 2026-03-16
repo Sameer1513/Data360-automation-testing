@@ -12,6 +12,7 @@ const SetupPage              = require('../pages/setup.page');
 const StatusConfigPage       = require('../pages/statusConfig.page');
 const StatusConfigPass       = require('../pages/StatusConfigPass.page.js');
 const ProductionTabWeldData  = require('../pages/ProductionTabWeldData.page');
+const { WeldParametersCsvToExcel, WeldParametersXmlToExcel } = require('../pages/WeldParameterFIleToExcel.page.js');
 const BoltDBTxtFileTOExcel   = require('../pages/BoltDBTxtFileTOExcel.page');
 const ComparePage            = require('../pages/compare.page');
 const CommonHelper           = require('../Helper/CommonHelper');
@@ -59,19 +60,43 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             ).toBe(true);
         }
 
-        if (fc.runExtraction) {
-            const extractor = new BoltDBTxtFileTOExcel();
-            console.log("⚡ Running extractor once to derive setup data...");
-            const statusConfigPath = project.statusConfigPath
-                ? path.join(process.cwd(), project.statusConfigPath) : null;
-            const weldParamsPath = project.weldParamsPath
-                ? path.join(process.cwd(), project.weldParamsPath) : null;
-            const { setupData } = await extractor.run(
-                0, 0, project.projectName, project.sourceFile, false,
-                statusConfigPath, weldParamsPath, project.unitConfig || null
-            );
-            derivedSetup = setupData;
+        const parallelTasks = [];
+
+        if (fc.weldParameterExtraction) {
+            const extractParams = async () => {
+                const inputFile = project.weldParamsInputFile;
+                if (inputFile) {
+                    console.log(`⚡ Running Weld Parameter Extraction in parallel for ${inputFile}...`);
+                    if (inputFile.toLowerCase().endsWith('.csv')) {
+                        await new WeldParametersCsvToExcel(inputFile).run();
+                    } else if (inputFile.toLowerCase().endsWith('.xml')) {
+                        await new WeldParametersXmlToExcel(inputFile).run();
+                    }
+                } else {
+                    console.warn("⚠️ 'weldParamsInputFile' is missing in project config. Skipping parameter extraction.");
+                }
+            };
+            parallelTasks.push(extractParams());
         }
+
+        if (fc.runExtraction) {
+            const extractBoltDB = async () => {
+                const extractor = new BoltDBTxtFileTOExcel();
+                console.log("⚡ Running extractor once to derive setup data...");
+                const statusConfigPath = project.statusConfigPath
+                    ? path.join(process.cwd(), project.statusConfigPath) : null;
+                const weldParamsPath = project.weldParamsPath
+                    ? path.join(process.cwd(), project.weldParamsPath) : null;
+                const { setupData } = await extractor.run(
+                    0, 0, project.projectName, project.sourceFile, false,
+                    statusConfigPath, weldParamsPath, project.unitConfig || null
+                );
+                derivedSetup = setupData;
+            };
+            parallelTasks.push(extractBoltDB());
+        }
+
+        await Promise.all(parallelTasks);
     });
 
     // ── Before Each ───────────────────────────────────────────────────────

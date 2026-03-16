@@ -3,12 +3,45 @@ const path = require('path');
 const ExcelJS = require('exceljs');
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STATUS SYMBOLS (matching UI display)
-//   'true'  → all STC present, all values within limits
-//   'false' → all STC present, at least one value outside limits
-//   '(-)'   → S or T or both missing (weld incomplete / no data)
-//   '(X)'   → C record missing (weld not formally closed)
-//   '(!)'   → pass name missing in T record (can't determine limits)
+// BoltDBTxtFileTOExcel
+//
+// Reads the raw automation text file (BoltDB export), parses S/T/C records,
+// applies slope filtering, maps zones to pass names via WeldParameters file,
+// checks values against limits from StatusConfig file, and writes results
+// to an Excel workbook with Setup, tlog, view, and Unknown sheets.
+//
+// ── STATUS SYMBOLS (matching UI display) ─────────────────────────────────────
+//   'true'  → S+T+C present, all values within limits
+//   'false' → S+T+C present, at least one value outside limits
+//   '(-)'   → S missing OR T missing (weld incomplete / no data)
+//   '(X)'   → C record missing, values within limits (weld not formally closed)
+//   '(!)'   → zone exists in T record but not found in WeldParams file
+//             (pass name cannot be determined → limits cannot be checked)
+//
+// ── MISSING RECORD RULES (same for ALL calculation methods) ──────────────────
+//   S missing OR T missing              → '(-)'
+//   S+T present, C missing, pass limits → '(X)'
+//   S+T present, C missing, fail limits → 'false'
+//   Zone not in WeldParams              → '(!)'
+//
+// ── CALCULATION METHODS ──────────────────────────────────────────────────────
+//   Instantaneous    → check every individual T record against limits
+//                      any single T record outside limits → 'false'
+//
+//   Average by Pass  → average all T records in the pass group → check limits
+//                      (same formula for Pass_View, Zone_View, Tilt_View)
+//
+//   Average by Zone  → Pass_View : avg per zone, if any zone fails → pass fails
+//                      Zone_View : avg of T records in that zone → check limits
+//                      Tilt_View : avg of T records in tilt range → check limits
+//
+//   Average by Tilt  → Pass_View : avg of ALL T records in pass → check limits
+//                                  (independent of tilt ranges, same as Avg by Pass)
+//                      Zone_View : avg of T records in that zone → check limits
+//                      Tilt_View : avg of T records in tilt range → check limits
+//
+// Note: For all Average methods, individual tlog values do NOT affect status.
+//       Only the computed average is compared against the configured limits.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class BoltDBTxtFileTOExcel {
@@ -108,7 +141,7 @@ class BoltDBTxtFileTOExcel {
             pendRow.eachCell({ includeEmpty: false }, (cell, colIdx) => {
                 if (colIdx === 1) return; // skip label column
                 const zone     = (cell.value || '').toString().trim().toUpperCase();
-                const passName = (nameRow.getCell(colIdx).value || '').toString().trim().replace(/\b\w/g, c => c.toUpperCase());
+                const passName = (nameRow.getCell(colIdx).value || '').toString().trim().toUpperCase();
                 if (zone && passName && !map[zone]) {
                     map[zone] = passName; // first occurrence wins (duplicates are same PassName)
                 }
@@ -582,38 +615,41 @@ class BoltDBTxtFileTOExcel {
             throw new Error(`❌ Processed ${weldSessions.length} sessions but found no valid T-records.`);
         }
 
-        // Pre-compute zone/tilt statuses for Average by Zone / Average by Tilt methods
-        const zoneStatusMap = {}; // key WeldID_Torch_Zone → status string
-        const tiltStatusMap = {}; // key WeldID_Torch_TiltRange → status string
-
-        if (isAvgZone || isAvgTilt) {
-            this._buildGroupedStatuses(allDataForViews,
+        // ── Pre-compute zone avg statuses (only needed for Average by Zone → Pass_View) ──
+        // For Average by Zone method, Pass_View status = fail if ANY zone within the pass fails.
+        // We pre-compute zone-level statuses here so Pass_View can look them up per zone key.
+        // Key format: "WeldID_Torch_Zone" → 'true' | 'false'
+        const zoneStatusMap = {};
+        if (isAvgZone) {
+            this._buildGroupedStatuses(
+                allDataForViews,
                 d => `${d.WeldID}_${d.Torch}_${d.Zone}`,
-                zoneStatusMap, statusConfig);
-            this._buildGroupedStatuses(allDataForViews,
-                d => { const r = (d.Tilt >= 0 && d.Tilt <= 90) ? '0 - 90' : '90 - 180'; d.tiltRangeLabel = r; return `${d.WeldID}_${d.Torch}_${r}`; },
-                tiltStatusMap, statusConfig);
+                zoneStatusMap,
+                statusConfig
+            );
         }
+        // Note: Average by Tilt no longer needs a pre-computed tilt map.
+        // Pass_View for Average by Tilt uses the pass average directly (same as Average by Pass).
 
-        // Pass_View
+        // ── Pass_View: one row per Weld ID + Torch ────────────────────────────
         this.addViewSheet(workbook, 'Pass_View', allDataForViews,
             d => `${d.WeldID}_${d.Torch}`,
             (g, avgs) => this._resolveViewStatus(g, avgs, statusConfig,
                 isInstantaneous, isAvgPass, isAvgZone, isAvgTilt,
-                zoneStatusMap, tiltStatusMap, 'pass'),
+                zoneStatusMap, 'pass'),
             statusConfig
         );
 
-        // Zone_View
+        // ── Zone_View: one row per Weld ID + Torch + Zone ─────────────────────
         this.addViewSheet(workbook, 'Zone_View', allDataForViews,
             d => `${d.WeldID}_${d.Torch}_${d.Zone}`,
             (g, avgs) => this._resolveViewStatus(g, avgs, statusConfig,
                 isInstantaneous, isAvgPass, isAvgZone, isAvgTilt,
-                zoneStatusMap, tiltStatusMap, 'zone'),
+                zoneStatusMap, 'zone'),
             statusConfig
         );
 
-        // Tilt_View
+        // ── Tilt_View: one row per Weld ID + Torch + Tilt Range (0-90 / 90-180) ─
         this.addViewSheet(workbook, 'Tilt_View', allDataForViews,
             d => {
                 const range = (d.Tilt >= 0 && d.Tilt <= 90) ? '0 - 90' : '90 - 180';
@@ -622,7 +658,7 @@ class BoltDBTxtFileTOExcel {
             },
             (g, avgs) => this._resolveViewStatus(g, avgs, statusConfig,
                 isInstantaneous, isAvgPass, isAvgZone, isAvgTilt,
-                zoneStatusMap, tiltStatusMap, 'tilt'),
+                zoneStatusMap, 'tilt'),
             statusConfig
         );
 
@@ -649,23 +685,79 @@ class BoltDBTxtFileTOExcel {
     // RESOLVE VIEW-LEVEL STATUS
     // ─────────────────────────────────────────────────────────────────────────
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // RESOLVE VIEW-LEVEL STATUS
+    //
+    // Called once per row in Pass_View / Zone_View / Tilt_View.
+    // 'g'       = group object { items, passName, sessionHasC, ... }
+    // 'avgs'    = flat object of averaged param values for this group's T records
+    // 'viewType'= 'pass' | 'zone' | 'tilt' — which sheet is being computed
+    //
+    // ── Missing record rules (same for ALL methods) ───────────────────────────
+    //   S missing OR T missing          → '(-)'
+    //   S+T present, C missing, pass    → '(X)'
+    //   S+T present, C missing, fail    → 'false'
+    //   Zone exists but not in WeldParams→ '(!)'
+    //
+    // ── Method rules (only when S+T+C all present) ───────────────────────────
+    //
+    //   Instantaneous  (all views):
+    //     Check every individual T record against limits.
+    //     If ANY single T record is outside limits → 'false', else → 'true'
+    //
+    //   Average by Pass (all views):
+    //     Compute average of all T records in the group → check against limits.
+    //     Individual tlog values are irrelevant — only the average matters.
+    //
+    //   Average by Zone:
+    //     Pass_View  → compute avg per zone. If ANY zone avg fails → 'false'
+    //     Zone_View  → compute avg of T records in that zone → check limits
+    //     Tilt_View  → compute avg of T records in that tilt range → check limits
+    //
+    //   Average by Tilt:
+    //     Pass_View  → compute avg of ALL T records in the pass → check limits
+    //                  (same as Average by Pass — tilt ranges are independent of pass status)
+    //     Zone_View  → compute avg of T records in that zone → check limits
+    //     Tilt_View  → compute avg of T records in that tilt range → check limits
+    //
+    // ─────────────────────────────────────────────────────────────────────────
     _resolveViewStatus(g, avgs, statusConfig, isInstantaneous, isAvgPass,
-                       isAvgZone, isAvgTilt, zoneStatusMap, tiltStatusMap, viewType) {
+                       isAvgZone, isAvgTilt, zoneStatusMap, viewType) {
 
-        // Propagate session-level flag if all items share it (only (-) reaches here now)
+        // ── Step 1: Check for missing S or T records ──────────────────────────
+        // sessionStatusFlag is set to '(-)' when S or T is missing for the session.
+        // All items in a group share the same session flag.
+        // If ALL items carry the same non-null flag (only '(-)' reaches here), propagate it.
         const flags = [...new Set(g.items.map(i => i.sessionStatusFlag))];
         if (flags.length === 1 && flags[0] !== null) return flags[0];
 
-        // Pass name missing
+        // ── Step 2: Check for missing pass name ───────────────────────────────
+        // passName is null when the zone in the T record could not be found in WeldParams.
+        // This means we cannot determine which limit group to check against.
         if (!g.passName) return '(!)';
 
-        // C record missing: limits still run — (X) if pass, false if fail
-        // All items in a group share the same session so checking first item is sufficient
+        // ── Step 3: C record missing handling ─────────────────────────────────
+        // C record missing does NOT skip the limit check — values are still compared.
+        // Result becomes '(X)' instead of 'true' when limits pass,
+        // and stays 'false' when limits fail.
+        // All items in a group share the same session, so checking the first item is enough.
         const cMissing = g.items.length > 0 && !g.items[0].sessionHasC;
-        const passOrX  = (limPass) => limPass ? (cMissing ? '(X)' : 'true') : 'false';
 
+        // Helper: translate a limit check result into final status string
+        // limPass = true  → 'true' (or '(X)' if C record is missing)
+        // limPass = false → 'false' (regardless of C record presence)
+        const passOrX = (limPass) => limPass ? (cMissing ? '(X)' : 'true') : 'false';
+
+        // ── Step 4: No StatusConfig file provided ─────────────────────────────
+        // If no status config is loaded, we can't check limits.
+        // Treat as passing (no limits configured).
         if (!statusConfig) return cMissing ? '(X)' : 'true';
 
+        // ── Step 5: Method-specific status calculation ────────────────────────
+
+        // ── INSTANTANEOUS ─────────────────────────────────────────────────────
+        // Every individual T record is checked. One failure fails the whole group.
+        // This is the only method that depends on individual tlog values.
         if (isInstantaneous) {
             for (const item of g.items) {
                 const { pass } = this.checkLimits(item, g.passName, statusConfig);
@@ -674,47 +766,66 @@ class BoltDBTxtFileTOExcel {
             return cMissing ? '(X)' : 'true';
         }
 
+        // ── AVERAGE BY PASS ───────────────────────────────────────────────────
+        // All views: average of all T records in the group → check limits.
+        // Individual tlog values do not affect status — only the average matters.
         if (isAvgPass) {
             const { pass } = this.checkLimits(avgs, g.passName, statusConfig);
             return passOrX(pass);
         }
 
+        // ── AVERAGE BY ZONE ───────────────────────────────────────────────────
         if (isAvgZone) {
             if (viewType === 'pass') {
-                const anyFail = g.items.some(item => {
+                // Pass_View: check each zone's average independently.
+                // Pre-computed zoneStatusMap holds avg-based status per zone key.
+                // If ANY zone within this pass fails → the pass fails.
+                const anyZoneFailed = g.items.some(item => {
                     const key = `${item.WeldID}_${item.Torch}_${item.Zone}`;
                     return zoneStatusMap[key] === 'false';
                 });
-                // If no zone explicitly failed, still respect cMissing
-                return anyFail ? 'false' : (cMissing ? '(X)' : 'true');
+                return anyZoneFailed ? 'false' : (cMissing ? '(X)' : 'true');
             }
+            // Zone_View / Tilt_View: average of T records in this group → check limits.
             const { pass } = this.checkLimits(avgs, g.passName, statusConfig);
             return passOrX(pass);
         }
 
+        // ── AVERAGE BY TILT ───────────────────────────────────────────────────
         if (isAvgTilt) {
-            if (viewType === 'pass') {
-                const anyFail = g.items.some(item => {
-                    const tRange = (item.Tilt >= 0 && item.Tilt <= 90) ? '0 - 90' : '90 - 180';
-                    const key    = `${item.WeldID}_${item.Torch}_${tRange}`;
-                    return tiltStatusMap[key] === 'false';
-                });
-                return anyFail ? 'false' : (cMissing ? '(X)' : 'true');
-            }
+            // Pass_View: average of ALL T records in the pass → check limits.
+            // Tilt ranges are independent — pass status is not affected by tilt range results.
+            // This behaves identically to Average by Pass for Pass_View.
+            //
+            // Zone_View / Tilt_View: average of T records in that group → check limits.
+            // Same formula for all three views — only the grouping key differs.
             const { pass } = this.checkLimits(avgs, g.passName, statusConfig);
             return passOrX(pass);
         }
 
+        // ── Fallback (should not be reached if method is configured) ──────────
         return cMissing ? '(X)' : 'true';
     }
 
-    // Build a status map for grouped data (used for zone/tilt pre-compute)
+    // ─────────────────────────────────────────────────────────────────────────
+    // BUILD GROUPED STATUSES
+    //
+    // Pre-computes avg-based status for each group (e.g. each zone) and stores
+    // it in statusMap keyed by groupFn(record).
+    //
+    // Currently used only for Average by Zone method → Pass_View:
+    //   groupFn = d => `${d.WeldID}_${d.Torch}_${d.Zone}`
+    //   statusMap = zoneStatusMap
+    //
+    // This lets Pass_View quickly look up "did zone X fail?" without
+    // re-computing averages a second time during addViewSheet.
+    // ─────────────────────────────────────────────────────────────────────────
     _buildGroupedStatuses(data, groupFn, statusMap, statusConfig) {
         const groups = this._buildGroups(data, groupFn);
         Object.entries(groups).forEach(([key, g]) => {
-            const avgs   = this._computeAvgs(g.items);
-            const { pass } = this.checkLimits(avgs, g.passName, statusConfig);
-            statusMap[key] = pass ? 'true' : 'false';
+            const avgs      = this._computeAvgs(g.items);
+            const { pass }  = this.checkLimits(avgs, g.passName, statusConfig);
+            statusMap[key]  = pass ? 'true' : 'false';
         });
     }
 

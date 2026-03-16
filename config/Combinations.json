@@ -1,17 +1,18 @@
 {
   "flowControl": {
-    "cleanExports": true,
+    "cleanExports": false,
     "checkSourceFile": false,
     "runExtraction": false,
-    "BoltDBExcel": true,
-    "login": true,
+    "weldParameterExtraction": false,
+    "BoltDBExcel": false,
+    "login": false,
     "createProject": false,
     "deviceRegistration": false,
     "setup": false,
     "specification": false,
     "statusConfigPass": false,
     "deviceSync": false,
-    "productionAnalysis": true,
+    "productionAnalysis": false,
     "comparison": true
   },
   "createProjectData": {
@@ -90,9 +91,9 @@
     ],
     "sourceFile": "bolt.txt",
     "weldIds": "152",
-
+    "weldParamsInputFile": "Input/p600z_example.csv",
     "statusConfigPath": "exports/StatusConfig UI/XML_StatusConfig_UI.xlsx",
-    "weldParamsPath":   "exports/StatusConfig UI/WeldParametersCsvToExcel.xlsx",
+    "weldParamsPath":   "exports/WeldParametersCsvToExcel/WeldParametersCsvToExcel.xlsx",
     "slopeCombinations": [
       {
         "slopeIn": 0,
