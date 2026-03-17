@@ -1,5 +1,6 @@
 const { expect } = require('@playwright/test');
 const locators = require('../Locators/DeviceAssigningLocators.page');
+const assertion = require('../Helper/AssertionHelper.js');
 
 class DeviceAssigningPage {
     constructor(page) {
@@ -72,7 +73,7 @@ class DeviceAssigningPage {
                 await this.page.waitForTimeout(500); 
 
                 // Human-like Typing
-                await searchInput.pressSequentially(deviceId, { delay: 150 });
+                await searchInput.pressSequentially(deviceId, { delay: 50 });
                 await this.page.keyboard.press('Enter');
                 
                 console.log("⏳ Waiting for filtered device card to appear...");
@@ -164,14 +165,25 @@ class DeviceAssigningPage {
         // ==========================================
         console.log(`⏳ Verifying success message...`);
         const successToast = locators.successMessage(this.page).first();
-        await successToast.waitFor({ state: 'visible', timeout: 15000 });
         
+        let assigned = false;
+        try {
+            await successToast.waitFor({ state: 'visible', timeout: 15000 });
+            assigned = true;
+        } catch(e) {}
+
+        assertion.log(`Assign Project: ${projectName} to ${deviceId}`, assigned ? 'Success Toast Visible' : 'Toast Not Found', 'Device Assigned Successfully', assigned ? 'PASS' : 'FAIL');
+
         // 🧪 ASSERTION: Hard check that the success message appeared
         await expect(successToast).toBeVisible();
         console.log(`✅ SUCCESS: Assigned ${projectName} to ${deviceId}`);
 
         // Wait for the success toast to disappear before proceeding
-        await successToast.waitFor({ state: 'hidden', timeout: 5000 });
+        try {
+            await successToast.waitFor({ state: 'hidden', timeout: 5000 });
+        } catch (e) {
+            console.log("⚠️ Success toast did not disappear quickly, proceeding anyway.");
+        }
 
         // ==========================================
         // 7. Navigate Back to Projects Dashboard
@@ -201,6 +213,13 @@ class DeviceAssigningPage {
         // 🧪 ASSERTION: Hard check that we successfully returned to the projects URL
         await expect(this.page).toHaveURL(/.*\/projects/i);
         console.log(`✅ Successfully returned to Projects page.`);
+        
+        assertion.log(
+            `Navigation`, 
+            'Returned to Projects Page', 
+            'On Projects Page', 
+            'PASS'
+        );
     }
 }
 

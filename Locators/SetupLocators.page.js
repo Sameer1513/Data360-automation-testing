@@ -26,4 +26,6 @@ module.exports = {
     wpsInput: (container, placeholder) => container.getByPlaceholder(placeholder),
 
     saveBtn: (page) => page.getByRole('button', { name: 'Save' }),
+
+    successToast: (page) => page.getByText('The project setup has been saved successfully.', { exact: false }).first(),
 };

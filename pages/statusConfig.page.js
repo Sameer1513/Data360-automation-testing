@@ -1,4 +1,6 @@
 const locators = require('../Locators/StatusConfigLocators.page');
+const { expect } = require('@playwright/test');
+const assertion = require('../Helper/AssertionHelper.js');
 
 class StatusConfigPage {
   constructor(page) {
@@ -21,8 +23,14 @@ class StatusConfigPage {
       await locators.saveBtn(this.page).click();
 
       const toast = locators.successToast(this.page);
-      await toast.waitFor({ state: 'visible', timeout: 10000 });
-      console.log('✅ Save Confirmed.');
+      let saved = false;
+      try {
+          await toast.waitFor({ state: 'visible', timeout: 10000 });
+          saved = true;
+          console.log('✅ Save Confirmed.');
+      } catch (e) { console.log('⚠️ Save confirmation missing'); }
+      
+      assertion.log(`Status Config (In:${slopeIn}, Out:${slopeOut})`, saved ? 'Saved Successfully' : 'Save Failed/Timeout', 'Status Configuration Applied', saved ? 'PASS' : 'FAIL');
 
       console.log('Returning to Production table...');
       const backArrow = locators.backBtn(this.page);

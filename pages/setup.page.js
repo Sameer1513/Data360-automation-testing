@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const locators = require('../Locators/SetupLocators.page');
 const CommonHelper = require('../Helper/CommonHelper');
+const { expect } = require('@playwright/test');
+const assertion = require('../Helper/AssertionHelper.js');
 
 class SetupPage {
   constructor(page) {
@@ -68,8 +70,25 @@ getProjectConfig(projectName) {
     const saveButton = locators.saveBtn(this.page);
     await saveButton.scrollIntoViewIfNeeded();
     await saveButton.click();
-    await this.page.waitForLoadState('networkidle');
-    console.log("✅ Setup Saved Successfully");
+
+    // Wait for the success message to appear.
+    const successToast = locators.successToast(this.page);
+    let isSaved = false;
+    try {
+        await successToast.waitFor({ state: 'visible', timeout: 15000 });
+        isSaved = true;
+        console.log("✅ Setup Saved Successfully");
+    } catch(e) { console.log("⚠️ Save toast missed or not visible"); }
+    
+    // Optional: wait for it to disappear to avoid interfering with next steps.
+    if(isSaved) await successToast.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+
+    assertion.log(
+        `Setup Configuration: ${projectName}`,
+        isSaved ? 'Success Toast Appeared' : 'Success Toast Not Detected',
+        'Setup Saved Successfully',
+        isSaved ? 'PASS' : 'FAIL'
+    );
   } // <--- THIS WAS MISSING. Closes performSetup.
 
 

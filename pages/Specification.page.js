@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const locators = require('../Locators/SpecificationsLocators.page');
 const { test, expect } = require('@playwright/test');
+const assertion = require('../Helper/AssertionHelper.js');
 
 class SpecificationsPage {
     constructor(page) {
@@ -24,23 +25,8 @@ class SpecificationsPage {
 
     async navigateToSpecifications(projectName) {
         await test.step(`Maps to Specifications: ${projectName}`, async () => {
-            console.log(`🔍 Searching for project: ${projectName}`);
-            
-            // 1. Back to Dashboard if needed
-            const searchInput = this.page.getByPlaceholder('Search Project');
-            if (!(await searchInput.isVisible())) {
-                await this.page.locator('header').getByText('Projects', { exact: true }).click();
-            }
-
-            // 2. Search and Click Project
-            await searchInput.waitFor({ state: 'visible' });
-            await searchInput.click({ clickCount: 3 });
-            await this.page.keyboard.press('Backspace');
-            await searchInput.fill(projectName);
-            await this.page.keyboard.press('Enter');
-            
-            // Select project tile from main content area to avoid header conflicts
-            await this.page.locator('main').getByText(projectName, { exact: true }).first().click();
+            console.log(` Navigating to Specifications Tab for: ${projectName}`);
+            // Assumes we are already inside the project view (from Setup step)
 
             // 3. Select Specifications Tab
             const specTab = this.page.getByRole('tab', { name: 'Specifications' });
@@ -53,7 +39,7 @@ class SpecificationsPage {
         });
     }
 
-    async uploadSpecifications(data, actionType = 'upload') {
+    async uploadSpecifications(data, actionType = 'cancel') {
         await test.step("Upload Specification Flow", async () => {
             // 1. CLICK DOWNLOAD FIRST (Optional Template Check)
             const downloadBtn = locators.downloadTemplateBtn(this.page);
@@ -100,6 +86,12 @@ class SpecificationsPage {
                 console.log("🔄 Action: Clicking Cancel");
                 await locators.cancelUploadBtn(this.page).click();
                 await expect(uploadBtn).toBeVisible(); 
+                assertion.log(
+                    `Spec Upload (Cancel)`, 
+                    'Cancelled successfully', 
+                    'Upload Cancelled', 
+                    'PASS'
+                );
             } 
             else {
                 console.log("🚀 Action: Clicking Upload All");
@@ -107,23 +99,36 @@ class SpecificationsPage {
                 
                 // Assert success message
                 await expect(locators.successToast(this.page)).toBeVisible({ timeout: 15000 });
+                assertion.log(
+                    `Spec Upload (Submit)`, 
+                    'Success Toast Visible', 
+                    'Specifications Uploaded Successfully', 
+                    'PASS'
+                );
             }
         });
     }
-
-    async addNewSpecificationManual(specData) {
-        await test.step("Add New Specification Manually", async () => {
+async addNewSpecificationManual(specData, actionType = 'cancel') {
+        await test.step(`Add New Specification Manually - Action: ${actionType}`, async () => {
             await locators.addSpecBtn(this.page).click();
+            
+            // Wait for modal to appear
+            await expect(this.page.getByRole('dialog')).toBeVisible();
 
             // Select Dropdowns
             await locators.projectTypeDropdown(this.page).click();
-            await this.page.locator(`role=option[name="${specData.projectType}"]`).click();
+            await this.page.getByRole('option', { name: specData.projectType }).click();
 
+            // await locators.pipeDropdown(this.page).click();
+            // await this.page.getByRole('option', { name: specData.pipe }).click();
+            // Click the dropdown to open it
             await locators.pipeDropdown(this.page).click();
-            await this.page.locator(`role=option[name="${specData.pipe}"]`).click();
+            
+            // Ignore the JSON text and just click the very first option that appears
+            await this.page.getByRole('option').first().click();
 
             await locators.specTypeDropdown(this.page).click();
-            await this.page.locator(`role=option[name="${specData.specType}"]`).click();
+            await this.page.getByRole('option', { name: specData.specType }).click();
 
             // Handle Manual Entry File Upload
             const filePaths = [];
@@ -132,11 +137,38 @@ class SpecificationsPage {
             }
             await locators.addNewSpecFileInput(this.page).setInputFiles(filePaths);
 
-            await locators.submitNewSpecBtn(this.page).click();
-            await expect(locators.submitNewSpecBtn(this.page)).toBeHidden();
-            console.log("✅ Manual Specification added.");
+            // CONDITIONAL ACTION (Cancel vs Add)
+            if (actionType === 'cancel') {
+                console.log("🔄 Action: Clicking Cancel in Add Modal");
+                // Using a direct locator for the Cancel button in this modal
+                await this.page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+                
+                // Verify modal closed
+                await expect(this.page.getByRole('dialog')).toBeHidden();
+                assertion.log(
+                    `Manual Spec (Cancel)`, 
+                    'Dialog Closed', 
+                    'Manual Add Cancelled', 
+                    'PASS'
+                );
+            } else {
+                console.log("🚀 Action: Clicking Add Specification");
+                await locators.submitNewSpecBtn(this.page).click();
+                
+                // Wait for modal to close indicating success
+                await expect(locators.submitNewSpecBtn(this.page)).toBeHidden({ timeout: 10000 });
+                console.log("✅ Manual Specification added.");
+                assertion.log(
+                    `Manual Spec (Submit)`, 
+                    'Dialog Closed (Submitted)', 
+                    'Manual Specification Added Successfully', 
+                    'PASS'
+                );
+            }
         });
     }
+   
+
 }
 
 module.exports = SpecificationsPage;

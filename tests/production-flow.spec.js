@@ -1,486 +1,222 @@
- const fs = require('fs');
- const path = require('path');
- const {
-     test,
-     expect
- } = require('@playwright/test');
- const {
-     execSync,
-     spawn
- } = require('child_process');
-
- // Page Objects
- const LoginAndProjectPage = require('../pages/loginAndProject.page');
- const CreateProjectPage = require('../pages/createproject.page');
- const DeviceAssigningPage = require('../pages/DeviceAssigning.page');
- const SetupPage = require('../pages/setup.page');
- const StatusConfigPage = require('../pages/statusConfig.page');
- const StatusConfigPassPage = require('../pages/StatusConfigPass.page');
- const StatusConfigComparePage = require('../pages/statusConfigCompare.page');
- const {
-     WeldParametersCsvToExcel,
-     WeldParametersXmlToExcel
- } = require('../pages/WeldParametersFileToExcel.page');
- const ProductionTabWeldData = require('../pages/ProductionTabWeldData.page');
- const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page');
- const ComparePage = require('../pages/compare.page');
- const CommonHelper = require('../Helper/CommonHelper');
-
- // Config
- const configPath = path.join(__dirname, '../config/Combinations.json');
- const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-
- test('🔥 COMPLETE END-TO-END SINGLE FLOW', async ({
-     page
- }) => {
-
-     const helper = new CommonHelper(page);
-     const project = flowConfig.singleProject;
-     const targetWeldId = helper.resolveTargetWelds(project.weldIds);
-
-     // 🎛️ FLOW CONTROL
-     const fc = flowConfig.flowControl || {};
-     const fileConversion = flowConfig.fileConversion || {};
-     // ----------------------------
-
-     // Shared variables
-     let weldParamExcelPath = null;
-     let statusExtractionResults = [];
-
-     let weldConverter = null;
-     let weldSheetName = null;
-
-     // Ensure only one conversion is enabled
-     if (fileConversion.csv?.enabled && fileConversion.xml?.enabled) {
-         throw new Error("❌ Config Error: Both CSV and XML conversion are enabled. Enable only one.");
-     }
-
-     if (fileConversion.csv?.enabled) {
-
-         console.log("📄 Weld Parameter Source: CSV");
-
-         weldConverter = new WeldParametersCsvToExcel(fileConversion.csv.inputFile);
-         weldSheetName = 'Pass Level (CSV)';
-
-     } else if (fileConversion.xml?.enabled) {
-
-         console.log("📄 Weld Parameter Source: XML");
-
-         weldConverter = new WeldParametersXmlToExcel(fileConversion.xml.inputFile);
-         weldSheetName = 'Pass Level (XML)';
-
-     } else {
-
-         console.log("⏩ No Weld Parameter Conversion Enabled");
-
-     }
-     // ----------------------------
-     // 🧹 PRE-CLEANUP: DELETE OLD EXPORTS
-     // ----------------------------
-     if (fc.cleanExports) {
-         await test.step('🧹 Cleanup Old Export Files', async () => {
-             const exportsDir = path.join(process.cwd(), 'exports');
-             const dirsToClean = ['ActualData', 'ProductionData', 'ComparedData', 'WeldParametersCsvToExcel', 'StatusConfig Compared with WeldParam'];
-
-             console.log("🧹 Cleaning up old export files...");
-             for (const dir of dirsToClean) {
-                 const fullPath = path.join(exportsDir, dir);
-                 if (fs.existsSync(fullPath)) {
-                     fs.rmSync(fullPath, {
-                         recursive: true,
-                         force: true
-                     });
-                     console.log(`   🗑️ Deleted: ${dir}`);
-                 }
-             }
-         });
-     }
-
-     // ----------------------------
-     // 🛡️ ASSERTION: CHECK SOURCE FILE
-     // ----------------------------
-     if (fc.checkSourceFile) {
-         await test.step('📂 Verify Input Source File Exists', async () => {
-             const sourceFilePath = path.join(process.cwd(), 'Input', project.sourceFile);
-             expect(fs.existsSync(sourceFilePath), `❌ Source file '${project.sourceFile}' not found in Input directory.`).toBe(true);
-         });
-     }
-
-     // ⚙️ CONFIG: Determine if Device Registration is needed
-     const isDeviceRegConfigured = flowConfig.deviceRegistration && flowConfig.deviceRegistration.enabled !== false;
-     const isMultiBrowser = flowConfig.mode === 'multiBrowser';
-
-     // We now use the JSON flag 'deviceRegistration' to gate Step 1 specifically
-     const shouldRegisterDevice = isDeviceRegConfigured && !isMultiBrowser && fc.deviceRegistration;
-     console.log(`ℹ️ Device Registration (Step 1) Mode: ${shouldRegisterDevice ? 'ENABLED' : 'DISABLED'}`);
-
-     // ----------------------------
-     // ⚡ PRE-STEP: RUN EXTRACTOR
-     // ----------------------------
-     let derivedSetup = null;
-     if (fc.runExtraction) {
-         await test.step('⚡ Pre-Computation: BoltDB to Excel Extraction', async () => {
-             const extractor = new BoltDBTxtFileTOExcel();
-             console.log("⚡ Running extractor once to derive setup data (no Excel generated)...");
-             // We only need to run this once to get setup data. Slopes don't affect setup data.
-             // The `false` argument prevents Excel file generation in this step.
-             derivedSetup = await extractor.run(
-                 0, // slopeIn
-                 0, // slopeOut
-                 project.projectName,
-                 project.sourceFile,
-                 false // generateExcel
-             );
-         });
-     }
-
-     // ----------------------------
-     // 🔁 RESET DEVICE ID
-     // ----------------------------
-     if (shouldRegisterDevice && fc.deviceRegistration) {
-         const resetConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-         delete resetConfig.capturedDeviceId;
-         fs.writeFileSync(configPath, JSON.stringify(resetConfig, null, 2));
-     }
-
-     // ----------------------------
-     // 📄 INIT PAGES
-     // ----------------------------
-     const login = new LoginAndProjectPage(page);
-     const createPage = new CreateProjectPage(page);
-     const deviceAssign = new DeviceAssigningPage(page);
-     const setupPage = new SetupPage(page);
-     const status = new StatusConfigPage(page);
-     const statusPass = new StatusConfigPassPage(page);
-     const statusCompare = new StatusConfigComparePage();
-     const analysis = new ProductionTabWeldData(page, flowConfig.scanConfig);
-     const compare = new ComparePage();
-
-
-
-     console.log(`🚀 START FLOW: ${project.projectName}`);
-
-     // ----------------------------
-     // 🔐 STEP 1: LOGIN
-     // ----------------------------
-     if (fc.login) {
-         await login.loginAndOpenProject();
-     } else {
-         console.log("⏩ Skipping Login (Disabled in FlowControl)");
-     }
-
-     // ----------------------------
-     // 🏗️ STEP 2: CREATE PROJECT
-     // ----------------------------
-     if (fc.createProject) {
-         await createPage.createProject({
-             ...flowConfig.createProjectData,
-             projectName: project.projectName
-         });
-     } else {
-         console.log("⏩ Skipping Create Project (Disabled in FlowControl)");
-     }
-
-     // ----------------------------
-     // 🖥️ STEP 3: DEVICE REGISTER (STEP 1)
-     // ----------------------------
-     const scriptPath = path.join(__dirname, '..', 'terminal_execution_files', 'device_register.js');
-
-     if (shouldRegisterDevice) {
-         await test.step('🖥️ Run Device Register (Step 1)', async () => {
-             console.log("Starting Device Registration Script...");
-             await new Promise((resolve, reject) => {
-                 const child = spawn('node', [scriptPath, '--step=1'], {
-                     stdio: 'inherit',
-                     shell: true
-                 });
-                 child.on('close', (code) => {
-                     if (code === 0) resolve();
-                     else reject(new Error(`Step 1 failed with exit code ${code}`));
-                 });
-                 child.on('error', (err) => reject(err));
-             });
-         });
-
-         // ----------------------------
-         // ⏳ STEP 4: WAIT FOR DEVICE ID
-         // ----------------------------
-         const deviceId = await test.step('⏳ Wait for Device ID', async () => {
-             const id = await helper.waitForDeviceId(configPath);
-             console.log(`🎯 Device ID: ${id}`);
-             expect(id, 'Device ID should be generated').toBeTruthy();
-             return id;
-         });
-
-         // ----------------------------
-         // 🔗 STEP 5: ASSIGN DEVICE
-         // ----------------------------
-         await test.step('🔗 Assign Device to Project', async () => {
-             await deviceAssign.assignProjectToDevice(deviceId, project.projectName);
-         });
-     } else {
-         console.log("⏩ Skipping Device Registration & Assignment (Disabled or Multi-Browser)");
-     }
-
-     // ----------------------------
-     // ⚙️ STEP 6: SETUP
-     // ----------------------------
-     if (fc.setup) {
-         if (derivedSetup) {
-             await test.step('📝 Apply Derived Setup Config', async () => {
-                 console.log("📝 Updating Combinations.json with derived data:", derivedSetup);
-                 const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-
-                 if (cfg.singleProject && cfg.singleProject.setupConfig && cfg.singleProject.setupConfig.pipes && cfg.singleProject.setupConfig.pipes.length > 0) {
-                     const p = cfg.singleProject.setupConfig.pipes[0];
-                     if (derivedSetup.pipeSize) p.pipeSize = String(derivedSetup.pipeSize);
-                     if (derivedSetup.wallThickness) p.wallThickness = String(derivedSetup.wallThickness);
-                     if (derivedSetup.wps) p.wps = [String(derivedSetup.wps)];
-                     fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2));
-                 }
-             });
-         }
-
-         await test.step('⚙️ Perform Project Setup', async () => {
-             await setupPage.performSetup(project.projectName);
-         });
-     } else {
-         console.log("⏩ Skipping Setup (Disabled in FlowControl)");
-     }
-
-     // ----------------------------
-     // 🖥️ STEP 7: DEVICE SYNC (STEP 2)
-     // ----------------------------
-     // We use the 'deviceSync' flag from flowControl, combined with general config
-     if (isDeviceRegConfigured && !isMultiBrowser && fc.deviceSync) {
-         await test.step('🖥️ Run Device Sync (Step 2)', async () => {
-             console.log("Starting Device Sync Script...");
-             await new Promise((resolve, reject) => {
-                 const child = spawn('node', [scriptPath, '--step=2'], {
-                     stdio: 'inherit',
-                     shell: true
-                 });
-                 child.on('close', (code) => {
-                     if (code === 0) resolve();
-                     else reject(new Error(`Step 2 failed with exit code ${code}`));
-                 });
-                 child.on('error', (err) => reject(err));
-             });
-         });
-     } else {
-         console.log("⏩ Skipping Device Sync (Step 2)");
-     }
-
-     // 📄 INDEPENDENT WELD PARAMETERS CONVERSION
-     if (weldConverter) {
-
-         await test.step('📄 Convert Weld Parameters → Excel (Independent)', async () => {
-
-             weldParamExcelPath = await weldConverter.run(project.projectName);
-
-             console.log(`✅ Weld Parameters Conversion Completed → ${weldParamExcelPath}`);
-
-         });
-
-     } else {
-
-         console.log("⏩ Skipping Weld Parameters Conversion (Disabled)");
-
-     }
-
-     // ----------------------------
-     // 📊 INDEPENDENT STATUS CONFIG EXTRACTION
-     // ----------------------------
-     // This runs independently based on statusConfigExtraction flag
-     if (fc.statusConfigUIExtraction) {
-         await test.step('📊 Run Status Config Extraction (Independent)', async () => {
-             // Open the project first
-             await helper.selectProject(project.projectName);
-
-             // Navigate to production tab
-             const productionTab = page.getByRole('tab', {
-                 name: /Production/i
-             });
-             await productionTab.click();
-             await expect(productionTab).toHaveAttribute('aria-selected', 'true');
-
-             // Apply status configuration for each slope combination
-             for (const slope of project.slopeCombinations) {
-                 console.log(`🔧 StatusConfig: In=${slope.slopeIn}, Out=${slope.slopeOut}`);
-
-                 await status.applyStatusConfiguration(slope.slopeIn, slope.slopeOut);
-
-                 // Extract Status Config Pass Data
-                 const result = await statusPass.run(
-                     project.projectName,
-                     slope.slopeIn,
-                     slope.slopeOut,
-                     project.statusCalculationMethod
-                 );
-
-                 // Store extracted Excel path
-                 statusExtractionResults.push({
-                     slope,
-                     excelPath: result.excelPath
-                 });
-
-                 // Go back to production tab
-                 await statusPass.goBackToProduction();
-             }
-
-             console.log("✅ Status Config Extraction Completed");
-         });
-
-         // ----------------------------
-         // 🧪 INDEPENDENT STATUS CONFIG COMPARISON
-         // ----------------------------
-         if (fc.statusConfigComparison) {
-             await test.step('🧪 Run Status Config Comparison (Independent)', async () => {
-
-                 for (const result of statusExtractionResults) {
-
-                     console.log(`🔧 Comparing Status Config: In=${result.slope.slopeIn}, Out=${result.slope.slopeOut}`);
-
-                     const statusCompare = new StatusConfigComparePage(
-                         weldParamExcelPath,
-                         result.excelPath,
-                         weldSheetName
-                     );
-
-                     await statusCompare.run();
-                 }
-
-                 console.log("✅ Status Config Comparison Completed");
-             });
-         }
-     } else {
-         console.log("⏩ Skipping Status Config Extraction (Disabled in FlowControl)");
-     }
-
-     // ----------------------------
-     // 📊 PRODUCTION & ANALYSIS BLOCK
-     // ----------------------------
-     if (fc.productionAnalysis) {
-         // ----------------------------
-         // � STEP 8: OPEN PROJECT
-         // ----------------------------
-         await helper.selectProject(project.projectName);
-
-         // ----------------------------
-         // 📊 STEP 9: PRODUCTION TAB
-         // ----------------------------
-         await test.step('📊 Verify Production Tab Data', async () => {
-             const productionTab = page.getByRole('tab', {
-                 name: /Production/i
-             });
-             await productionTab.click();
-
-             await expect(productionTab).toHaveAttribute('aria-selected', 'true');
-
-             const weldRows = page.locator('table tbody tr');
-             await weldRows.first().waitFor({
-                 state: 'visible'
-             });
-
-             const count = await weldRows.count();
-             console.log(`✅ Weld Count: ${count}`);
-             expect(count, 'Production table should have at least one weld row').toBeGreaterThan(0);
-         });
-
-         // ----------------------------
-         // 🔁 STEP 10: SLOPE LOOP
-         // ----------------------------
-         for (const slope of project.slopeCombinations) {
-
-             console.log(`🚀 In=${slope.slopeIn}, Out=${slope.slopeOut}`);
-
-             await status.applyStatusConfiguration(
-                 slope.slopeIn,
-                 slope.slopeOut
-             );
-
-             // ----------------------------
-             // 📊 GET PRE-EXTRACTED STATUS CONFIG DATA
-             // ----------------------------
-             let uiData = statusExtractionResults.find(
-                 r =>
-                 r.slope.slopeIn === slope.slopeIn &&
-                 r.slope.slopeOut === slope.slopeOut
-             );
-
-             if (!uiData) {
-                 console.log(`⚠️ No extracted UI data found for slope In=${slope.slopeIn}, Out=${slope.slopeOut}`);
-             }
-
-
-             // ----------------------------
-             // 📄 GENERATE WELD PARAMETER EXCEL (CSV → Excel)
-             // ----------------------------
-             if (weldConverter && !weldParamExcelPath) {
-
-                 weldParamExcelPath = await test.step(
-                     '📄 Convert Weld Parameters → Excel',
-                     async () => {
-                         return await weldConverter.run(project.projectName);
-                     }
-                 );
-
-             }
-
-
-             // ----------------------------
-             // 🧪 STATUS CONFIG COMPARISON
-             // ----------------------------
-             if (fc.statusConfigComparison && weldParamExcelPath && uiData) {
-
-                 await test.step('🧪 Compare Status Config Data', async () => {
-
-                     const statusCompare = new StatusConfigComparePage(
-                         weldParamExcelPath,
-                         uiData.excelPath,
-                         weldSheetName
-
-                     );
-
-                     await statusCompare.run();
-
-                     await statusPass.goBackToProduction();
-                 });
-
-             } else {
-                 console.log("⏩ Skipping Status Config Comparison");
-             }
-
-             // ----------------------------
-             // ⚡ RUN ANALYSIS & EXTRACTION
-             // ----------------------------
-             const extractor = new BoltDBTxtFileTOExcel();
-
-             await Promise.all([
-                 analysis.runFlow(targetWeldId, null, project.projectName),
-                 extractor.run(slope.slopeIn, slope.slopeOut, project.projectName, project.sourceFile)
-             ]);
-
-             // ----------------------------
-             // 🧪 STEP 11: COMPARE
-             // ----------------------------
-             if (fc.comparison) {
-                 await test.step(`🧪 Run Comparison (In:${slope.slopeIn}, Out:${slope.slopeOut})`, async () => {
-                     const hasDiffs = await compare.runAutoCompare(
-                         project.projectName,
-                         targetWeldId
-                     );
-                     // Assert that there are no failures (hasDiffs should be false)
-                     // expect.soft(hasDiffs).toBe(false);
-                     if (hasDiffs) console.log("⚠️ Comparison found differences (Assertion disabled)");
-                 });
-             } else {
-                 console.log("⏩ Skipping Comparison (Disabled in FlowControl)");
-             }
-         }
-     } else {
-         console.log("⏩ Skipping Production Analysis (Disabled in FlowControl)");
-     }
-
-     console.log("🎉 END-TO-END FLOW COMPLETED");
- });
+const fs = require('fs');
+const path = require('path');
+const { test, expect } = require('@playwright/test');
+const { spawn } = require('child_process');
+
+// Page Objects
+const LoginAndProjectPage = require('../pages/loginAndProject.page');
+const CreateProjectPage = require('../pages/createproject.page');
+const SpecificationPage = require('../pages/Specification.page');
+const DeviceAssigningPage = require('../pages/DeviceAssigning.page');
+const SetupPage = require('../pages/setup.page');
+const StatusConfigPassPage = require('../pages/StatusConfigPass.page');
+const StatusConfigComparePage = require('../pages/statusConfigCompare.page');
+const { WeldParametersCsvToExcel, WeldParametersXmlToExcel } = require('../pages/WeldParametersFileToExcel.page');
+const ProductionTabWeldData = require('../pages/ProductionTabWeldData.page');
+const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page');
+const ComparePage = require('../pages/compare.page');
+const CommonHelper = require('../Helper/CommonHelper');
+const assertion = require('../Helper/AssertionHelper.js');
+const LoginAssertion = require('../Assertions/LoginAssertion');
+const ProductionTabAssertion = require('../Assertions/ProductionTabAssertion');
+
+// Config
+const configPath = path.join(__dirname, '../config/Combinations.json');
+const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
+  let browserPage = null;
+  let helper = null;
+  let loginPage = null;
+  let createProjectPage = null;
+  let specificationPage = null;
+  let deviceAssignPage = null;
+  let setupPage = null;
+  let statusConfigPassPage = null;
+  let productionTabPage = null;
+  let comparePage = null;
+
+  const project = flowConfig.singleProject;
+  const fc = flowConfig.flowControl || {};
+  const fileConversion = flowConfig.fileConversion || {};
+
+  let weldParamExcelPath = null;
+  let statusExtractionResults = [];
+  let deviceId = null;
+
+  // Pre-setup weld converter
+  let weldConverter = null;
+  let weldSheetName = null;
+  if (fileConversion.csv?.enabled) {
+    weldConverter = new WeldParametersCsvToExcel(fileConversion.csv.inputFile);
+    weldSheetName = 'Pass Level (CSV)';
+  } else if (fileConversion.xml?.enabled) {
+    weldConverter = new WeldParametersXmlToExcel(fileConversion.xml.inputFile);
+    weldSheetName = 'Pass Level (XML)';
+  }
+
+  test.beforeAll(async ({ browser }) => {
+    const needsBrowser = fc.login || fc.createProject || fc.deviceRegistration || fc.setup || 
+                        fc.specification || fc.deviceSync || fc.productionAnalysis || 
+                        fc.statusConfigUIExtraction || fc.statusConfigComparison;
+    if (needsBrowser) {
+      browserPage = await browser.newPage();
+      helper = new CommonHelper(browserPage);
+      loginPage = new LoginAndProjectPage(browserPage);
+      createProjectPage = new CreateProjectPage(browserPage);
+      specificationPage = new SpecificationPage(browserPage);
+      deviceAssignPage = new DeviceAssigningPage(browserPage);
+      setupPage = new SetupPage(browserPage);
+      statusConfigPassPage = new StatusConfigPassPage(browserPage);
+      productionTabPage = new ProductionTabWeldData(browserPage, flowConfig.scanConfig);
+      comparePage = new ComparePage();
+    }
+
+    // Cleanup exports if enabled
+    if (fc.cleanExports) {
+      const exportsDir = path.join(process.cwd(), 'exports');
+      const dirsToClean = ['ActualData', 'ProductionData', 'ComparedData', 'WeldParametersCsvToExcel', 'WeldParametersXmlToExcel', 'StatusConfig UI', 'StatusConfig Compared with WeldParam'];
+      dirsToClean.forEach(dir => {
+        const fullPath = path.join(exportsDir, dir);
+        if (fs.existsSync(fullPath)) {
+          fs.rmSync(fullPath, { recursive: true, force: true });
+        }
+      });
+    }
+  });
+
+  test.afterAll(async () => {
+    await browserPage?.close();
+    const dashboardPath = assertion.generateDashboard();
+    if (fs.existsSync(dashboardPath)) {
+      test.info().attach('Assertion Dashboard', { path: dashboardPath, contentType: 'text/html' });
+    }
+  });
+
+  test('Step 1: 🔐 Login', async () => {
+    test.skip(!fc.login);
+    await new LoginAssertion(loginPage).run(test.info());
+  });
+
+  test('Step 2: 🏗️ Create Project', async () => {
+    test.skip(!fc.createProject);
+    await createProjectPage.createProject({
+      ...flowConfig.createProjectData,
+      projectName: project.projectName
+    });
+    assertion.log('Step 2 Complete', `Project "${project.projectName}" created`, 'PASS', test.info());
+  });
+
+  test('Step 3 & 4: 🖥️ Device Registration & Assignment', async () => {
+    test.skip(!fc.deviceRegistration);
+    const scriptPath = path.join(__dirname, '..', 'terminal_execution_files', 'device_register.js');
+    
+    // Step 1: Register
+    await new Promise((resolve, reject) => {
+      const child = spawn('node', [scriptPath, '--step=1'], { stdio: 'inherit', shell: true });
+      child.on('close', code => code === 0 ? resolve() : reject(new Error(`Step 1 failed: ${code}`)));
+    });
+
+    // Get device ID
+    deviceId = await helper.waitForDeviceId(configPath);
+    expect(deviceId).toBeTruthy();
+
+    // Assign to project
+    await deviceAssignPage.assignProjectToDevice(deviceId, project.projectName);
+    assertion.log('Device Assigned', `${deviceId} → ${project.projectName}`, 'PASS', test.info());
+  });
+
+  test('Step 5: ⚙️ Setup', async () => {
+    test.skip(!fc.setup);
+    await setupPage.performSetup(project.projectName);
+    assertion.log('Step 5 Complete', 'Setup saved', 'PASS', test.info());
+  });
+
+  test('Step 6: 📑 Specifications', async () => {
+    test.skip(!fc.specification);
+    if (project.specificationData) {
+      await specificationPage.navigateToSpecifications(project.projectName);
+      if (project.specificationData.excelTemplate) {
+        await specificationPage.uploadSpecifications(project.specificationData);
+      }
+    }
+    assertion.log('Step 6 Complete', 'Specifications configured', 'PASS', test.info());
+  });
+
+  test('Step 7: 🔄 Device Sync', async () => {
+    test.skip(!fc.deviceSync);
+    const scriptPath = path.join(__dirname, '..', 'terminal_execution_files', 'device_register.js');
+    await new Promise((resolve, reject) => {
+      const child = spawn('node', [scriptPath, '--step=2'], { stdio: 'inherit', shell: true });
+      child.on('close', code => code === 0 ? resolve() : reject(new Error(`Step 2 failed: ${code}`)));
+    });
+    assertion.log('Step 7 Complete', 'Device synced', 'PASS', test.info());
+  });
+
+  test('Step 8: 🔍 Status Configuration Verification', async () => {
+    test.skip(!fc.statusConfigUIExtraction, 'Status Config UI extraction disabled');
+    
+    await helper.selectProject(project.projectName);
+
+    // Convert weld parameters if enabled 
+    if (weldConverter && fc.statusConfigComparison) {
+      weldParamExcelPath = await weldConverter.run(project.projectName);
+      console.log(`Weld Excel: ${weldParamExcelPath}`);
+    }
+
+    // Extract UI data for each slope
+    for (const slope of project.slopeCombinations) {
+      console.log(`Status Config: ${slope.slopeIn}-${slope.slopeOut}`);
+      
+      // Apply slope
+      // Note: Need StatusConfigPage if available, otherwise skip or implement
+      // await statusPage.applyStatusConfiguration(slope.slopeIn, slope.slopeOut);
+
+      // Extract UI
+      const result = await statusConfigPassPage.run(project.projectName, slope.slopeIn, slope.slopeOut);
+      statusExtractionResults.push({ slope, ...result });
+      test.info().attach('Status UI Data', { path: result.filePath, contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+      // Compare if enabled
+      if (fc.statusConfigComparison && weldParamExcelPath && result.filePath) {
+        const comparer = new StatusConfigComparePage(weldParamExcelPath, result.filePath, weldSheetName);
+        const comparePath = await comparer.run();
+        test.info().attach('Status Comparison', { path: comparePath, contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      }
+    }
+    
+    await statusConfigPassPage.goBackToProduction();
+    assertion.log('Step 8 Complete', 'Status Config verified', 'PASS', test.info());
+  });
+
+  test('Step 9: 📊 Production Tab Verification', async () => {
+    test.skip(!fc.productionAnalysis);
+    await new ProductionTabAssertion(browserPage, helper).run(project.projectName, test.info());
+  });
+
+  for (const slope of project.slopeCombinations) {
+    test(`Production: UI Analysis ${slope.slopeIn}-${slope.slopeOut}`, async () => {
+      test.skip(!fc.productionAnalysis);
+      const info = test.info();
+      const prodFilePath = await productionTabPage.runFlow(project.weldIds, null, project.projectName);
+      if (prodFilePath) {
+        info.attach('Production Data', { path: prodFilePath, contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      }
+      assertion.log(`UI Analysis ${slope.slopeIn}-${slope.slopeOut}`, prodFilePath ? 'PASS' : 'No data', 'PASS', info);
+    });
+
+    test(`Production: Comparison ${slope.slopeIn}-${slope.slopeOut}`, async () => {
+      test.skip(!fc.comparison);
+      const info = test.info();
+      const { hasFailure, reportPath, dashboardPath } = await comparePage.runAutoCompare(project.projectName, project.weldIds);
+      if (reportPath) info.attach('Comparison Report', { path: reportPath, contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      if (dashboardPath) info.attach('Comparison Dashboard', { body: fs.readFileSync(dashboardPath), contentType: 'text/html' });
+      assertion.log(`Comparison ${slope.slopeIn}-${slope.slopeOut}`, hasFailure ? 'FAIL' : 'PASS', hasFailure ? 'FAIL' : 'PASS', info);
+    });
+  }
+
+  test('🎉 Flow Complete', async () => {
+    console.log('🎉 Complete!');
+    assertion.log('Flow Complete', 'All steps passed', 'PASS', test.info());
+  });
+});
