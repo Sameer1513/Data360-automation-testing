@@ -455,10 +455,25 @@ class BoltDBTxtFileTOExcel {
                 if (!hasT) missing.push('T-Records missing');
                 if (!hasC) missing.push('C-Record missing');
                 const procStatus = missing.length > 0 ? `⚠️ ${missing.join(', ')}` : '✅ Complete';
+                // Same as View: formatToIST then drop seconds (e.g. 10:48:25 PM → 10:48 PM)
+                const stripSeconds = (s) => (s && typeof s === 'string') ? s.replace(/:\d{2}\s/, ' ') : s;
+                const timeFormatted = session.sTime != null ? stripSeconds(this.formatToIST(session.sTime)) : (setupData.Time != null ? stripSeconds(this.formatToIST(setupData.Time)) : '(missing)');
+                const startTimeStr = session.sTime != null ? stripSeconds(this.formatToIST(session.sTime)) : '(missing)';
+                const endTimeStr   = hasC && session.cTime != null ? stripSeconds(this.formatToIST(session.cTime)) : '(missing)';
+                let weldDurationStr = '(-)';
+                if (hasC && session.sTime != null && session.cTime != null) {
+                    const totalSeconds = Math.round((session.cTime - session.sTime) * 1000);
+                    const secs = totalSeconds >= 0 ? totalSeconds : 0;
+                    weldDurationStr = `${Math.floor(secs / 60)}m ${secs % 60}s`;
+                }
                 const setupRowData = {
                     ...setupData,
+                    Time:             timeFormatted,  // S record Time, same conversion as tlog
+                    Start_Date:       startTimeStr,
+                    End_Date:         endTimeStr,
+                    Weld_Duration:     weldDurationStr,
                     C_Record_Present: hasC ? 'Yes' : 'No',
-                    C_Record_Time:    hasC ? this.formatToIST(session.cTime) : '(missing)',
+                    C_Record_Time:    hasC && session.cTime != null ? stripSeconds(this.formatToIST(session.cTime)) : '(missing)',
                     Processing_Status: procStatus
                 };
                 if (!setupHeadersAdded) {

@@ -147,13 +147,20 @@ class ComparePage {
         hRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
 
         // Match keys for each sheet — used to pair Actual rows with Production rows.
+        // Weld ID is included in view sheet keys to uniquely identify each weld.
+        // BoltDB Weld ID comes from S-record Weld_number (e.g. 10).
+        // Production Weld ID is the project weld ID (e.g. 10).
+        // normalizeValue() converts both to the same string (e.g. '10.0')
+        // so they match correctly even when one is stored as int and other as float.
+        // Pass Name is excluded from keys — BoltDB uses (!) when zone map is missing,
+        // Production uses (-) — both are in the ignore list and should not block matching.
         const keyLookup = {
-            'Pass_View':       ['Station', 'Bug Type', 'Torch', 'Pass Name'],
-            'Zone_View':       ['Station', 'Bug Type', 'Torch', 'Zone', 'Pass Name'],
-            'Tilt_View':       ['Station', 'Bug Type', 'Torch', 'Tilt Range', 'Pass Name'],
-            'Pass_tlogs_data': ['Zone', 'Event'],
-            'Zone_tlogs_data': ['Zone', 'Event'],
-            'Tilt_tlogs_data': ['Zone', 'Event'],
+            'Pass_View':       ['Weld ID', 'Station', 'Bug Type', 'Torch'],
+            'Zone_View':       ['Weld ID', 'Station', 'Bug Type', 'Torch', 'Zone'],
+            'Tilt_View':       ['Weld ID', 'Station', 'Bug Type', 'Torch', 'Tilt Range'],
+            'Pass_tlogs_data': ['Weld ID', 'Zone', 'Event'],
+            'Zone_tlogs_data': ['Weld ID', 'Zone', 'Event'],
+            'Tilt_tlogs_data': ['Weld ID', 'Zone', 'Event'],
             'WeldSummary':     ['Job Number', 'Weld ID'],
         };
 
@@ -184,7 +191,7 @@ class ComparePage {
 
         // ── Note below the table ─────────────────────────────────────────────
         summarySheet.addRow([]);
-        const noteRow = summarySheet.addRow(['']);
+        const noteRow = summarySheet.addRow(['✅ Sheets not listed above or showing PASS have no mismatches — all values and highlights agree between Actual and Production.']);
         noteRow.getCell(1).font = { italic: true, color: { argb: 'FF006100' } };
         summarySheet.mergeCells(`A${noteRow.number}:C${noteRow.number}`);
 
@@ -203,8 +210,8 @@ class ComparePage {
         const legendDef = [
             // [fill argb, font argb, bold, label, description]
             ['FFFFC7CE', 'FF9C0006', true,  '  Dark Pink row',     'PRODUCTION row has at least one mismatch (value or highlight)'],
-            ['FFFEE2E2', 'FFDC2626', true,  '  Light Pink cell',   'Both Actual and Production data cell value is out-of-limits (red circle in both)'],
-            ['FFFFFF99', 'FF7A6000', true,  '  Light Yellow cell', 'cell value is out-of-limits (red circle)in Actual but not in Production vice versa'],
+            ['FFFEE2E2', 'FFDC2626', true,  '  Light Pink cell',   'Both Actual and Production agree this cell is out-of-limits (red circle in both)'],
+            ['FFFFFF99', 'FF7A6000', true,  '  Light Yellow cell', 'Highlight mismatch — this cell is NOT flagged as out-of-limits here, but IS flagged in the other source'],
             ['FFFFFFFF', 'FFFF0000', true,  '  Red text',          'Value mismatch — the numeric or text value differs between Actual and Production'],
         ];
 
@@ -248,8 +255,12 @@ class ComparePage {
         //
         // The safest approach: explicitly list the known red ARGB values.
         //   FFFEE2E2 — red-100 (used by BoltDB applyStatusStyle + Production UI)
+        //   FFFECACA — red-200
+        //   FFFCA5A5 — red-300
+        //   FFF87171 — red-400
+        //   FFEF4444 — red-500
         //   FFDC2626 — red-600  (also used as BoltDB font color)
-       
+        //   FFB91C1C — red-700
         // ─────────────────────────────────────────────────────────────────
         const RED_FILLS = new Set([
             'FFFEE2E2', 'FFFECACA', 'FFFCA5A5',
@@ -297,7 +308,7 @@ class ComparePage {
         //   can differ slightly from the UI-displayed start time.
         // 'weldtime' covers 'Weld Time' — minor timing differences are expected.
         // 'welder' covers 'Welder ID' — BoltDB stores 'N/A', UI stores '-'.
-        const ignoreList = ['Weld ID', 'status', 'slno', 'record', 'event', 'pipe',
+        const ignoreList = [ 'status','pass','passname', 'slno', 'record', 'event', 'pipe',
                             'band', 'logging', 'year', 'month', 'day', 'hour', 'minute',
                             'second', 'iwm', 'm500', 'welder', 'weldstart', 'weldtime'];
         let sheetHasFail = false;
@@ -310,13 +321,26 @@ class ComparePage {
         };
         const aHMap        = getHMap(aSheet);
         const pHMap        = getHMap(pSheet);
-        const weldIdColIdx = this.findColIdx(aHMap, 'Weld ID') || 1;
+        // Handle 'Search Weld ID' header used in Production tlog sheets
+        const weldIdColIdx = this.findColIdx(aHMap, 'Weld ID')
+                          || this.findColIdx(aHMap, 'Search Weld ID')
+                          || 1;
 
-        // Only include headers that exist in both sheets
+        // WeldSummary only: keep only these columns (ignore Record, Event, and all others).
+        const setupProdToActual = { 'Start Date': 'Start_Date', 'End Date': 'End_Date', 'Weld Duration': 'Weld_Duration' };
+        const setupWhitelist = ['Weld ID', 'Job Number', 'Status', 'Job Number Status', 'Start Date', 'End Date', 'Weld Duration'];
         const headers = [];
-        aSheet.getRow(1).eachCell(c => {
-            if (this.findColIdx(pHMap, c.value) !== null) headers.push(c.value);
-        });
+        if (title === 'WeldSummary') {
+            for (const h of setupWhitelist) {
+                const aCol = setupProdToActual[h] || h;
+                if (this.findColIdx(pHMap, h) !== null && this.findColIdx(aHMap, aCol) !== null) headers.push(h);
+            }
+        } else {
+            aSheet.getRow(1).eachCell((c) => {
+                const val = c.value;
+                if (val != null && this.findColIdx(pHMap, val) !== null) headers.push(val);
+            });
+        }
 
         // Build a lookup map from Actual sheet keyed by composite key (e.g. WeldID_Torch)
         const aMap = new Map();
@@ -336,7 +360,9 @@ class ComparePage {
         pSheet.eachRow((pRow, i) => {
             if (i === 1) return;
 
-            const pWeldIdIdx = this.findColIdx(pHMap, 'Weld ID') || 1;
+            const pWeldIdIdx = this.findColIdx(pHMap, 'Weld ID')
+                           || this.findColIdx(pHMap, 'Search Weld ID')
+                           || 1;
             const pWeldVal   = this.normalizeValue(pRow.getCell(pWeldIdIdx).value);
             if (this.filterIds.length > 0 && !this.filterIds.includes(pWeldVal)) return;
 
@@ -374,7 +400,8 @@ class ComparePage {
             const colInfo = []; // { resultColNum, aIsRed, pIsRed, isValueMismatch, isHighlightMismatch }
 
             headers.forEach((h, index) => {
-                const aIdx = this.findColIdx(aHMap, h);
+                const aCol = (title === 'WeldSummary' && setupProdToActual[h]) ? setupProdToActual[h] : h;
+                const aIdx = this.findColIdx(aHMap, aCol);
                 const pIdx = this.findColIdx(pHMap, h);
 
                 const aCell = aRow.getCell(aIdx);

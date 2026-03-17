@@ -395,7 +395,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             const info = test.info();
 
             try {
-                const prodFilePath = await analysis.runFlow(targetWeldId, null, project.projectName);
+                const prodFilePath = await analysis.runFlow(targetWeldId, null, project.projectName, info);
 
                 if (prodFilePath) {
                     await info.attach('Production Data', {

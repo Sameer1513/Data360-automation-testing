@@ -1,18 +1,18 @@
 {
   "flowControl": {
-    "cleanExports": false,
+    "cleanExports": true,
     "checkSourceFile": false,
     "runExtraction": false,
     "weldParameterExtraction": false,
-    "BoltDBExcel": false,
-    "login": false,
+    "BoltDBExcel": true,
+    "login": true,
     "createProject": false,
     "deviceRegistration": false,
     "setup": false,
     "specification": false,
     "statusConfigPass": false,
     "deviceSync": false,
-    "productionAnalysis": false,
+    "productionAnalysis": true,
     "comparison": true
   },
   "createProjectData": {
@@ -69,7 +69,7 @@
     }
   },
   "singleProject": {
-    "projectName": "XML",
+    "projectName": "testing-17-3-26",
     "projectNumber": "152",
     "location": "ANDORRA",
     "customer": "advanced engg",
@@ -89,8 +89,8 @@
       "P-625",
       "M-500"
     ],
-    "sourceFile": "bolt.txt",
-    "weldIds": "152",
+    "sourceFile": "bolt_2CW.txt",
+    "weldIds": "10",
     "weldParamsInputFile": "Input/p600z_example.csv",
     "statusConfigPath": "exports/StatusConfig UI/XML_StatusConfig_UI.xlsx",
     "weldParamsPath":   "exports/WeldParametersCsvToExcel/WeldParametersCsvToExcel.xlsx",

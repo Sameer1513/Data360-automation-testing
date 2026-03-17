@@ -1,5 +1,9 @@
 const ExcelJS = require('exceljs');
 
+// Must match compare.page.js: WeldSummary comparison uses only these columns (Setup vs Production).
+// Actual sheet name in compare is 'Setup', result sheet is 'WeldSummary'. Record/Event etc. are excluded.
+const WELD_SUMMARY_WHITELIST = ['Weld ID', 'Job Number', 'Status', 'Job Number Status', 'Start Date', 'End Date', 'Weld Duration'];
+
 function getCellValue(cell) {
     if (!cell || cell.value === null || cell.value === undefined) return '';
     if (typeof cell.value === 'object') {
@@ -12,6 +16,7 @@ function getCellValue(cell) {
 }
 
 function getGroupColName(sheetName) {
+    if (sheetName === 'WeldSummary') return 'Weld ID';
     if (sheetName.includes('View'))  return 'Pass Name';
     if (sheetName.includes('tlogs')) return 'Zone';
     return null;
@@ -121,9 +126,12 @@ async function generateDashboard(excelPath) {
                 let rowCells = [];
                 let hasActualMismatch = false;
 
+                const isWeldSummary = sheet.name === 'WeldSummary';
                 for (let c = 1; c <= maxCol; c++) {
                     const header  = headers[c];
                     if (!header) continue;
+                    // WeldSummary: only show columns in whitelist (matches compare.page.js)
+                    if (isWeldSummary && c > 2 && !WELD_SUMMARY_WHITELIST.includes(header)) continue;
 
                     const prodStr  = getCellValue(row.getCell(c));
                     const actStr   = getCellValue(actualRow.getCell(c));
