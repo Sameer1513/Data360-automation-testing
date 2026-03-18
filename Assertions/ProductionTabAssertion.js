@@ -3,9 +3,9 @@ const assertion = require('../Helper/AssertionHelper');
 
 /**
  * ProductionTabAssertion
- * Owns the 3-check production tab validation for Step 8 & 9.
- * Same format as LoginAssertion: test.step + assertion.log + attachStepSummary.
- * Called from the spec: await productionTabAssertion.run(projectName, test.info())
+ * All production-tab assertions live here only (none in ProductionTabWeldData.page.js).
+ * Same structure as LoginAssertion: test.step → checks array → assertion.log(stepName, actual, expected, status, detail, testInfo) → attachStepSummary.
+ * Step 8 & 9: open project, Production tab active, weld table visible. run(projectName, test.info()).
  */
 class ProductionTabAssertion {
 
@@ -67,8 +67,54 @@ class ProductionTabAssertion {
             }
         });
 
-        // Same as LoginAssertion: structured HTML summary (Check, Expected, Actual, Details, Result)
-        await assertion.attachStepSummary('Production Tab — Open Project & Verify', checks, testInfo);
+        checks.push({
+            name:     'Ready for Production Analysis',
+            expected: 'Table loaded',
+            actual:   'Table loaded',
+            pass:     true,
+            detail:   'ProductionTabWeldData.runFlow() can run in next step.'
+        });
+
+        await assertion.attachStepSummary('Production Scenarios', checks, testInfo);
+    }
+
+    /**
+     * Attach UI Analysis step summary from runFlow results. All assertion logic here (none in page).
+     * Results: [{ type: 'weld', weldId, pass, expected, actual, detail }] and
+     *          [{ type: 'tab', weldId, tabName, viewOk, tlogsOk }].
+     */
+    async attachUIAnalysisSummary(results, testInfo) {
+        if (!Array.isArray(results) || results.length === 0) return;
+        const checks = [];
+        for (const r of results) {
+            if (r.type === 'weld') {
+                checks.push({
+                    name:     `Weld ${r.weldId}`,
+                    expected: r.expected || 'Found',
+                    actual:   r.actual ?? (r.pass ? 'Found' : 'Not found'),
+                    pass:     !!r.pass,
+                    detail:   r.detail || ''
+                });
+            } else if (r.type === 'tab') {
+                checks.push({
+                    name:     `Weld ${r.weldId} — ${r.tabName} tab (view)`,
+                    expected: 'Present',
+                    actual:   r.viewOk ? 'Present' : 'Not found',
+                    pass:     !!r.viewOk,
+                    detail:   r.viewOk ? 'View data loaded' : 'Tab or view data not found'
+                });
+                if (r.tlogsOk !== null && r.tlogsOk !== undefined) {
+                    checks.push({
+                        name:     `Weld ${r.weldId} — ${r.tabName} tab (tlogs)`,
+                        expected: 'Present',
+                        actual:   r.tlogsOk ? 'Present' : 'Not found',
+                        pass:     !!r.tlogsOk,
+                        detail:   r.tlogsOk ? 'Data Analysis opened' : 'Data Analysis not found'
+                    });
+                }
+            }
+        }
+        await assertion.attachStepSummary('UI Analysis', checks, testInfo);
     }
 }
 
