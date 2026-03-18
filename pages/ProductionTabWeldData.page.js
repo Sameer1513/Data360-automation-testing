@@ -4,7 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const { autoScroll } = require('../utils/scroll.util');
 const ProductionTabWeldDataLocators = require('../Locators/ProductionTabWeldDataLocators.page');
-const assertion = require('../Helper/AssertionHelper.js');
 
 
 
@@ -22,13 +21,12 @@ class ProductionTabWeldData {
   }
 
 
-  async runFlow(weldIds = [], prodLimit = null, projectName = 'Default', testInfo = null) {
-    // Steps for report (Login Scenarios–style: Check, Expected, Actual, Details)
-    this.reportSteps = [];
+    async runFlow(weldIds = [], prodLimit = null, projectName = 'Default') {
     const workbook = new ExcelJS.Workbook();
     const timestamp = Date.now();
     const filename = `Production_Report_${projectName}_${timestamp}.xlsx`;
     const filepath = path.join(this.exportDir, filename);
+    const results = [];
 
     // If no IDs provided, find all Weld IDs currently visible in the table
     let targets = Array.isArray(weldIds) ? weldIds : (weldIds ? [weldIds] : []);
@@ -79,7 +77,6 @@ class ProductionTabWeldData {
 
             // Step 2: Generate Summary and process Tabs
             await this.generateWeldSummarySheet(workbook, currentWeld);
-            if (this.reportSteps) this.reportSteps.push({ name: 'Detail View', expected: 'Opened', actual: `Successfully entered Detail View for Weld ID: ${currentWeld || (i + 1)}`, pass: true, detail: 'Correct UI behaviour confirmed' });
 
             const prodHeaders = await this.locators.prodTableHeaders().allInnerTexts();
             const rows = this.locators.tableBodyRows();
@@ -90,18 +87,15 @@ class ProductionTabWeldData {
               .map(([tab]) => tab);
 
             for (const tabName of tabsToProcess) {
-              await this.processTabByName(workbook, tabName, prodHeaders, prodRowData, currentWeld);
+              const tabResult = await this.processTabByName(workbook, tabName, prodHeaders, prodRowData, currentWeld);
+              if (tabResult) results.push({ type: 'tab', weldId: currentWeld || `Row ${i + 1}`, tabName, ...tabResult });
             }
 
-            // Explicit success assertion for the report (same format as LoginAssertion)
             expect("Processing Successful").toBe("Processing Successful");
-            if (this.reportSteps) this.reportSteps.push({ name: `Processing Weld: ${currentWeld || 'Row ' + (i + 1)}`, expected: 'Analysis Completed', actual: 'Analysis Completed', pass: true, detail: 'Correct UI behaviour confirmed' });
-            assertion.log(`Production Analysis: ${currentWeld || 'Row ' + (i + 1)}`, 'Analysis Completed', 'Analysis Completed', 'PASS', `Weld ${currentWeld || 'Row ' + (i + 1)} processed successfully`, testInfo);
-
+            results.push({ type: 'weld', weldId: currentWeld || `Row ${i + 1}`, pass: true, expected: 'Found', actual: 'Found', detail: 'Detail View, tabs processed' });
           } catch (error) {
             console.error(`❌ Failed processing ${currentWeld}:`, error.message);
-            if (this.reportSteps) this.reportSteps.push({ name: `Processing Weld: ${currentWeld || 'Row ' + (i + 1)}`, expected: 'Analysis Completed', actual: `Error: ${error.message}`, pass: false, detail: error.message });
-            assertion.log(`Production Analysis: ${currentWeld || 'Row ' + (i + 1)}`, `Error: ${error.message}`, 'Analysis Completed', 'FAIL', error.message, testInfo);
+            results.push({ type: 'weld', weldId: currentWeld || `Row ${i + 1}`, pass: false, expected: 'Found', actual: error.message, detail: error.message });
             expect(error.message, `Weld ${currentWeld} Processing`).toBe("Processing Successful");
           }
         });
@@ -121,11 +115,7 @@ class ProductionTabWeldData {
       if (prodLimit && i + 1 >= prodLimit) break;
     }
     console.log(`\n final report saved: ${filepath}`);
-    if (this.reportSteps) this.reportSteps.push({ name: 'Report saved', expected: 'File saved', actual: filename, pass: true, detail: filepath });
-    if (testInfo && this.reportSteps && this.reportSteps.length > 0) {
-      await assertion.attachStepSummary('Production Analysis', this.reportSteps, testInfo);
-    }
-    return filepath;
+    return { filepath, results };
   }
 
   async searchAndFilterWeld(weldId) {
@@ -229,25 +219,17 @@ class ProductionTabWeldData {
   }
 
   async processTabByName(workbook, tabName, prodHeaders, prodRowData, currentWeldId) {
+    const cfg = this.scanConfig[tabName] || {};
     try {
       console.log(`--- Processing ${tabName} Tab ---`);
       const tab = this.locators.tab(tabName);
-
-      if (await tab.count() === 0) return;
-
+      if (await tab.count() === 0) return { viewOk: false, tlogsOk: cfg.tlogs ? false : null };
       await tab.click({ timeout: 5000 });
       await this.page.waitForSelector('table tbody tr', { state: 'visible', timeout: 5000 });
-
-      this._lastDataAnalysisHeaders = null;
-      this._lastDataAnalysisRow = null;
-      await this.processTabView(workbook, tabName, prodHeaders, prodRowData, currentWeldId);
-
-      const actual = this._lastDataAnalysisHeaders != null ? `Found ${this._lastDataAnalysisHeaders} headers` : 'Processed';
-      const detail = this._lastDataAnalysisRow != null ? `Row ${this._lastDataAnalysisRow}: Opening Data Analysis` : 'Correct UI behaviour confirmed';
-      if (this.reportSteps) this.reportSteps.push({ name: `${tabName} Tab`, expected: 'Processed', actual, pass: true, detail });
+      return await this.processTabView(workbook, tabName, prodHeaders, prodRowData, currentWeldId);
     } catch (err) {
       console.warn(`⚠️ ${tabName} Tab failed:`, err.message);
-      if (this.reportSteps) this.reportSteps.push({ name: `${tabName} Tab`, expected: 'Processed', actual: `Error: ${err.message}`, pass: false, detail: err.message });
+      return { viewOk: false, tlogsOk: cfg.tlogs ? false : null };
     }
   }
 
@@ -366,6 +348,7 @@ class ProductionTabWeldData {
     });
 
     // 5️⃣ Click eye-icon only if tlogs is enabled
+    let tlogsOk = false;
     if (analysisSheet) {
       for (const item of capturedRows) {
         const row = rowsLocator.nth(item.index);
@@ -374,12 +357,14 @@ class ProductionTabWeldData {
           console.log(`   🔍 Row ${item.data[0]}: Opening Data Analysis`);
           await row.hover();
           await eye.click({ force: true });
-          await this.scanDataAnalysis(analysisSheet, viewName, prodHeaders, prodRowData, item.data, currentWeldId);
+          const headerCount = await this.scanDataAnalysis(analysisSheet, viewName, prodHeaders, prodRowData, item.data, currentWeldId).catch(() => 0);
+          if (headerCount > 0) tlogsOk = true;
           await this.page.waitForSelector(`table tbody tr`, { state: 'visible' });
           await this.page.waitForTimeout(1000);
         }
       }
     }
+    return { viewOk: headers.length > 0, tlogsOk: analysisSheet ? tlogsOk : null };
   }
 
   addRowWithColor(sheet, rowData) {
@@ -431,10 +416,6 @@ class ProductionTabWeldData {
         dataHeaders = await deepTable.locator('thead th').allInnerTexts();
         if (dataHeaders.length > 15) {
           console.log(`✅ DataAnalysis: Found ${dataHeaders.length} headers`);
-          if (this.reportSteps !== undefined) {
-            this._lastDataAnalysisHeaders = dataHeaders.length;
-            this._lastDataAnalysisRow = viewRowData && viewRowData[0];
-          }
         }
       }
     } catch (e) {
@@ -483,12 +464,12 @@ class ProductionTabWeldData {
     allRowsData.forEach(rowData => {
       const firstVal = typeof rowData[0] === 'object' ? rowData[0].value : rowData[0];
       if (firstVal && !isNaN(firstVal.trim())) {
-        // We put the actual weld ID value as the first item in the row
         this.addRowWithColor(sheet, [currentWeldId, ...rowData]);
       }
     });
 
     await this.goBackSafe();
+    return dataHeaders.length;
   }
 
   async goBackSafe() {
