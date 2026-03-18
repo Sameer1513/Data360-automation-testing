@@ -53,17 +53,17 @@ projectLink: (page, projectName) =>
 
     // 6. Manual Add Modal: Dropdowns (Using Roles and IDs where possible)
     projectTypeDropdown: (page) => 
-        page.locator('button[role="combobox"]').nth(0)
-        .or(page.locator('button[aria-controls^="radix-"]')) // IDs in Radix UI often start with radix-
-        .or(page.locator('xpath=//label[contains(text(),"Type of Project")]/following-sibling::button')),
+        page.locator('button[role="combobox"]').nth(0),
+        // .or(page.locator('button[aria-controls^="radix-"]')) // IDs in Radix UI often start with radix-
+        // .or(page.locator('xpath=//label[contains(text(),"Type of Project")]/following-sibling::button')),
 
     pipeDropdown: (page) => 
-        page.locator('button[role="combobox"]').nth(1)
-        .or(page.locator('xpath=//label[contains(text(),"Pipe")]/following-sibling::button')),
+        page.locator('button[role="combobox"]').nth(1),
+        // .or(page.locator('xpath=//label[contains(text(),"Pipe")]/following-sibling::button')),
 
     specTypeDropdown: (page) => 
-        page.locator('button[role="combobox"]').nth(2)
-        .or(page.locator('xpath=//label[contains(text(),"Specification Type")]/following-sibling::button')),
+        page.locator('button[role="combobox"]').nth(2),
+        // .or(page.locator('xpath=//label[contains(text(),"Specification Type")]/following-sibling::button')),
 
     // 7. Manual Add Modal: File Input
     addNewSpecFileInput: (page) => 

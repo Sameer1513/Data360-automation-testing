@@ -2,17 +2,17 @@ const fs = require('fs');
 const path = require('path');
 const locators = require('../Locators/SetupLocators.page');
 const CommonHelper = require('../Helper/CommonHelper');
-
-const config = JSON.parse(
-  fs.readFileSync(path.join(__dirname, '../config/Combinations.json'), 'utf-8')
-);
+const { expect } = require('@playwright/test');
+const assertion = require('../Helper/AssertionHelper.js');
 
 class SetupPage {
   constructor(page) {
     this.page = page;
     this.helper = new CommonHelper(page);
+    this.configPath = path.join(__dirname, '../config/Combinations.json');
   }
 getProjectConfig(projectName) {
+    const config = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
     // 1. Check if it's a simple single-project mode
     if (config.mode === "single") {
         return config.singleProject;
@@ -70,8 +70,25 @@ getProjectConfig(projectName) {
     const saveButton = locators.saveBtn(this.page);
     await saveButton.scrollIntoViewIfNeeded();
     await saveButton.click();
-    await this.page.waitForLoadState('networkidle');
-    console.log("✅ Setup Saved Successfully");
+
+    // Wait for the success message to appear.
+    const successToast = locators.successToast(this.page);
+    let isSaved = false;
+    try {
+        await successToast.waitFor({ state: 'visible', timeout: 15000 });
+        isSaved = true;
+        console.log("✅ Setup Saved Successfully");
+    } catch(e) { console.log("⚠️ Save toast missed or not visible"); }
+    
+    // Optional: wait for it to disappear to avoid interfering with next steps.
+    if(isSaved) await successToast.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+
+    assertion.log(
+        `Setup Configuration: ${projectName}`,
+        isSaved ? 'Success Toast Appeared' : 'Success Toast Not Detected',
+        'Setup Saved Successfully',
+        isSaved ? 'PASS' : 'FAIL'
+    );
   } // <--- THIS WAS MISSING. Closes performSetup.
 
 
@@ -117,9 +134,8 @@ async fillPipeRow(container, pipe, index) {
     await this.page.keyboard.press('Escape');
     await this.page.waitForTimeout(500);
 
-    // Reset UI focus by clicking the Pipe Header to clear transparent overlays
-    const pipeHeader = locators.pipeHeader(container, index);
-    await pipeHeader.click({ force: true });
+    // Reset UI focus by clicking the Pipe Size Input (Safe) instead of Header (which might collapse the row)
+    await locators.pipeSizeInput(container).click({ force: true });
 
     // 4. WPS ENTRY WITH RETRY
     const wpsList = Array.isArray(pipe.wps) ? pipe.wps : [pipe.wps];
@@ -138,7 +154,7 @@ async fillPipeRow(container, pipe, index) {
 
             await firstWpsInput.waitFor({ state: 'visible', timeout: 2000 });
             await firstWpsInput.click({ force: true });
-            await firstWpsInput.fill(String(wpsList[0]));
+            await firstWpsInput.type(String(wpsList[0]), { delay: 100 });
             
             // Verify if the value was actually entered
             const val = await firstWpsInput.inputValue();
@@ -147,8 +163,9 @@ async fillPipeRow(container, pipe, index) {
                 break;
             }
         } catch (e) {
-            console.log(`⚠️ WPS Entry attempt ${attempt + 1} failed, retrying focus...`);
-            await pipeHeader.click({ force: true });
+            // The original code failed here because 'pipeHeader' is not defined in this scope.
+            console.log(`⚠️ WPS Entry attempt ${attempt + 1} failed, retrying focus. Error: ${e.message}`);
+            await locators.pipeSizeInput(container).click({ force: true }); // FIX: Click a stable element to reset focus.
             await this.page.waitForTimeout(500);
         }
     }

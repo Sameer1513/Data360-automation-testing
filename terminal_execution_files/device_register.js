@@ -63,8 +63,9 @@ function runStep1(exeName) {
     console.log(`\n🚀 Step 1: Running ${exeName} (Press Enter if prompted)`);
 
     // FIX: Capture both stdout and stderr to ensure we don't miss the ID
-    const proc = spawn(exePath, [], {
-      shell: false,
+    const cmd = exePath.includes(' ') ? `"${exePath}"` : exePath;
+    const proc = spawn(cmd, [], {
+      shell: true,
       stdio: ['inherit', 'pipe', 'pipe'] 
     });
 
@@ -150,14 +151,16 @@ function runStep2(exeName, dbFile, paramFile) {
     console.log(`\n🚀 Step 2: Running ${exeName} -db ${dbFile} -param ${paramFile}`);
 
     // FIX: Use pipe to capture output, and detach so it can loop in the background
-    const proc = spawn(exePath, [`-db`, dbPath, `-param`, paramPath], {
-      shell: false,
+    const cmd = exePath.includes(' ') ? `"${exePath}"` : exePath;
+    const proc = spawn(cmd, [`-db`, dbPath, `-param`, paramPath], {
+      shell: true,
       detached: false, 
       stdio: ['ignore', 'pipe', 'pipe'] 
     });
 
     let isSynced = false;
     let outputBuffer = "";
+    let idleCheckCount = 0;
 
     const cleanupAndExit = () => {
         try {
@@ -178,12 +181,18 @@ function runStep2(exeName, dbFile, paramFile) {
       process.stdout.write(output); // Mirror output to Playwright console
       outputBuffer += output;
 
-      // Check for repeated MQTT status message (indicates sync loop is active/idle)
-      const mqttMsg = "( mqtt ) Status: Publish Ready (Sub: Running, HB: Running, Pub: Running)";
-      const mqttCount = outputBuffer.split(mqttMsg).length - 1;
+      // 🛠️ LOGIC UPDATE: Reset idle count if data records are flowing
+      if (output.includes('"Record":"T"') || output.includes('"Record":"C"') || output.includes('"Record":"S"')) {
+        idleCheckCount = 0;
+      } else {
+        // Only count idle status messages if NO data records are in this chunk
+        if (output.includes("( mqtt ) Status: Publish Ready (Sub: Running, HB: Running, Pub: Running)")) {
+          idleCheckCount++;
+        }
+      }
 
       // 🛠️ THE FIX: Scan for the exact success string OR sufficient MQTT heartbeats
-      if (!isSynced && (outputBuffer.includes("No new logs to publish") || outputBuffer.includes("(boltdb) Get all logs: Completed") || mqttCount > 3)) {
+      if (!isSynced && (outputBuffer.includes("No new logs to publish") || outputBuffer.includes("(boltdb) Get all logs: Completed") || idleCheckCount > 3)) {
         console.log(`\n✅ [SYNC COMPLETE] Detected completion signal. Terminating process...`);
         isSynced = true;
         

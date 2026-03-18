@@ -1,13 +1,17 @@
 {
   "flowControl": {
     "cleanExports": true,
-    "checkSourceFile": true,
-    "runExtraction": true,
+    "checkSourceFile": false,
+    "runExtraction": false,
+    "weldParameterExtraction": false,
+    "BoltDBExcel": true,
     "login": true,
-    "createProject": true,
-    "deviceRegistration": true,
-    "setup": true,
-    "deviceSync": true,
+    "createProject": false,
+    "deviceRegistration": false,
+    "setup": false,
+    "specification": false,
+    "statusConfigPass": false,
+    "deviceSync": false,
     "productionAnalysis": true,
     "comparison": true
   },
@@ -36,9 +40,7 @@
     "enabled": true,
     "step1": {
       "enabled": true,
-      "executables": [
-        ""
-      ]
+      "exe": ""
     },
     "step2": {
       "enabled": true,
@@ -54,21 +56,21 @@
   "mode": "single",
   "scanConfig": {
     "Pass": {
-      "view": false,
+      "view": true,
       "tlogs": true
     },
     "Zone": {
-      "view": false,
+      "view": true,
       "tlogs": false
     },
     "Tilt": {
-      "view": false,
+      "view": true,
       "tlogs": false
     }
   },
   "singleProject": {
-    "projectName": "logstesting",
-    "projectNumber": "1234",
+    "projectName": "testing-17-3-26",
+    "projectNumber": "152",
     "location": "ANDORRA",
     "customer": "advanced engg",
     "startDate": "19-Feb-2026",
@@ -88,7 +90,10 @@
       "M-500"
     ],
     "sourceFile": "bolt_2CW.txt",
-    "weldIds": "",
+    "weldIds": "10",
+    "weldParamsInputFile": "Input/p600z_example.csv",
+    "statusConfigPath": "exports/StatusConfig UI/XML_StatusConfig_UI.xlsx",
+    "weldParamsPath":   "exports/WeldParametersCsvToExcel/WeldParametersCsvToExcel.xlsx",
     "slopeCombinations": [
       {
         "slopeIn": 0,
@@ -109,6 +114,41 @@
         ]
       }
     },
+    "unitConfig": {
+    "unitSystem": "imperial",
+    "roundingConfig": {
+      "imperial": {
+        "Tilt": 0,
+        "Distance": 2,
+        "Travel Speed": 1,
+        "Voltage": 1,
+        "Current": 1,
+        "Wire Speed": 0,
+        "Oscillation Width": 3,
+        "Target": 0,
+        "Horizontal Bias": 2,
+        "Frequency": 0,
+        "Total Wire Consumed": 2,
+        "True Energy": 1,
+        "Heat": 1
+      },
+      "metric": {
+        "Tilt": 0,
+        "Distance": 2,
+        "Travel Speed": 0,
+        "Voltage": 1,
+        "Current": 0,
+        "Wire Speed": 0,
+        "Oscillation Width": 1,
+        "Target": 0,
+        "Horizontal Bias": 2,
+        "Frequency": 0,
+        "Total Wire Consumed": 2,
+        "True Energy": 2,
+        "Heat": 2
+      }
+    }
+  },
     "setupConfig": {
       "pipes": [
         {

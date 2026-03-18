@@ -7,11 +7,14 @@ Use the `flowControl` object in `Combinations.json` to toggle specific steps of 
 "flowControl": {
   "cleanExports": true,       // Cleans 'exports' folder before run
   "checkSourceFile": true,    // Validates input file existence
-  "runExtraction": true,      // Generates ActualData Excel from .txt
+  "runExtraction": true,      // Pre-runs extraction to derive setup data (no Excel)
+  "BoltDBExcel": true,        // Generates the 'BoltD_*.xlsx' file from the .txt source
   "login": true,              // Performs Login
   "createProject": true,      // Creates Project in UI
   "deviceRegistration": true, // Runs Device Registration (Step 1)
   "setup": true,              // Configures Pipes/WPS in Setup tab
+  "specification": true,      // Uploads/Configures Project Specifications
+  "statusConfigPass": true,   // Extracts Status Config Pass/Fail parameters
   "deviceSync": true,         // Runs Device Sync (Step 2)
   "productionAnalysis": true, // Analyzes Production Data
   "comparison": true          // Runs Excel Comparison
