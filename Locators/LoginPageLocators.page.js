@@ -1,5 +1,27 @@
 const loginConfig = require('../Global/LoginPageCredential.page');
 
+// Locator helpers for `pages/loginAndProject.page.js` and `Assertions/LoginAssertion.js`
+// Keep selectors aligned with the `LoginPage` class below.
+function emailInput(page) {
+    return page.locator('#email, input[name="email"], input[placeholder="Enter your email"]');
+}
+
+function passwordInput(page) {
+    return page.locator('#password, input[name="password"], input[placeholder="Enter your password"]');
+}
+
+function loginButton(page) {
+    return page.locator('button[type="submit"], button:has-text("Login")');
+}
+
+function checkbox(page) {
+    return page.locator('#remember-me');
+}
+
+function eyeIcon(page, _passwordInput) {
+    return page.locator('svg.lucide-eye, button:has(svg.lucide-eye)');
+}
+
 class LoginPage {
     constructor(page) {
         this.page = page;
@@ -173,4 +195,12 @@ class LoginPage {
     }
 }
 
-module.exports = { LoginPage };
+module.exports = {
+    LoginPage,
+    loginConfig,
+    emailInput,
+    passwordInput,
+    loginButton,
+    checkbox,
+    eyeIcon
+};

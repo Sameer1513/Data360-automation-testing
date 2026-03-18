@@ -1,23 +1,24 @@
-const { expect } = require('@playwright/test');
-const credentials = require('../Global/LoginPageCredential.page');
-const locators    = require('../Locators/LoginPageLocators.page');
+const locators = require('../Locators/LoginPageLocators.page');
+const urlConfig = require('../Global/LoginPageCredential.page');
+const loginTestData = require('../test-data/loginTestData.json');
 
 /**
  * LoginAndProjectPage
- * Handles browser interaction only.
- * All assertion/reporting logic lives in assertions/LoginAssertion.js
+ * URL from Global; credentials from test-data/loginTestData.json.
+ * Assertion/reporting in Assertions/LoginAssertion.js
  */
 class LoginAndProjectPage {
 
     constructor(page) {
-        this.page            = page;
-        this.url             = credentials.url;
-        this.correctEmail    = credentials.correctEmail;
-        this.correctPassword = credentials.correctPassword;
+        this.page = page;
+        this.url = urlConfig.url;
+        const valid = loginTestData.validUser || {};
+        this.correctEmail = valid.email || '';
+        this.correctPassword = valid.password || '';
     }
 
-    getWrongEmail()    { return this.correctEmail.replace('.l@', '@'); }
-    getWrongPassword() { return this.correctPassword.replace('&', ''); }
+    getWrongEmail() { return this.correctEmail.replace(/\.([^@]+)@/, '@'); }
+    getWrongPassword() { return (this.correctPassword || '').replace(/[&@]/g, ''); }
 
     getReadableStatus(status) {
         return {
