@@ -16,6 +16,17 @@ export default defineConfig({
       name: "Weld Automation Report",
       outputFile: path.resolve(process.cwd(), 'playwright-report/Test-Report.html'),
 
+      // Group like older view: Project → Describe → Tests (no file layer)
+      groupOptions: {
+        group: true,
+        shard: true,
+        project: true,
+        file: false,
+        describe: true,
+        step: false,
+        merge: false,
+      },
+
       // ✅ Show expect steps inside each test row
       step: {
         expect: true,

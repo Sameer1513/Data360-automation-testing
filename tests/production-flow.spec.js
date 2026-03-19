@@ -395,13 +395,18 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             const info = test.info();
 
             try {
-                const prodFilePath = await analysis.runFlow(targetWeldId, null, project.projectName);
+                const out = await analysis.runFlow(targetWeldId, null, project.projectName);
+                const prodFilePath = out && out.filepath ? out.filepath : null;
 
                 if (prodFilePath) {
                     await info.attach('Production Data', {
                         path: prodFilePath,
                         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                     });
+                }
+                if (out && out.results && out.results.length > 0) {
+                    const productionTabAssertion = new ProductionTabAssertion(page, helper);
+                    await productionTabAssertion.attachUIAnalysisSummary(out.results, info);
                 }
                 assertion.log(
                     `UI Production Analysis (In:${slope.slopeIn}, Out:${slope.slopeOut})`,

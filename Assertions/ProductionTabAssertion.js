@@ -3,8 +3,9 @@ const assertion = require('../Helper/AssertionHelper');
 
 /**
  * ProductionTabAssertion
- * Owns the 3-check production tab validation for Step 8 & 9.
- * Called from the spec with a single line: await productionTabAssertion.run(projectName, info)
+ * All production-tab assertions live here only (none in ProductionTabWeldData.page.js).
+ * Same structure as LoginAssertion: test.step → checks array → assertion.log(stepName, actual, expected, status, detail, testInfo) → attachStepSummary.
+ * Step 8 & 9: open project, Production tab active, weld table visible. run(projectName, test.info()).
  */
 class ProductionTabAssertion {
 
@@ -19,9 +20,14 @@ class ProductionTabAssertion {
         await test.step('Search and open project', async () => {
             try {
                 await this.helper.selectProject(projectName);
-                checks.push({ name: 'Project Search', expected: 'Project Opens Successfully', actual: `"${projectName}" found and opened`, pass: true, detail: 'Search input used, project tile clicked' });
+                const actual   = `"${projectName}" found and opened`;
+                const expected = 'Project Opens Successfully';
+                const detail   = 'Search input used, project tile clicked';
+                checks.push({ name: 'Project Search', expected, actual, pass: true, detail });
+                assertion.log('Production: Project Search', actual, expected, 'PASS', detail, testInfo);
             } catch (e) {
                 checks.push({ name: 'Project Search', expected: 'Project Opens Successfully', actual: e.message, pass: false, detail: '' });
+                assertion.log('Production: Project Search', e.message, 'Project Opens Successfully', 'FAIL', e.message, testInfo);
                 throw e;
             }
         });
@@ -31,9 +37,14 @@ class ProductionTabAssertion {
                 const productionTab = this.page.getByRole('tab', { name: /Production/i });
                 await productionTab.click();
                 await expect(productionTab).toHaveAttribute('aria-selected', 'true');
-                checks.push({ name: 'Production Tab Active', expected: 'aria-selected = true', actual: 'aria-selected = true', pass: true, detail: 'Tab clicked and verified active' });
+                const actual   = 'aria-selected = true';
+                const expected = 'aria-selected = true';
+                const detail   = 'Tab clicked and verified active';
+                checks.push({ name: 'Production Tab Active', expected, actual, pass: true, detail });
+                assertion.log('Production: Production Tab Active', actual, expected, 'PASS', detail, testInfo);
             } catch (e) {
                 checks.push({ name: 'Production Tab Active', expected: 'aria-selected = true', actual: e.message, pass: false, detail: '' });
+                assertion.log('Production: Production Tab Active', e.message, 'aria-selected = true', 'FAIL', e.message, testInfo);
                 throw e;
             }
         });
@@ -44,18 +55,66 @@ class ProductionTabAssertion {
                 await weldRows.first().waitFor({ state: 'visible' });
                 const count = await weldRows.count();
                 expect(count, 'Production table should have at least one weld row').toBeGreaterThan(0);
-                checks.push({ name: 'Weld Data Table', expected: 'At least 1 row visible', actual: `${count} row(s) loaded`, pass: true, detail: `Table has ${count} weld rows` });
+                const actual   = `${count} row(s) loaded`;
+                const expected = 'At least 1 row visible';
+                const detail   = `Table has ${count} weld rows`;
+                checks.push({ name: 'Weld Data Table', expected, actual, pass: true, detail });
+                assertion.log('Production: Weld Data Table', actual, expected, 'PASS', detail, testInfo);
             } catch (e) {
                 checks.push({ name: 'Weld Data Table', expected: 'At least 1 row visible', actual: e.message, pass: false, detail: '' });
+                assertion.log('Production: Weld Data Table', e.message, 'At least 1 row visible', 'FAIL', e.message, testInfo);
                 throw e;
             }
         });
 
-        // Log to assertion dashboard
-        checks.forEach(c => assertion.log(`Step 8/9: ${c.name}`, c.actual, c.expected, c.pass ? 'PASS' : 'FAIL', c.detail, null));
+        checks.push({
+            name:     'Ready for Production Analysis',
+            expected: 'Table loaded',
+            actual:   'Table loaded',
+            pass:     true,
+            detail:   'ProductionTabWeldData.runFlow() can run in next step.'
+        });
 
-        // Attach structured HTML summary
-        await assertion.attachStepSummary('Step 8 & 9 — Open Project & Verify Production Tab', checks, testInfo);
+        await assertion.attachStepSummary('Production Scenarios', checks, testInfo);
+    }
+
+    /**
+     * Attach UI Analysis step summary from runFlow results. All assertion logic here (none in page).
+     * Results: [{ type: 'weld', weldId, pass, expected, actual, detail }] and
+     *          [{ type: 'tab', weldId, tabName, viewOk, tlogsOk }].
+     */
+    async attachUIAnalysisSummary(results, testInfo) {
+        if (!Array.isArray(results) || results.length === 0) return;
+        const checks = [];
+        for (const r of results) {
+            if (r.type === 'weld') {
+                checks.push({
+                    name:     `Weld ${r.weldId}`,
+                    expected: r.expected || 'Found',
+                    actual:   r.actual ?? (r.pass ? 'Found' : 'Not found'),
+                    pass:     !!r.pass,
+                    detail:   r.detail || ''
+                });
+            } else if (r.type === 'tab') {
+                checks.push({
+                    name:     `Weld ${r.weldId} — ${r.tabName} tab (view)`,
+                    expected: 'Present',
+                    actual:   r.viewOk ? 'Present' : 'Not found',
+                    pass:     !!r.viewOk,
+                    detail:   r.viewOk ? 'View data loaded' : 'Tab or view data not found'
+                });
+                if (r.tlogsOk !== null && r.tlogsOk !== undefined) {
+                    checks.push({
+                        name:     `Weld ${r.weldId} — ${r.tabName} tab (tlogs)`,
+                        expected: 'Present',
+                        actual:   r.tlogsOk ? 'Present' : 'Not found',
+                        pass:     !!r.tlogsOk,
+                        detail:   r.tlogsOk ? 'Data Analysis opened' : 'Data Analysis not found'
+                    });
+                }
+            }
+        }
+        await assertion.attachStepSummary('UI Analysis', checks, testInfo);
     }
 }
 
