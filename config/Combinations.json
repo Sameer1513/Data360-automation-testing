@@ -3,28 +3,19 @@
     "cleanExports": true,
     "checkSourceFile": false,
     "runExtraction": false,
-    "BoltDBExcel": true,
+    "BoltDBExcel": false,
+    "weldParameterExtraction": true,
     "login": true,
     "createProject": false,
     "deviceRegistration": false,
     "setup": false,
     "deviceSync": false,
-    "productionAnalysis": false,
+    "productionAnalysis": true,
     "statusConfigUIExtraction": true,
     "statusConfigComparison": true,
     "comparison": false,
     "specification": false
   },
-  "fileConversion": {
-  "csv": {
-    "enabled": false,
-    "inputFile": "test-data/p600z_example.csv"
-  },
-  "xml": {
-    "enabled": true,
-    "inputFile": "test-data/WeldParameters.WPa.xml"
-  }
-},
   "createProjectData": {
     "projectNumber": "123",
     "location": "ANDORRA",
@@ -79,7 +70,7 @@
     }
   },
   "singleProject": {
-    "projectName": "XML",
+    "projectName": "CSVp600z",
     "projectNumber": "152",
     "location": "ANDORRA",
     "customer": "advanced engg",
@@ -87,6 +78,7 @@
     "endDate": "20-Feb-2026",
     "projectStatus": "Initiated",
     "projectType": "Pipeline",
+    "weldParamsInputFile": "test-data/WeldParameters.WPa.xml",
     "pipelineFeatures": [
       "Welding"
     ],
@@ -101,9 +93,8 @@
     ],
     "sourceFile": "bolt.txt",
     "weldIds": "152",
-
     "statusConfigPath": "exports/StatusConfig UI/XML_StatusConfig_UI.xlsx",
-    "weldParamsPath":   "exports/StatusConfig UI/WeldParametersCsvToExcel.xlsx",
+    "weldParamsPath": "exports/StatusConfig UI/WeldParametersCsvToExcel.xlsx",
     "slopeCombinations": [
       {
         "slopeIn": 0,
@@ -125,40 +116,40 @@
       }
     },
     "unitConfig": {
-    "unitSystem": "imperial",
-    "roundingConfig": {
-      "imperial": {
-        "Tilt": 0,
-        "Distance": 2,
-        "Travel Speed": 1,
-        "Voltage": 1,
-        "Current": 1,
-        "Wire Speed": 0,
-        "Oscillation Width": 3,
-        "Target": 0,
-        "Horizontal Bias": 2,
-        "Frequency": 0,
-        "Total Wire Consumed": 2,
-        "True Energy": 1,
-        "Heat": 1
-      },
-      "metric": {
-        "Tilt": 0,
-        "Distance": 2,
-        "Travel Speed": 0,
-        "Voltage": 1,
-        "Current": 0,
-        "Wire Speed": 0,
-        "Oscillation Width": 1,
-        "Target": 0,
-        "Horizontal Bias": 2,
-        "Frequency": 0,
-        "Total Wire Consumed": 2,
-        "True Energy": 2,
-        "Heat": 2
+      "unitSystem": "imperial",
+      "roundingConfig": {
+        "imperial": {
+          "Tilt": 0,
+          "Distance": 2,
+          "Travel Speed": 1,
+          "Voltage": 1,
+          "Current": 1,
+          "Wire Speed": 0,
+          "Oscillation Width": 3,
+          "Target": 0,
+          "Horizontal Bias": 2,
+          "Frequency": 0,
+          "Total Wire Consumed": 2,
+          "True Energy": 1,
+          "Heat": 1
+        },
+        "metric": {
+          "Tilt": 0,
+          "Distance": 2,
+          "Travel Speed": 0,
+          "Voltage": 1,
+          "Current": 0,
+          "Wire Speed": 0,
+          "Oscillation Width": 1,
+          "Target": 0,
+          "Horizontal Bias": 2,
+          "Frequency": 0,
+          "Total Wire Consumed": 2,
+          "True Energy": 2,
+          "Heat": 2
+        }
       }
-    }
-  },
+    },
     "setupConfig": {
       "pipes": [
         {

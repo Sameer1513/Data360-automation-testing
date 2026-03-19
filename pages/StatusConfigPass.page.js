@@ -11,62 +11,53 @@ const assertion = require('../Helper/AssertionHelper.js');
 class StatusConfigPass {
     constructor(page) {
         this.page = page;
-        // Base exports folder - only reference, actual creation in run()
         this.baseExportDir = path.join(process.cwd(), 'exports');
     }
 
     async applyCalculationMethod(method) {
+        if (!method || method === "Instantaneous") {
+            console.log("ℹ️ Using default Status Calculation Method: Instantaneous");
+            return;
+        }
 
-    if (!method || method === "Instantaneous") {
-        console.log("ℹ️ Using default Status Calculation Method: Instantaneous");
-        return;
+        console.log(`⚙️ Setting Status Calculation Method → ${method}`);
+
+        const dropdown = this.page
+            .locator('label:has-text("Status Calculation Method")')
+            .locator('xpath=following::button[@role="combobox"][1]');
+
+        await dropdown.waitFor({ state: 'visible', timeout: 15000 });
+        await dropdown.click();
+
+        const option = this.page.locator(`div[role="option"]:has-text("${method}")`);
+
+        await option.waitFor({ state: 'visible', timeout: 10000 });
+        await option.click();
+
+        console.log(`✅ Selected ${method}`);
+
+        const saveBtn = this.page.getByRole('button', { name: /Save/i });
+
+        await saveBtn.waitFor({ state: 'visible', timeout: 10000 });
+        await saveBtn.click();
+
+        console.log("💾 Status Calculation Method saved");
+
+        await this.page.waitForLoadState('networkidle');
+        await this.page.waitForTimeout(1500);
     }
-
-    console.log(`⚙️ Setting Status Calculation Method → ${method}`);
-
-    // Locate dropdown using label
-    const dropdown = this.page
-        .locator('label:has-text("Status Calculation Method")')
-        .locator('xpath=following::button[@role="combobox"][1]');
-
-    await dropdown.waitFor({ state: 'visible', timeout: 15000 });
-    await dropdown.click();
-
-    // Select option from Radix dropdown
-    const option = this.page.locator(`div[role="option"]:has-text("${method}")`);
-
-    await option.waitFor({ state: 'visible', timeout: 10000 });
-    await option.click();
-
-    console.log(`✅ Selected ${method}`);
-
-    // Click Save
-    const saveBtn = this.page.getByRole('button', { name: /Save/i });
-
-    await saveBtn.waitFor({ state: 'visible', timeout: 10000 });
-    await saveBtn.click();
-
-    console.log("💾 Status Calculation Method saved");
-
-    // Wait for UI refresh
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(1500);
-}
  
-    // Initialize export directory only when needed
     async initializeExportDir() {
         if (!fs.existsSync(this.baseExportDir)) {
             fs.mkdirSync(this.baseExportDir, { recursive: true });
         }
  
-        // 🔹 Create StatusConfig UI folder inside exports
         this.exportDir = path.join(this.baseExportDir, 'StatusConfig UI');
  
         if (!fs.existsSync(this.exportDir)) {
             fs.mkdirSync(this.exportDir, { recursive: true });
         }
     }
- 
  
     async navigateToStatusConfig() {
         console.log('🔁 Navigating to Status Configuration...');
@@ -78,7 +69,6 @@ class StatusConfigPass {
             name: 'Status Configuration'
         }).click();
  
-        // Confirm page load using slope input
         await this.page.locator('div')
             .filter({
                 hasText: /^In:$/
@@ -197,17 +187,18 @@ class StatusConfigPass {
  
         console.log("✅ UI Data Extracted");
        
-        // Initialize export directory only when needed
         await this.initializeExportDir();
        
         const filePath = await this.writeToExcel(projectName, weldDetails, gridData);
-        const fileExists = fs.existsSync(filePath);
+ 
+        console.log(`StatusConfigPass filePath generated: ${filePath}`);
+        console.log(`StatusConfigPass returning object with filePath: ${filePath}`);
  
         assertion.log(
             `Status Config Extraction: ${projectName}`, 
-            fileExists ? `File Generated: ${path.basename(filePath)}` : 'File Missing', 
+            `File Generated: ${path.basename(filePath)}`, 
             'Status Config UI Data Extracted', 
-            fileExists ? 'PASS' : 'FAIL'
+            'PASS'
         );
 
         return {
@@ -216,6 +207,7 @@ class StatusConfigPass {
             filePath
         };
     }
+ 
     async extractWeldDetails() {
         const details = {};
  
@@ -226,10 +218,8 @@ class StatusConfigPass {
  
             if (!(await label.count())) return '';
  
-            // Find the closest parent container
             const container = label.locator('xpath=ancestor::*[1]');
  
-            // Look for combobox button inside same container
             const combo = container.locator('button[role="combobox"]');
  
             if (await combo.count()) {
@@ -237,13 +227,11 @@ class StatusConfigPass {
                 return value.trim();
             }
  
-            // Look for input field
             const input = container.locator('input');
             if (await input.count()) {
                 return (await input.inputValue()).trim();
             }
  
-            // Fallback: get first text element inside container excluding label
             const valueElement = container.locator('xpath=.//*[not(self::label)]').first();
             if (await valueElement.count()) {
                 return (await valueElement.innerText()).trim();
@@ -274,60 +262,58 @@ class StatusConfigPass {
     }
  
     async goBackToProduction() {
+        console.log("⬅ Returning to Production tab...");
  
-    console.log("⬅ Returning to Production tab...");
+        const backArrow = this.page
+            .locator('svg.lucide-arrow-left')
+            .locator('xpath=..');
  
-    const backArrow = this.page
-        .locator('svg.lucide-arrow-left')
-        .locator('xpath=..');
+        await backArrow.waitFor({ state: 'visible', timeout: 15000 });
  
-    await backArrow.waitFor({ state: 'visible', timeout: 15000 });
+        await backArrow.click();
  
-    await backArrow.click();
+        console.log("🔁 Clicked back arrow");
  
-    console.log("🔁 Clicked back arrow");
+        await this.page.getByRole('tab', { name: /Production/i })
+            .waitFor({ state: 'visible', timeout: 15000 });
  
-    await this.page.getByRole('tab', { name: /Production/i })
-        .waitFor({ state: 'visible', timeout: 15000 });
- 
-    console.log("✅ Successfully returned to Production tab");
-}
- 
-async writeToExcel(projectName, weldDetails, gridData) {
- 
-    const filePath = path.join(this.exportDir, `${projectName}_StatusConfig_UI.xlsx`);
- 
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('Status_Config_UI');
- 
-    let rowIndex = 1;
- 
-    // Write Weld Details
-    sheet.getCell(`A${rowIndex}`).value = "Weld Details";
-    rowIndex += 2;
- 
-    for (const key in weldDetails) {
-        sheet.getCell(`A${rowIndex}`).value = key;
-        sheet.getCell(`B${rowIndex}`).value = weldDetails[key];
-        rowIndex++;
+        console.log("✅ Successfully returned to Production tab");
     }
  
-    rowIndex += 2;
+    async writeToExcel(projectName, weldDetails, gridData) {
  
-    // Write Table Headers
-    sheet.addRow(gridData.headers);
+        const filePath = path.join(this.exportDir, `${projectName}_StatusConfig_UI.xlsx`);
  
-    // Write Table Rows
-    gridData.rows.forEach(row => {
-        sheet.addRow(row);
-    });
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Status_Config_UI');
  
-    await workbook.xlsx.writeFile(filePath);
+        let rowIndex = 1;
  
-    console.log(`📄 Status Config UI Excel generated: ${filePath}`);
-}
+        // Write Weld Details
+        sheet.getCell(`A${rowIndex}`).value = "Weld Details";
+        rowIndex += 2;
  
+        for (const key in weldDetails) {
+            sheet.getCell(`A${rowIndex}`).value = key;
+            sheet.getCell(`B${rowIndex}`).value = weldDetails[key];
+            rowIndex++;
+        }
+ 
+        rowIndex += 2;
+ 
+        // Write Table Headers
+        sheet.addRow(gridData.headers);
+ 
+        // Write Table Rows
+        gridData.rows.forEach(row => {
+            sheet.addRow(row);
+        });
+ 
+        await workbook.xlsx.writeFile(filePath);
+ 
+        console.log(`📄 Status Config UI Excel generated: ${filePath}`);
+        return filePath;
+    }
 }
  
 module.exports = StatusConfigPass;
- 
