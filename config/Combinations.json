@@ -2,18 +2,19 @@
   "flowControl": {
     "cleanExports": true,
     "checkSourceFile": false,
-    "runExtraction": true,
-    "weldParameterExtraction": false,
+    "runExtraction": false,
     "BoltDBExcel": false,
+    "weldParameterExtraction": true,
     "login": true,
     "createProject": false,
     "deviceRegistration": false,
     "setup": false,
-    "specification": false,
-    "statusConfigPass": false,
     "deviceSync": false,
     "productionAnalysis": true,
-    "comparison": false
+    "statusConfigUIExtraction": true,
+    "statusConfigComparison": true,
+    "comparison": false,
+    "specification": false
   },
   "createProjectData": {
     "projectNumber": "123",
@@ -69,7 +70,7 @@
     }
   },
   "singleProject": {
-    "projectName": "statusConfig",
+    "projectName": "CSVp600z",
     "projectNumber": "152",
     "location": "ANDORRA",
     "customer": "advanced engg",
@@ -77,6 +78,7 @@
     "endDate": "20-Feb-2026",
     "projectStatus": "Initiated",
     "projectType": "Pipeline",
+    "weldParamsInputFile": "test-data/WeldParameters.WPa.xml",
     "pipelineFeatures": [
       "Welding"
     ],
@@ -89,11 +91,13 @@
       "P-625",
       "M-500"
     ],
-    "sourceFile": "weld152.txt",
-    "weldIds": "",
+    
+    
     "weldParamsInputFile": "Input/p600z_example.csv",
+    "sourceFile": "bolt.txt",
+    "weldIds": "152",
     "statusConfigPath": "exports/StatusConfig UI/XML_StatusConfig_UI.xlsx",
-    "weldParamsPath": "exports/WeldParametersCsvToExcel/WeldParametersCsvToExcel.xlsx",
+    "weldParamsPath": "exports/StatusConfig UI/WeldParametersCsvToExcel.xlsx",
     "slopeCombinations": [
       {
         "slopeIn": 0,
@@ -319,5 +323,5 @@
       }
     }
   ],
-  "capturedDeviceId": "DESKTOP-32QBMO9"
+  "capturedDeviceId": "DESKTOP-22BSEM2"
 }
