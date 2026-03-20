@@ -61,6 +61,13 @@ class LoginPage {
         return new ProjectsPage(this.page);
     }
 
+    async validLogin(email, password, options = {}) {
+        const rememberMe = options && typeof options.rememberMe === 'boolean'
+            ? options.rememberMe
+            : false;
+        return this.loginApplicationWithRememberMe(email, password, rememberMe);
+    }
+
     async submitInvalidLogin(email, password) {
         await this.userEmail.fill('');
         await this.userEmail.fill(email);
