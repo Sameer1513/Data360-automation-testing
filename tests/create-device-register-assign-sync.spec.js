@@ -241,7 +241,7 @@ async function runCaseWithBrowser(browser, caseDef) {
   }
 }
 
-test.describe.serial('Step1 modular: create + register + assign + sync', () => {
+test.describe.serial('Device Register, Assign, and Sync', () => {
   const specCfg = loadSpecConfig();
   const cases = Array.isArray(specCfg.cases) ? specCfg.cases : [];
 
@@ -250,19 +250,19 @@ test.describe.serial('Step1 modular: create + register + assign + sync', () => {
     return acc;
   }, {});
 
-  test('test1 - singleProject - assign - singleDb file sync', async ({ browser }) => {
+  test('singleProject - assign - singleDb file sync', async ({ browser }) => {
     const c = byId.test1;
     test.skip(!c?.enabled, 'test1 disabled in json');
     await runCaseWithBrowser(browser, c);
   });
 
-  test('test2 - multi project - assign serial - singleDb file sync', async ({ browser }) => {
+  test('multi project - assign serial - singleDb file sync', async ({ browser }) => {
     const c = byId.test2;
     test.skip(!c?.enabled, 'test2 disabled in json');
     await runCaseWithBrowser(browser, c);
   });
 
-  test('test3 - single project - assign - multiDb sync', async ({ browser }) => {
+  test('single project - assign - multiDb sync', async ({ browser }) => {
     const c = byId.test3;
     test.skip(!c?.enabled, 'test3 disabled in json');
     await runCaseWithBrowser(browser, c);

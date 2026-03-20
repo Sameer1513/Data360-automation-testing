@@ -154,7 +154,7 @@ const { setupData, outputPath } = await extractor.run(
 | `slopeIn` | number | `0` | Milliseconds to trim from start of each session |
 | `slopeOut` | number | `0` | Milliseconds to trim from end of each session |
 | `projectName` | string | `'Default'` | Used in output filename |
-| `sourceFile` | string | `'default'` | Filename in `Input/` directory |
+| `sourceFile` | string|string[] | `'default'` | One (or many) `.txt` filenames in `Input/` directory. If an array is provided, sessions are merged and validated in one workbook. |
 | `BoltDBExcel` | bool | `false` | Whether to save the Excel file |
 | `statusConfigPath` | string | `null` | Absolute path to StatusConfig Excel |
 | `weldParamsPath` | string | `null` | Absolute path to WeldParameters Excel |
@@ -169,9 +169,9 @@ const { setupData, outputPath } = await extractor.run(
 
 ---
 
-### `parseAutomationFile()`
+### `parseAutomationFile(raw)`
 
-Reads the `.txt` source file and parses it into an array of weld sessions.
+Parses the BoltDB raw text (`raw`) into an array of weld sessions.
 
 **Session structure:**
 ```js

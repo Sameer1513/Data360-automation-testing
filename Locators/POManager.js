@@ -7,26 +7,26 @@ class POManager {
     constructor(page) {
         this.page = page;
         this.loginPage = new LoginPage(this.page);
-        // this.projectsPage = new ProjectsPage(this.page);
-        // this.createProjectPage = new CreateProjectPage(this.page);
-        // this.overviewPage = new OverviewPage(this.page);
+        this.projectsPage = new ProjectsPage(this.page);
+        this.createProjectPage = new CreateProjectPage(this.page);
+        this.overviewPage = new OverviewPage(this.page);
     }
 
     getLoginPage() {
         return this.loginPage;
     }
 
-    // getProjectsPage() {
-    //     return this.projectsPage;
-    // }
+    getProjectsPage() {
+        return this.projectsPage;
+    }
 
-    // getCreateProjectPage() {
-    //     return this.createProjectPage;
-    // }
+    getCreateProjectPage() {
+        return this.createProjectPage;
+    }
 
-    // getOverviewPage() {
-    //     return this.overviewPage;
-    // }
+    getOverviewPage() {
+        return this.overviewPage;
+    }
 }
 
 module.exports = { POManager };

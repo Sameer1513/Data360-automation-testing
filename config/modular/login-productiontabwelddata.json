@@ -1,0 +1,18 @@
+{
+  "flowControl": {
+    "login": true,
+    "createProject": true,
+    "setup": true,
+    "specification": false,
+    "productionAnalysis": true,
+    "comparison": false,
+    "BoltDBExcel": false
+  },
+  "singleProject": {
+    "slopeCombinations": [
+      { "slopeIn": 0, "slopeOut": 0, "label": "without-slope" },
+      { "slopeIn": 1, "slopeOut": 1, "label": "value-change-1" },
+      { "slopeIn": 2, "slopeOut": 3, "label": "value-change-2" }
+    ]
+  }
+}
