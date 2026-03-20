@@ -4,16 +4,16 @@
     "checkSourceFile": false,
     "runExtraction": true,
     "weldParameterExtraction": false,
-    "BoltDBExcel": false,
+    "BoltDBExcel": true,
     "login": true,
-    "createProject": false,
-    "deviceRegistration": false,
-    "setup": false,
+    "createProject": true,
+    "deviceRegistration": true,
+    "setup": true,
     "specification": false,
     "statusConfigPass": false,
-    "deviceSync": false,
+    "deviceSync": true,
     "productionAnalysis": true,
-    "comparison": false
+    "comparison": true
   },
   "createProjectData": {
     "projectNumber": "123",
@@ -46,9 +46,9 @@
       "enabled": true,
       "files": [
         {
-          "exe": "",
-          "db": "",
-          "param": ""
+          "exe": "data360-serial-win.exe",
+          "db": "bolt_station2_cw.db",
+          "param": "WeldParameters.WPa.XML"
         }
       ]
     }
@@ -69,7 +69,7 @@
     }
   },
   "singleProject": {
-    "projectName": "statusConfig",
+    "projectName": "end-to-end",
     "projectNumber": "152",
     "location": "ANDORRA",
     "customer": "advanced engg",
@@ -89,8 +89,14 @@
       "P-625",
       "M-500"
     ],
-    "sourceFile": "weld152.txt",
-    "weldIds": "",
+    "sourceFile": "bolt_station2_cw.txt",
+    "weldIds": [
+      "123",
+      "124",
+      "125",
+      "126",
+      "127"
+    ],
     "weldParamsInputFile": "Input/p600z_example.csv",
     "statusConfigPath": "exports/StatusConfig UI/XML_StatusConfig_UI.xlsx",
     "weldParamsPath": "exports/WeldParametersCsvToExcel/WeldParametersCsvToExcel.xlsx",
@@ -318,6 +324,5 @@
         "slopeOut": 6
       }
     }
-  ],
-  "capturedDeviceId": "DESKTOP-32QBMO9"
+  ]
 }
