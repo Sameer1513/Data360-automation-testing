@@ -321,8 +321,8 @@ To switch to metric, change `"unitSystem": "metric"` — the correct decimal pla
 
 | Method | Description |
 |---|---|
-| `run(slopeIn, slopeOut, projectName, sourceFile, BoltDBExcel, statusConfigPath, weldParamsPath, unitConfig)` | Main entry point (supports `sourceFile` as `string` or `string[]`) |
-| `parseAutomationFile(raw)` | Parse S/T/C records, handle orphan T records → Unknown session |
+| `run(slopeIn, slopeOut, projectName, sourceFile, BoltDBExcel, statusConfigPath, weldParamsPath, unitConfig)` | Main entry point |
+| `parseAutomationFile()` | Parse S/T/C records, handle orphan T records → Unknown session |
 | `loadZoneMap(weldParamsPath)` | Build zone→passName map from WeldParameters Excel |
 | `loadStatusConfig(statusConfigPath)` | Load method, level, limits from StatusConfig Excel |
 | `checkLimits(record, passName, statusConfig)` | Check one record against configured limits |
@@ -332,7 +332,7 @@ To switch to metric, change `"unitSystem": "metric"` — the correct decimal pla
 | `_buildGroupedStatuses(...)` | Pre-compute zone avg statuses for Average by Zone method |
 | `_computeStats(items)` | Return `{ min, avg, max }` per param for a group |
 
-**Output file:** `exports/ActualData/BoltD_{projectName}_{sourceTag}_{timestamp}.xlsx` (combined if multiple source files)
+**Output file:** `exports/ActualData/BoltD_{projectName}_{timestamp}.xlsx`
 
 **Sheets produced:**
 

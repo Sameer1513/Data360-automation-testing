@@ -8,23 +8,6 @@ class AssertionHelper {
         if (!fs.existsSync(this.exportDir)) fs.mkdirSync(this.exportDir, { recursive: true });
     }
 
-    _escInline(str) {
-        if (str === undefined || str === null) return '';
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
-
-    _lastNonEmptyLines(text, count = 3) {
-        const lines = String(text || '')
-            .split(/\r?\n/)
-            .map(l => l.trim())
-            .filter(Boolean);
-        return lines.slice(-count);
-    }
-
     /**
      * Logs an assertion result AND pushes it as a monocart annotation on the current test.
      * Call this from within any test or page object.
@@ -69,25 +52,14 @@ class AssertionHelper {
         const totalPass = checks.filter(c => c.pass).length;
         const totalFail = checks.filter(c => !c.pass).length;
 
-        const rows = checks.map(c => {
-            const fallbackExpected = this._lastNonEmptyLines(c.actual, 3)
-                .map(l => this._escInline(l))
-                .join('<br/>');
-            const isIdCapturedRow = /ID Captured|🎯 ID Captured/i.test(c.actual || '');
-            const expectedLooksLikeCapturedLabel = typeof c.expected === 'string'
-                && c.expected.toLowerCase().includes('captureddeviceid');
-            const expectedCell = (!c.expected || (isIdCapturedRow && expectedLooksLikeCapturedLabel))
-                ? fallbackExpected
-                : c.expected;
-            return `
+        const rows = checks.map(c => `
         <tr>
             <td>${c.name}</td>
-            <td>${expectedCell}</td>
+            <td>${c.expected}</td>
             <td>${c.actual}</td>
             <td>${c.detail || '-'}</td>
             <td class="${c.pass ? 'pass' : 'fail'}">${c.pass ? '✅ PASS' : '❌ FAIL'}</td>
-        </tr>`;
-        }).join('');
+        </tr>`).join('');
 
         const html = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>${title}</title>

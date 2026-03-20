@@ -299,8 +299,8 @@ class BoltDBTxtFileTOExcel {
     // PARSE AUTOMATION FILE
     // ─────────────────────────────────────────────────────────────────────────
 
-    parseAutomationFile(raw) {
-        raw = raw ?? '';
+    parseAutomationFile() {
+        const raw   = fs.readFileSync(this.inputTxtPath, 'utf-8');
         const lines = raw.split(/\r?\n/).filter(l => l.trim());
 
         const weldSessions = [];
@@ -381,21 +381,12 @@ class BoltDBTxtFileTOExcel {
         }
         console.log(`📐 Unit system: ${this.unitSystem} | Rounding keys: ${Object.keys(this.roundingConfig).length}`);
 
-        const sourceFiles = Array.isArray(sourceFile) ? sourceFile : [sourceFile];
-        if (!Array.isArray(sourceFiles) || sourceFiles.length === 0) {
-            throw new Error('❌ sourceFile/sourceFiles is empty');
+        this.inputTxtPath = path.join(process.cwd(), 'Input', sourceFile);
+        if (!fs.existsSync(this.inputTxtPath)) {
+            throw new Error(`❌ Source file missing at ${this.inputTxtPath}`);
         }
 
-        const resolvedInputPaths = sourceFiles.map(sf => path.join(process.cwd(), 'Input', sf));
-        resolvedInputPaths.forEach(p => {
-            if (!fs.existsSync(p)) throw new Error(`❌ Source file missing at ${p}`);
-        });
-
-        const fileTag = sourceFiles.length === 1
-            ? path.parse(sourceFiles[0]).name
-            : sourceFiles.map(sf => path.parse(sf).name).join('_');
-
-        console.log(`📂 BoltDB run | Project: ${projectName} | Sources: ${sourceFiles.join(', ')}`);
+        console.log(`📂 BoltDB run | Project: ${projectName} | Source: ${sourceFile}`);
 
         // Load external config files
         const statusConfig = await this.loadStatusConfig(statusConfigPath);
@@ -409,16 +400,9 @@ class BoltDBTxtFileTOExcel {
         const isAvgTilt       = method.includes('average') && level.includes('tilt');
         const isAvgPass       = method.includes('average') && !isAvgZone && !isAvgTilt;
 
-        // Parse and merge all sessions from all input text files.
-        // This lets us validate "multiple station tlogs" in one run and write one XLSX.
-        let weldSessions = [];
-        resolvedInputPaths.forEach((p) => {
-            const raw = fs.readFileSync(p, 'utf-8');
-            const sessions = this.parseAutomationFile(raw);
-            weldSessions.push(...sessions);
-        });
+        const weldSessions = this.parseAutomationFile();
         const workbook     = new ExcelJS.Workbook();
-        const fileName     = `BoltD_${projectName}_${fileTag}_in${slopeIn}_out${slopeOut}_${Date.now()}.xlsx`;
+        const fileName     = `BoltD_${projectName}_${Date.now()}.xlsx`;
 
         // ── A. SETUP SHEET ────────────────────────────────────────────────────
         const setupSheet = workbook.addWorksheet('Setup');
