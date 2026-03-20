@@ -1,0 +1,294 @@
+{
+  "mandatoryWarnings": [
+    "Project Name is required",
+    "Project Number is required",
+    "Location is required",
+    "Customer is required",
+    "Start Date is required",
+    "At least one Project Type must be selected"
+  ],
+  "submitButtonValidation": {
+    "projectName": "Validation Test Project",
+    "projectNumber": "VAL-001",
+    "location": "ANGOLA",
+    "customer": "AeroTech Industries",
+    "startOffsetDays": -1,
+    "endOffsetDays": 0,
+    "status": "Active",
+    "type": "Pipeline",
+    "pipeline": {
+      "requiredFeatureToEnableSubmit": "Material Traceability"
+    }
+  },
+  "pipelineProject": {
+    "name": "Test Pipeline Project 1",
+    "number": "PRJ-1",
+    "location": "ANGOLA",
+    "customer": "AeroTech Industries",
+    "status": "Active",
+    "type": "Pipeline",
+    "pipeline": {
+      "features": ["Material Traceability", "PipeFitter", "Welding", "NDT"],
+      "machines": ["IWM", "P-625", "Competitor Machine"]
+    }
+  },
+  "fabricationProject": {
+    "name": "Test Fabrication Project 1",
+    "number": "FAB-1",
+    "location": "ANTIGUA",
+    "customer": "BioPharma Solutions",
+    "status": "Active",
+    "type": "Fabrication",
+    "fabrication": {
+      "options": [
+        {
+          "name": "Buckle Arrestor",
+          "features": ["Material Traceability", "PipeFitter", "Welding"],
+          "machines": ["IWM", "P-625", "Competitor Machine"]
+        }
+      ]
+    }
+  },
+  "othersProject": {
+    "name": "Test Others Project 1",
+    "number": "OTH-1",
+    "location": "ANGOLA",
+    "customer": "AeroTech Industries",
+    "status": "Active",
+    "type": "Others",
+    "others": {
+      "features": ["Material Traceability", "PipeFitter", "Welding", "NDT"],
+      "machines": ["IWM", "P-625", "Competitor Machine"]
+    }
+  },
+  "allTypesProject": {
+    "name": "Test All Types Project",
+    "number": "ALL-1",
+    "location": "ALGERIA",
+    "customer": "Advanced Automotive Systems",
+    "status": "Active",
+    "types": ["Pipeline", "Fabrication", "Others"],
+    "pipeline": {
+      "features": ["Material Traceability", "Welding"],
+      "machines": ["IWM", "P-625"]
+    },
+    "fabrication": {
+      "options": [
+        {
+          "name": "Buckle Arrestor",
+          "features": ["Material Traceability", "Welding"],
+          "machines": ["IWM", "Competitor Machine"]
+        }
+      ]
+    },
+    "others": {
+      "features": ["Material Traceability", "Welding"],
+      "machines": ["IWM", "P-625"]
+    }
+  },
+  "editProject": {
+    "initial": {
+      "name": "Edit Test Project",
+      "number": "EDIT-1",
+      "location": "ANGOLA",
+      "customer": "AeroTech Industries",
+      "status": "Active",
+      "types": ["Pipeline"]
+    },
+    "edited": {
+      "location": "ALGERIA",
+      "customer": "Advanced Automotive Systems",
+      "status": "On Hold",
+      "types": ["Fabrication", "Others"]
+    }
+  },
+  "editProjectScenarios": [
+    {
+      "scenarioName": "Pipeline to Fabrication+Others",
+      "initial": {
+        "name": "Edit Scenario 1 Project",
+        "number": "EDIT-S1",
+        "location": "ANGOLA",
+        "customer": "AeroTech Industries",
+        "status": "Active",
+        "types": ["Pipeline"],
+        "startOffsetDays": -2,
+        "endOffsetDays": -1,
+        "pipeline": {
+          "features": ["Material Traceability", "Welding"],
+          "machines": ["IWM", "P-625"]
+        }
+      },
+      "edited": {
+        "location": "ALGERIA",
+        "customer": "Advanced Automotive Systems",
+        "status": "On Hold",
+        "types": ["Fabrication", "Others"],
+        "startOffsetDays": 1,
+        "endOffsetDays": 3,
+        "uncheckTypes": ["Pipeline"],
+        "checkTypes": ["Fabrication", "Others"],
+        "othersFeatures": ["Material Traceability"],
+        "fabrication": {
+          "options": [
+            {
+              "name": "Buckle Arrestor",
+              "features": ["Material Traceability", "Welding"],
+              "machines": ["IWM"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioName": "Pipeline to Pipeline+Others",
+      "initial": {
+        "name": "Edit Scenario 2 Project",
+        "number": "EDIT-S2",
+        "location": "ANGOLA",
+        "customer": "AeroTech Industries",
+        "status": "Active",
+        "types": ["Pipeline"],
+        "startOffsetDays": -4,
+        "endOffsetDays": -2,
+        "pipeline": {
+          "features": ["Material Traceability", "Welding"],
+          "machines": ["IWM", "P-625"]
+        }
+      },
+      "edited": {
+        "location": "ANTIGUA",
+        "customer": "BioPharma Solutions",
+        "status": "Completed",
+        "types": ["Pipeline", "Others"],
+        "startOffsetDays": 2,
+        "endOffsetDays": 5,
+        "uncheckTypes": [],
+        "checkTypes": ["Others"],
+        "othersFeatures": ["Welding"],
+        "othersMachines": ["IWM"]
+      }
+    },
+    {
+      "scenarioName": "Pipeline to Fabrication only",
+      "initial": {
+        "name": "Edit Scenario 3 Project",
+        "number": "EDIT-S3",
+        "location": "ALGERIA",
+        "customer": "Advanced Automotive Systems",
+        "status": "Active",
+        "types": ["Pipeline"],
+        "startOffsetDays": -3,
+        "endOffsetDays": -1,
+        "pipeline": {
+          "features": ["Material Traceability", "Welding"],
+          "machines": ["IWM", "P-625"]
+        }
+      },
+      "edited": {
+        "location": "ANGOLA",
+        "customer": "AeroTech Industries",
+        "status": "Active",
+        "types": ["Fabrication"],
+        "startOffsetDays": 1,
+        "endOffsetDays": 4,
+        "uncheckTypes": ["Pipeline"],
+        "checkTypes": ["Fabrication"],
+        "fabrication": {
+          "options": [
+            {
+              "name": "Pipe in Pipe",
+              "features": ["Welding"],
+              "machines": ["P-625"]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "statusAssertionProject": {
+    "name": "Status Assertion Project",
+    "number": "STAT",
+    "location": "ANGOLA",
+    "customer": "AeroTech Industries",
+    "status": "Active",
+    "type": "Pipeline",
+    "pipeline": {
+      "features": ["Material Traceability", "Welding"],
+      "machines": ["IWM"]
+    }
+  },
+  "deleteProjectTest": {
+    "name": "Delete Test Project",
+    "number": "DEL-1",
+    "location": "ALGERIA",
+    "customer": "Advanced Automotive Systems",
+    "status": "Active",
+    "type": "Pipeline",
+    "pipeline": {
+      "features": ["Material Traceability", "Welding"],
+      "machines": ["IWM", "P-625"]
+    },
+    "hardDeleteWarningContains": [
+      "This action cannot be undone",
+      "Projects and all associated data will be permanently deleted"
+    ]
+  },
+  "searchAndSelectLocationProject": {
+    "name": "Search Location Project",
+    "number": "SRCH-LOC-1",
+    "locationSearch": { "query": "ind", "option": "INDIA" },
+    "customer": "AeroTech Industries",
+    "startOffsetDays": -1,
+    "endOffsetDays": 0,
+    "status": "Active",
+    "type": "Pipeline",
+    "pipeline": {
+      "features": ["Material Traceability", "Welding"],
+      "machines": ["IWM"]
+    }
+  },
+  "searchAndSelectCustomerProject": {
+    "name": "Search Customer Project",
+    "number": "SRCH-CUST-1",
+    "location": "INDIA",
+    "customerSearch": { "query": "str", "option": "Strategic Consulting Group" },
+    "startOffsetDays": -1,
+    "endOffsetDays": 0,
+    "status": "Active",
+    "type": "Pipeline",
+    "pipeline": {
+      "features": ["Material Traceability", "Welding"],
+      "machines": ["IWM"]
+    }
+  },
+  "addNewLocationProject": {
+    "name": "Add New Location Project",
+    "number": "ADD-LOC-1",
+    "newLocationPrefix": "Test Location ",
+    "customer": "AeroTech Industries",
+    "startOffsetDays": -1,
+    "endOffsetDays": 0,
+    "status": "Active",
+    "type": "Pipeline",
+    "pipeline": {
+      "features": ["Material Traceability", "Welding"],
+      "machines": ["IWM"]
+    }
+  },
+  "addNewCustomerProject": {
+    "name": "Add New Customer Project",
+    "number": "ADD-CUST-1",
+    "location": "INDIA",
+    "newCustomerPrefix": "Test Customer ",
+    "startOffsetDays": -1,
+    "endOffsetDays": 0,
+    "status": "Active",
+    "type": "Pipeline",
+    "pipeline": {
+      "features": ["Material Traceability", "Welding"],
+      "machines": ["IWM"]
+    }
+  }
+}
+
