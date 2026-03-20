@@ -17,6 +17,9 @@ class CreateProjectPage {
         this.customerComboButton = page.locator(
             '//label[contains(normalize-space(),"Customer")]/following::button[@role="combobox"][1]'
         );
+        this.radixPopperContentWrapper = page.locator(
+            '//div[@data-radix-popper-content-wrapper]'
+        );
 
         // Date inputs
         this.startDateInput = page.locator('(//input[@placeholder="DD-MMM-YYYY"])[1]');
@@ -209,6 +212,121 @@ class CreateProjectPage {
         await this.page.waitForTimeout(200);
         await this.customerComboButton.first().click({ trial: false });
         await this.setHiddenSelectValueForCombo(this.customerComboButton.first(), customerValue);
+    }
+
+    // ---------- Radix searchable dropdown helpers (Location/Customer) ----------
+
+    async waitForRadixDropdownToAppear() {
+        await this.radixPopperContentWrapper.first().waitFor({
+            state: 'visible',
+            timeout: 5000,
+        });
+        await this.page.waitForTimeout(150);
+    }
+
+    async typeSequentiallyInRadixSearch(searchText) {
+        await this.waitForRadixDropdownToAppear();
+        const wrapper = this.radixPopperContentWrapper.first();
+        const input = wrapper.locator('input').first();
+        await input.first().waitFor({ state: 'visible', timeout: 5000 });
+        await input.first().click();
+        await input.first().fill('');
+        for (const ch of String(searchText || '')) {
+            await input.first().type(ch, { delay: 120 });
+        }
+        await this.page.waitForTimeout(200);
+    }
+
+    async selectOptionFromRadixDropdown(optionText) {
+        await this.waitForRadixDropdownToAppear();
+        const wrapper = this.radixPopperContentWrapper.first();
+        const option = wrapper
+            .locator(`xpath=.//*[normalize-space()="${optionText}"]`)
+            .first();
+        await option.waitFor({ state: 'visible', timeout: 5000 });
+        await option.scrollIntoViewIfNeeded();
+        await option.click();
+        await this.page.waitForTimeout(200);
+    }
+
+    async clickAddNewLocationInDropdown() {
+        await this.waitForRadixDropdownToAppear();
+        const wrapper = this.radixPopperContentWrapper.first();
+        const btn = wrapper.locator('xpath=.//button[normalize-space()="Add New Location"]').first();
+        await btn.waitFor({ state: 'visible', timeout: 5000 });
+        await btn.click();
+    }
+
+    async clickAddNewCustomerInDropdown() {
+        await this.waitForRadixDropdownToAppear();
+        const wrapper = this.radixPopperContentWrapper.first();
+        const btn = wrapper.locator('xpath=.//button[normalize-space()="Add New Customer"]').first();
+        await btn.waitFor({ state: 'visible', timeout: 5000 });
+        await btn.click();
+    }
+
+    async addNewLocation(locationName) {
+        const dialog = this.page.locator(
+            'xpath=//div[@role="dialog" and @data-state="open"][.//h2[normalize-space()="Add New Location"]]'
+        );
+        await dialog.first().waitFor({ state: 'visible', timeout: 10000 });
+        const input = dialog.locator('xpath=.//input[@placeholder="Enter location name"]').first();
+        await input.fill(locationName);
+        const addBtn = dialog.locator('xpath=.//button[normalize-space()="Add Location"]').first();
+        await addBtn.waitFor({ state: 'visible', timeout: 5000 });
+        await addBtn.click();
+        await dialog.first().waitFor({ state: 'hidden', timeout: 15000 });
+    }
+
+    async addNewCustomer(customerName) {
+        const dialog = this.page.locator(
+            'xpath=//div[@role="dialog" and @data-state="open"][.//h2[normalize-space()="Add New Customer"]]'
+        );
+        await dialog.first().waitFor({ state: 'visible', timeout: 10000 });
+        const input = dialog.locator('xpath=.//input[@placeholder="Enter customer name"]').first();
+        await input.fill(customerName);
+        const addBtn = dialog.locator('xpath=.//button[normalize-space()="Add Customer"]').first();
+        await addBtn.waitFor({ state: 'visible', timeout: 5000 });
+        await addBtn.click();
+        await dialog.first().waitFor({ state: 'hidden', timeout: 15000 });
+    }
+
+    async addNewLocationFromDropdown(locationName) {
+        await this.locationComboButton.scrollIntoViewIfNeeded();
+        await this.locationComboButton.first().click({ trial: false });
+        await this.clickAddNewLocationInDropdown();
+        await this.addNewLocation(locationName);
+    }
+
+    async addNewCustomerFromDropdown(customerName) {
+        await this.customerComboButton.scrollIntoViewIfNeeded();
+        await this.customerComboButton.first().click({ trial: false });
+        await this.clickAddNewCustomerInDropdown();
+        await this.addNewCustomer(customerName);
+    }
+
+    async searchAndSelectLocation(searchText, optionText) {
+        await this.locationComboButton.scrollIntoViewIfNeeded();
+        await this.locationComboButton.first().click({ trial: false });
+        await this.typeSequentiallyInRadixSearch(searchText);
+        await this.selectOptionFromRadixDropdown(optionText);
+    }
+
+    async searchAndSelectCustomer(searchText, optionText) {
+        await this.customerComboButton.scrollIntoViewIfNeeded();
+        await this.customerComboButton.first().click({ trial: false });
+        await this.typeSequentiallyInRadixSearch(searchText);
+        await this.selectOptionFromRadixDropdown(optionText);
+    }
+
+    async getSelectedLocationText() {
+        const text = await this.locationComboButton.first().textContent();
+        return text ? text.trim() : '';
+    }
+
+    async getSelectedCustomerText() {
+        const text = await this.customerComboButton.first().textContent();
+        return text ? text.trim() : '';
     }
 
     // ---------- Date helpers ----------
