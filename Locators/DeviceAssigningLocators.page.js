@@ -38,4 +38,9 @@ module.exports = {
     // Success Verification
     successMessage: (page) => page.locator('.ant-message-success')
         .or(page.locator('text=/successfully/i'))
+    ,
+    // Failure Verification (AntD error toast + common error text)
+    errorMessage: (page) => page.locator('.ant-message-error')
+        .or(page.locator('.Toastify__toast--error'))
+        .or(page.locator('text=/failed|error|not allowed|already assigned|cannot/i'))
 };
