@@ -1,0 +1,85 @@
+{
+  "flowControl": {
+    "login": true,
+    "createProject": true,
+    "deviceRegistration": true,
+    "deviceSync": true
+  },
+  "cases": [
+    {
+      "id": "test1",
+      "enabled": true,
+      "projectCount": 1,
+      "projectName": "flowtesting-create-1",
+      "createProjectData": {
+        "projectNumber": "152",
+        "location": "ANDORRA",
+        "customer": "advanced engg",
+        "startDate": "19-Feb-2026",
+        "endDate": "20-Feb-2026",
+        "projectStatus": "Initiated",
+        "projectType": "Pipeline",
+        "pipelineFeatures": ["Welding"],
+        "subFeatures": ["CRCE Machines"],
+        "machines": ["P-600Z"]
+      },
+      "sync": {
+        "dbFiles": ["mergep600ccwtimesorted.db"],
+        "paramFile": "p600z_example.csv"
+      }
+    },
+    {
+      "id": "test2",
+      "enabled": true,
+      "projectCount": 2,
+      "projectName": "flowtesting-create-2",
+      "syncMode": "serialPerProject",
+      "createProjectData": {
+        "projectNumber": "352",
+        "location": "ANDORRA",
+        "customer": "advanced engg",
+        "startDate": "19-Feb-2026",
+        "endDate": "20-Feb-2026",
+        "projectStatus": "Initiated",
+        "projectType": "Pipeline",
+        "pipelineFeatures": ["Welding"],
+        "subFeatures": ["CRCE Machines"],
+        "machines": ["IWM", "P-625"]
+      },
+      "syncRuns": [
+        {
+          "dbFiles": ["bolt_station3_cw.db", "bolt_station4_cw.db"],
+          "paramFile": "p600z_example.csv"
+        },
+        {
+          "dbFiles": ["mergep600ccwtimesorted.db"],
+          "paramFile": "p600z_example.csv"
+        }
+      ]
+    },
+    {
+      "id": "test3",
+      "enabled": true,
+      "projectCount": 1,
+      "projectName": "flowtesting-create-3",
+      "createProjectData": {
+        "projectNumber": "252",
+        "location": "ANDORRA",
+        "customer": "advanced engg",
+        "startDate": "19-Feb-2026",
+        "endDate": "20-Feb-2026",
+        "projectStatus": "Initiated",
+        "projectType": "Pipeline",
+        "pipelineFeatures": ["Welding"],
+        "subFeatures": ["CRCE Machines"],
+        "machines": ["M-500"]
+      },
+      "sync": {
+        "dbFiles": ["bolt_station2_cw.db", "mergep600ccwtimesorted.db"],
+        "paramFile": "p600z_example.csv"
+      }
+    }
+    
+  ]
+}
+

@@ -47,9 +47,9 @@
       "enabled": true,
       "files": [
         {
-          "exe": "",
-          "db": "",
-          "param": ""
+          "exe": "data360-serial-win.exe",
+          "db": "bolt_station2_cw.db",
+          "param": "WeldParameters.WPa.XML"
         }
       ]
     }
@@ -91,8 +91,14 @@
       "P-625",
       "M-500"
     ],
-    
-    
+    "sourceFile": "bolt_station2_cw.txt",
+    "weldIds": [
+      "123",
+      "124",
+      "125",
+      "126",
+      "127"
+    ],
     "weldParamsInputFile": "Input/p600z_example.csv",
     "sourceFile": "bolt.txt",
     "weldIds": "152",
@@ -322,6 +328,5 @@
         "slopeOut": 6
       }
     }
-  ],
-  "capturedDeviceId": "DESKTOP-22BSEM2"
+  ]
 }

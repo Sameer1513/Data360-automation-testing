@@ -1,0 +1,11 @@
+{
+  "flowControl": {
+    "deviceRegistration": true,
+    "login": false,
+    "createProject": false,
+    "setup": false,
+    "productionAnalysis": false,
+    "comparison": false,
+    "BoltDBExcel": false
+  }
+}

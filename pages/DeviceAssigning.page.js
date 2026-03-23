@@ -7,6 +7,64 @@ class DeviceAssigningPage {
         this.page = page;
     }
 
+    async getAssignedProjectsForDevice(deviceId, opts = {}) {
+        const {
+            testInfo = null,
+            screenshotPrefix = ''
+        } = opts;
+
+        await this.navigateToDevices();
+
+        const searchInput = locators.deviceSearchInput(this.page).first();
+
+        // Search device card
+        await searchInput.waitFor({ state: 'visible', timeout: 15000 });
+        await searchInput.scrollIntoViewIfNeeded();
+        await searchInput.click({ force: true });
+        await this.page.keyboard.press('Control+A');
+        await this.page.keyboard.press('Backspace');
+        await this.page.waitForTimeout(500);
+        await searchInput.pressSequentially(deviceId, { delay: 50 });
+        await this.page.keyboard.press('Enter');
+
+        const deviceText = this.page.getByText(deviceId).first();
+        await deviceText.waitFor({ state: 'visible', timeout: 10000 });
+
+        const deviceCard = deviceText.locator('xpath=ancestor::*[.//*[@role="checkbox"] or .//input[@type="checkbox"]][1]');
+        await deviceCard.waitFor({ state: 'visible', timeout: 5000 });
+
+        // Select the device so the right panel updates
+        const checkbox = deviceCard.locator('[role="checkbox"], input[type="checkbox"]').first();
+        await checkbox.scrollIntoViewIfNeeded();
+        await checkbox.evaluate(el => el.click());
+        await this.page.waitForTimeout(800);
+
+        const cardText = await deviceCard.innerText().catch(() => '');
+        const matches = [];
+        const re = /Project:\s*([^\r\n]+)/gi;
+        let m;
+        while ((m = re.exec(cardText)) !== null) {
+            const name = String(m[1]).trim();
+            if (name) matches.push(name);
+        }
+
+        // If the exact pattern isn't on the device card, still give you an evidence screenshot.
+        if (testInfo) {
+            const buf = await this.page.screenshot({ fullPage: false });
+            await testInfo.attach(
+                `${screenshotPrefix || 'device'}-assigned-projects-${deviceId}`,
+                { body: buf, contentType: 'image/png' }
+            );
+
+            await testInfo.attach(
+                `${screenshotPrefix || 'device'}-assigned-projects-${deviceId}.txt`,
+                { body: cardText || '-', contentType: 'text/plain' }
+            );
+        }
+
+        return [...new Set(matches)];
+    }
+
     async navigateToDevices() {
         console.log("🚀 Navigating to Devices...");
 
@@ -47,7 +105,13 @@ class DeviceAssigningPage {
         }
     }
 
-    async assignProjectToDevice(deviceId, projectName) {
+    async assignProjectToDevice(deviceId, projectName, opts = {}) {
+        const {
+            expectFailure = false,
+            testInfo = null,
+            screenshotPrefix = ''
+        } = opts;
+
         await this.navigateToDevices();
 
         console.log(`🔍 Attempting to search for Device ID: ${deviceId}`);
@@ -142,47 +206,97 @@ class DeviceAssigningPage {
         // 4. Select the project from the portal
         // ==========================================
         console.log(`   Searching for project option: ${projectName}`);
+        let didSelectProject = true;
+
+        if (expectFailure && testInfo) {
+            // User-facing validation: confirm which project names the UI actually shows in the dropdown.
+            const names = await dropdownList.locator('[role="option"], .ant-select-item-option-content')
+                .allTextContents()
+                .then(arr => arr.map(x => String(x).trim()).filter(Boolean));
+
+            const buf = await this.page.screenshot({ fullPage: false });
+            await testInfo.attach(
+                `${screenshotPrefix || 'assign'}-dropdown-visible-names-${deviceId}`,
+                { body: buf, contentType: 'image/png' }
+            );
+            await testInfo.attach(
+                `${screenshotPrefix || 'assign'}-dropdown-visible-names-${deviceId}.txt`,
+                { body: names.join('\n'), contentType: 'text/plain' }
+            );
+        }
+
         const option = locators.projectOption(this.page, projectName).first();
-        
-        await option.scrollIntoViewIfNeeded();
-        await option.click({ force: true });
+        try {
+            await option.scrollIntoViewIfNeeded();
+            await option.click({ force: true });
+        } catch (e) {
+            didSelectProject = false;
+            console.log(`⚠️ Project option not selectable: "${projectName}" (${deviceId})`);
+        }
 
         // ==========================================
         // 5. Submit Assignment & Confirm Modal
         // ==========================================
-        console.log(`🔘 Submitting Assignment...`);
-        const submit = locators.assignProjectBtn(this.page).first();
-        await submit.waitFor({ state: 'visible' });
-        await submit.click();
+        if (didSelectProject || !expectFailure) {
+            console.log(`🔘 Submitting Assignment...`);
+            const submit = locators.assignProjectBtn(this.page).first();
+            await submit.waitFor({ state: 'visible' });
+            await submit.click();
 
-        console.log(`🛑 Handling Confirmation Modal...`);
-        const confirmBtn = locators.confirmAssignmentBtn(this.page).first();
-        await confirmBtn.waitFor({ state: 'visible', timeout: 10000 });
-        await confirmBtn.click();
+            console.log(`🛑 Handling Confirmation Modal...`);
+            const confirmBtn = locators.confirmAssignmentBtn(this.page).first();
+            await confirmBtn.waitFor({ state: 'visible', timeout: 10000 });
+            await confirmBtn.click();
+        }
 
         // ==========================================
         // 6. Assertions & Success Verification
         // ==========================================
         console.log(`⏳ Verifying success message...`);
         const successToast = locators.successMessage(this.page).first();
+        const errorToast = locators.errorMessage(this.page).first();
         
         let assigned = false;
-        try {
-            await successToast.waitFor({ state: 'visible', timeout: 15000 });
-            assigned = true;
-        } catch(e) {}
+        if (!didSelectProject && expectFailure) {
+            assigned = false;
+        } else {
+            try {
+                await successToast.waitFor({ state: 'visible', timeout: 15000 });
+                assigned = true;
+            } catch (e) {}
+        }
+
+        const errorVisible = await errorToast.isVisible().catch(() => false);
 
         assertion.log(`Assign Project: ${projectName} to ${deviceId}`, assigned ? 'Success Toast Visible' : 'Toast Not Found', 'Device Assigned Successfully', assigned ? 'PASS' : 'FAIL');
+        
+        if (expectFailure) {
+            if (assigned) {
+                // Negative scenario:
+                // Do NOT throw here; let the final "device assigned projects" verification decide PASS/FAIL.
+                // Throwing here can make it look like the flow is stuck after project creation.
+                console.warn(
+                    `Expected failure, but success toast appeared for "${projectName}" on "${deviceId}". ` +
+                    `Error visible: ${errorVisible}`
+                );
+            }
+            console.log(`✅ Expected failure observed: assignment did not succeed for ${projectName}`);
 
-        // 🧪 ASSERTION: Hard check that the success message appeared
-        await expect(successToast).toBeVisible();
-        console.log(`✅ SUCCESS: Assigned ${projectName} to ${deviceId}`);
+            // Avoid UI overlay interfering with navigation back.
+            if (!didSelectProject) {
+                try { await this.page.keyboard.press('Escape'); } catch (e) { /* ignore */ }
+            }
+        } else {
+            // 🧪 ASSERTION: Hard check that the success message appeared
+            await expect(successToast).toBeVisible();
+            console.log(`✅ SUCCESS: Assigned ${projectName} to ${deviceId}`);
 
-        // Wait for the success toast to disappear before proceeding
-        try {
-            await successToast.waitFor({ state: 'hidden', timeout: 5000 });
-        } catch (e) {
-            console.log("⚠️ Success toast did not disappear quickly, proceeding anyway.");
+            // Wait for the success toast to disappear before proceeding
+            try {
+                await successToast.waitFor({ state: 'hidden', timeout: 5000 });
+            } catch (e) {
+                console.log("⚠️ Success toast did not disappear quickly, proceeding anyway.");
+            }
         }
 
         // ==========================================
@@ -220,6 +334,8 @@ class DeviceAssigningPage {
             'On Projects Page', 
             'PASS'
         );
+
+        return assigned;
     }
 }
 

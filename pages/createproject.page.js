@@ -26,11 +26,52 @@ class CreateProjectPage {
   async openCreateProject() {
     // Set zoom to 67% to ensure dropdowns and dates stay on screen
     // await this.page.evaluate(() => { document.body.style.zoom = "67%"; });
+    // Ensure we are on Projects page (important when serialPerProject mode navigates elsewhere).
+    const url = (this.page.url() || '').toLowerCase();
+    if (!url.includes('/projects')) {
+      const projectsLink = this.page.locator('a[href="/Projects"], a[href*="/Projects"]').first();
+      const trigger = this.page.locator('button:has(svg.lucide-menu), .ant-layout-sider-trigger').first();
+      if (!(await projectsLink.isVisible().catch(() => false))) {
+        if (await trigger.isVisible().catch(() => false)) {
+          await trigger.click({ force: true });
+          await this.page.waitForTimeout(500);
+        }
+      }
+      await projectsLink.waitFor({ state: 'visible', timeout: 15000 });
+      await projectsLink.click();
+      await this.page.waitForURL(/.*\/projects/i, { timeout: 15000 });
+    }
+
     await this.waitForLoader();
     await this.closeToastIfVisible();
 
-    await locators.createProjectBtn(this.page).click();
-    await locators.projectNameInput(this.page).waitFor({ state: 'visible' });
+    // Always hard-reset the UI: close any lingering modal and reopen fresh.
+    try { await this.page.keyboard.press('Escape'); } catch (e) { /* ignore */ }
+    await this.page.waitForTimeout(300);
+
+    // If the modal was already open, make sure it's closed before clicking again.
+    try {
+      await locators.projectNameInput(this.page).waitFor({ state: 'hidden', timeout: 5000 });
+    } catch (e) {
+      // Ignore: input may not exist yet; we'll still attempt to click/open.
+    }
+
+    await locators.createProjectBtn(this.page).waitFor({ state: 'visible', timeout: 15000 });
+    const clickAndWaitForForm = async (attempt) => {
+      await locators.createProjectBtn(this.page).click({ force: true });
+      await this.waitForLoader().catch(() => {});
+      await this.page.waitForTimeout(400);
+      await locators.projectNameInput(this.page).waitFor({ state: 'visible', timeout: 30000 });
+    };
+
+    try {
+      await clickAndWaitForForm(1);
+    } catch (e) {
+      console.warn(`openCreateProject: form not visible after first click (attempt 1). Retrying...`);
+      try { await this.page.keyboard.press('Escape'); } catch (err) { /* ignore */ }
+      await this.page.waitForTimeout(600);
+      await clickAndWaitForForm(2);
+    }
   }
 
   // ==========================
@@ -212,6 +253,11 @@ async selectDate(type, dateString) {
       `Project Created Successfully`,
       'PASS'
     );
+
+    // Close create-project drawer/modal so next iteration can reopen it.
+    try { await this.page.keyboard.press('Escape'); } catch (e) { /* ignore */ }
+    // Let UI settle before the next iteration clicks Create Project again.
+    await this.page.waitForTimeout(300);
   }
 
   // ==========================
