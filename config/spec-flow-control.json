@@ -1,0 +1,10 @@
+{
+  "LoginPage.spec.js": false,
+
+  "create-device-register-assign-sync.spec.js": false,
+
+  "CreateProject.spec.js": false,
+
+  "production-flow.spec.js": true,
+  "StatusConfig-compare.spec.js": false
+}

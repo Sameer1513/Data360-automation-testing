@@ -1,10 +1,54 @@
-
+import fs from 'fs';
 import { defineConfig } from '@playwright/test';
 import path from 'path';
 
+const chromeProjectUse = {
+  browserName: 'chromium' as const,
+  channel: 'chrome' as const,
+};
+
+const MODULAR_SPEC = 'create-device-register-assign-sync.spec.js';
+
+/** Per-spec enable/disable (same idea as flowControl). false = that spec file is skipped. */
+function loadSpecFlowControl(): Record<string, boolean> {
+  const file = path.join(process.cwd(), 'config', 'spec-flow-control.json');
+  if (!fs.existsSync(file)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf-8')) as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
+const specFlow = loadSpecFlowControl();
+
+function isSpecEnabled(filename: string): boolean {
+  if (!(filename in specFlow)) return true;
+  return specFlow[filename] !== false;
+}
+
+// Everything except modular (separate project); plus any spec-flow false. production-flow stays here — modular waits on terminal gate file after Step 7, not on whole file.
+const chromeOthersIgnore: string[] = [
+  `**/${MODULAR_SPEC}`,
+  ...Object.entries(specFlow)
+    .filter(([, v]) => v === false)
+    .map(([name]) => `**/${name}`),
+];
+
+const modularEnabled = isSpecEnabled(MODULAR_SPEC);
+
 export default defineConfig({
+  testDir: 'tests',
+
+  // Parallel workers (default: Playwright picks from CPU count). Override: PLAYWRIGHT_E2E_WORKERS=1 npx playwright test
+  workers:
+    process.env.PLAYWRIGHT_E2E_WORKERS !== undefined
+      ? Math.max(1, parseInt(process.env.PLAYWRIGHT_E2E_WORKERS, 10) || 1)
+      : undefined,
+
+  // Modular spec waits on playwright-report/.production-flow-terminal-sync.done (written when production-flow Step 7 terminal sync finishes), not after the full production-flow file.
+
   timeout: 6000000,
-  // workers: 3,
   expect: {
     timeout: 1000000,
   },
@@ -152,47 +196,18 @@ export default defineConfig({
     contextOptions: { ignoreHTTPSErrors: true },
   },
 
-  
-  
+  // Chrome-others: includes production-flow + all other specs (parallel workers). Modular runs in parallel but blocks in beforeAll until Step 7 terminal gate file exists.
   projects: [
-
-    // {
-    //   name: 'Chromium',
-    //   use: {
-    //     browserName: 'chromium',
-    //   },
-    // },
-
     {
-      name: 'Chrome',
-      use: {
-        browserName: 'chromium',
-        channel: 'chrome', // 🔹 Uses installed Google Chrome
-      },
+      name: 'Chrome-others',
+      testIgnore: chromeOthersIgnore,
+      use: chromeProjectUse,
     },
-
-    // {
-    //   name: 'Edge',
-    //   use: {
-    //     browserName: 'chromium',
-    //     channel: 'msedge', // ✅ Microsoft Edge
-    //   },
-    // },
-
-    // {
-    //   name: 'Firefox',
-    //   use: {
-    //     browserName: 'firefox',
-    //   },
-    // },
-
-    // {
-    //   name: 'WebKit',
-    //   use: {
-    //     browserName: 'webkit',
-    //   },
-    // },
-
+    {
+      name: 'Chrome-device-sync-modular',
+      testMatch: modularEnabled ? `**/${MODULAR_SPEC}` : '**/__spec_flow_disabled__.spec.js',
+      use: chromeProjectUse,
+    },
   ],
 
 });

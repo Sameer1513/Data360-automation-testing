@@ -2,17 +2,16 @@
   "flowControl": {
     "cleanExports": true,
     "checkSourceFile": true,
-    "runExtraction": false,
-    "BoltDBExcel": false,
+    "runExtraction": true,
+    "BoltDBExcel": true,
     "login": true,
     "createProject": false,
     "deviceRegistration": false,
-    "setup": false,
-    "deviceSync": false,
-    "productionAnalysis": false,
-    "statusConfigCompareFlowAtEnd": true,
-    "comparison": false,
-    "specification": false
+    "setup": true,
+    "deviceSync": true,
+    "productionAnalysis": true,
+    "statusConfigCompareFlowAtEnd": false,
+    "comparison": true
   },
   "createProjectData": {
     "projectNumber": "123",
@@ -39,7 +38,7 @@
     "enabled": true,
     "step1": {
       "enabled": true,
-      "exe": ""
+      "exe": "data360-serial-win.exe"
     },
     "step2": {
       "enabled": true,
@@ -47,7 +46,7 @@
         {
           "exe": "data360-serial-win.exe",
           "db": "bolt_station2_cw.db",
-          "param": "WeldParameters.WPa.XML"
+          "param": "p600z_example.csv"
         }
       ]
     }
@@ -68,7 +67,7 @@
     }
   },
   "singleProject": {
-    "projectName": "CSVp600z",
+    "projectName": "statusConfig-2",
     "projectNumber": "152",
     "location": "ANDORRA",
     "customer": "advanced engg",
@@ -317,5 +316,6 @@
         "slopeOut": 6
       }
     }
-  ]
+  ],
+  "capturedDeviceId": "DESKTOP-32QBMO9"
 }

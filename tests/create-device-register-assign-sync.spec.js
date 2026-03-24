@@ -9,6 +9,7 @@ const DeviceAssigningPage = require('../pages/DeviceAssigning.page');
 const CommonHelper = require('../Helper/CommonHelper');
 const LoginAssertion = require('../Assertions/LoginAssertion');
 const CreateDeviceRegisterAssignSyncAssertion = require('../Assertions/create-device-register-assign-sync-assertion');
+const { waitForProductionFlowTerminalSyncDone } = require('./helpers/production-flow-terminal-gate');
 
 const baseConfigPath = path.join(process.cwd(), 'config/Combinations.json');
 const SPEC_CONFIG_PATH = path.join(process.cwd(), 'config/modular/create-device-register-assign-sync.json');
@@ -241,7 +242,11 @@ async function runCaseWithBrowser(browser, caseDef) {
   }
 }
 
-test.describe.serial('Device Registration', () => {
+test.describe.serial('Device Register, Assign and Sync', () => {
+  test.beforeAll(async () => {
+    await waitForProductionFlowTerminalSyncDone();
+  });
+
   const specCfg = loadSpecConfig();
   const cases = Array.isArray(specCfg.cases) ? specCfg.cases : [];
 
