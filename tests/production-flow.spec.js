@@ -1,14 +1,7 @@
 const fs = require('fs');
 const path = require('path');
-const {
-    test,
-    expect
-} = require('@playwright/test');
-const {
-    execSync,
-    spawn
-} = require('child_process');
-const ExcelJS = require('exceljs');
+const { test, expect } = require('@playwright/test');
+const { execSync, spawn } = require('child_process');
 
 // Page Objects
 const LoginAndProjectPage    = require('../pages/loginAndProject.page');
@@ -20,37 +13,18 @@ const StatusConfigPage       = require('../pages/statusConfig.page');
 const StatusConfigPass       = require('../pages/StatusConfigPass.page.js');
 const ProductionTabWeldData  = require('../pages/ProductionTabWeldData.page');
 const { WeldParametersCsvToExcel, WeldParametersXmlToExcel } = require('../pages/WeldParameterFileToExcel.page.js');
+const StatusConfigCompare    = require('../pages/statusConfigCompare.page.js');
 const BoltDBTxtFileTOExcel   = require('../pages/BoltDBTxtFileTOExcel.page');
 const ComparePage            = require('../pages/compare.page');
 const CommonHelper           = require('../Helper/CommonHelper');
 const assertion              = require('../Helper/AssertionHelper.js');
+const { sanitizeFolderName } = require('../Helper/excelNaming.util.js');
 const LoginAssertion         = require('../Assertions/LoginAssertion');
-
-
-const LoginAndProjectPage = require('../pages/loginAndProject.page');
-const CreateProjectPage = require('../pages/createproject.page');
-const SpecificationPage = require('../pages/Specification.page');
-const DeviceAssigningPage = require('../pages/DeviceAssigning.page');
-const SetupPage = require('../pages/setup.page');
-const StatusConfigPage = require('../pages/statusConfig.page');
-const StatusConfigPass = require('../pages/StatusConfigPass.page.js');
-const ProductionTabWeldData = require('../pages/ProductionTabWeldData.page');
-const {
-    WeldParametersCsvToExcel,
-    WeldParametersXmlToExcel
-} = require('../pages/WeldParameterFileToExcel.page.js');
-const BoltDBTxtFileTOExcel = require('../pages/BoltDBTxtFileTOExcel.page');
-const ComparePage = require('../pages/compare.page');
-const CommonHelper = require('../Helper/CommonHelper');
-const assertion = require('../Helper/AssertionHelper.js');
-const LoginAssertion = require('../Assertions/LoginAssertion');
 const ProductionTabAssertion = require('../Assertions/ProductionTabAssertion');
-const StatusConfigCompare = require('../pages/statusConfigCompare.page.js');
-
 
 // Config
-const configPath = path.join(__dirname, '../config/Combinations.json');
-const flowConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+const configPath  = path.join(__dirname, '../config/Combinations.json');
+const flowConfig  = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
 test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
 
@@ -58,29 +32,32 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
     let page, helper, login, createPage, specPage, deviceAssign,
         setupPage, status, statusConfigPass, analysis, compare;
 
-    const project = flowConfig.singleProject;
-    const fc = flowConfig.flowControl || {};
+    const project      = flowConfig.singleProject;
+    const fc           = flowConfig.flowControl || {};
     const targetWeldId = new CommonHelper(null).resolveTargetWelds(project.weldIds);
 
     let derivedSetup = null;
-    let deviceId = null;
-    let statusConfigUIFilePath = null;
-    let excelPath = null;
+    let deviceId     = null;
 
+    const statusCompareConfigPath = path.join(__dirname, '../config/StatusConfigCompareFlow.json');
+    const readStatusCompareConfig = () => {
+        try {
+            return JSON.parse(fs.readFileSync(statusCompareConfigPath, 'utf-8'));
+        } catch {
+            return null;
+        }
+    };
 
     // ── Before All ────────────────────────────────────────────────────────
     test.beforeAll(async () => {
         if (fc.cleanExports) {
-            const exportsDir = path.join(process.cwd(), 'exports');
-            const dirsToClean = ['ActualData', 'ProductionData', 'ComparedData', 'StatusConfig UI', 'WeldParametersXmlToExcel', 'StatusConfig compared with WeldParam'];
+            const exportsDir   = path.join(process.cwd(), 'exports');
+            const dirsToClean  = ['ActualData', 'ProductionData', 'ComparedData'];
             console.log("🧹 Cleaning up old export files...");
             for (const dir of dirsToClean) {
                 const fullPath = path.join(exportsDir, dir);
                 if (fs.existsSync(fullPath)) {
-                    fs.rmSync(fullPath, {
-                        recursive: true,
-                        force: true
-                    });
+                    fs.rmSync(fullPath, { recursive: true, force: true });
                     console.log(`   🗑️ Deleted: ${dir}`);
                 }
             }
@@ -130,50 +107,29 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             parallelTasks.push(extractBoltDB());
         }
 
-        if (fc.runExtraction) {
-            const extractBoltDB = async () => {
-                const extractor = new BoltDBTxtFileTOExcel();
-                console.log("⚡ Running extractor once to derive setup data...");
-                const statusConfigPath = project.statusConfigPath ?
-                    path.join(process.cwd(), project.statusConfigPath) : null;
-                const weldParamsPath = project.weldParamsPath ?
-                    path.join(process.cwd(), project.weldParamsPath) : null;
-                const {
-                    setupData
-                } = await extractor.run(
-                    0, 0, project.projectName, project.sourceFile, false,
-                    statusConfigPath, weldParamsPath, project.unitConfig || null
-                );
-                derivedSetup = setupData;
-            };
-            parallelTasks.push(extractBoltDB());
-        }
-
         await Promise.all(parallelTasks);
     });
 
     // ── Before Each ───────────────────────────────────────────────────────
     // Only open a browser page if at least one browser-dependent step is enabled.
     const needsBrowser = fc.login || fc.createProject || fc.deviceRegistration ||
-        fc.setup || fc.specification || fc.deviceSync ||
-        fc.productionAnalysis || fc.statusConfigPass || fc.comparison;
+                         fc.setup || fc.specification || fc.deviceSync ||
+                         fc.productionAnalysis || fc.statusConfigPass || fc.comparison;
 
-    test.beforeEach(async ({
-        browser
-    }) => {
+    test.beforeEach(async ({ browser }) => {
         if (!needsBrowser) return;
         if (page) return;
-        page = await browser.newPage();
-        helper = new CommonHelper(page);
-        login = new LoginAndProjectPage(page);
-        createPage = new CreateProjectPage(page);
-        specPage = new SpecificationPage(page);
-        deviceAssign = new DeviceAssigningPage(page);
-        setupPage = new SetupPage(page);
-        status = new StatusConfigPage(page);
+        page             = await browser.newPage();
+        helper           = new CommonHelper(page);
+        login            = new LoginAndProjectPage(page);
+        createPage       = new CreateProjectPage(page);
+        specPage         = new SpecificationPage(page);
+        deviceAssign     = new DeviceAssigningPage(page);
+        setupPage        = new SetupPage(page);
+        status           = new StatusConfigPage(page);
         statusConfigPass = new StatusConfigPass(page);
-        analysis = new ProductionTabWeldData(page, flowConfig.scanConfig);
-        compare = new ComparePage();
+        analysis         = new ProductionTabWeldData(page, flowConfig.scanConfig);
+        compare          = new ComparePage();
     });
 
     // ── After All ─────────────────────────────────────────────────────────
@@ -227,8 +183,8 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
     // ═════════════════════════════════════════════════════════════════════
     test('Step 3 & 4: 🖥️ Device Registration & Assignment', async () => {
         const isDeviceRegConfigured = flowConfig.deviceRegistration && flowConfig.deviceRegistration.enabled !== false;
-        const isMultiBrowser = flowConfig.mode === 'multiBrowser';
-        const shouldRegister = isDeviceRegConfigured && !isMultiBrowser && fc.deviceRegistration;
+        const isMultiBrowser        = flowConfig.mode === 'multiBrowser';
+        const shouldRegister        = isDeviceRegConfigured && !isMultiBrowser && fc.deviceRegistration;
         test.skip(!shouldRegister, "Device Registration is disabled in flowControl or config.");
 
         const info = test.info();
@@ -241,10 +197,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
 
         await test.step('Run Device Register (Step 1)', async () => {
             await new Promise((resolve, reject) => {
-                const child = spawn('node', [scriptPath, '--step=1'], {
-                    stdio: 'inherit',
-                    shell: true
-                });
+                const child = spawn('node', [scriptPath, '--step=1'], { stdio: 'inherit', shell: true });
                 child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`Step 1 failed: exit ${code}`)));
                 child.on('error', (err) => reject(err));
             });
@@ -280,9 +233,9 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
             if (cfg.singleProject?.setupConfig?.pipes?.[0]) {
                 const p = cfg.singleProject.setupConfig.pipes[0];
-                if (derivedSetup.pipeSize) p.pipeSize = String(derivedSetup.pipeSize);
-                if (derivedSetup.wallThickness) p.wallThickness = String(derivedSetup.wallThickness);
-                if (derivedSetup.wps) p.wps = [String(derivedSetup.wps)];
+                if (derivedSetup.pipeSize)      p.pipeSize      = String(derivedSetup.pipeSize);
+                if (derivedSetup.wallThickness)  p.wallThickness = String(derivedSetup.wallThickness);
+                if (derivedSetup.wps)            p.wps           = [String(derivedSetup.wps)];
                 fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2));
             }
         }
@@ -335,17 +288,14 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
     // ═════════════════════════════════════════════════════════════════════
     test('Step 7: 🖥️ Run Device Sync', async () => {
         const isDeviceRegConfigured = flowConfig.deviceRegistration && flowConfig.deviceRegistration.enabled !== false;
-        const isMultiBrowser = flowConfig.mode === 'multiBrowser';
+        const isMultiBrowser        = flowConfig.mode === 'multiBrowser';
         test.skip(!(isDeviceRegConfigured && !isMultiBrowser && fc.deviceSync), "Device Sync is disabled.");
 
         const info = test.info();
         const scriptPath = path.join(__dirname, '..', 'terminal_execution_files', 'device_register.js');
 
         await new Promise((resolve, reject) => {
-            const child = spawn('node', [scriptPath, '--step=2'], {
-                stdio: 'inherit',
-                shell: true
-            });
+            const child = spawn('node', [scriptPath, '--step=2'], { stdio: 'inherit', shell: true });
             child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`Step 2 failed: exit ${code}`)));
             child.on('error', (err) => reject(err));
         });
@@ -362,68 +312,6 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
         await new ProductionTabAssertion(page, helper).run(project.projectName, test.info());
     });
 
-    //═════════════════════════════════════════════════════════════════════
-    // WELD PARAMETER EXTRACTION FROM CSV/XML FILES
-    //═════════════════════════════════════════════════════════════════════
-    test('Step: 📄 WeldParameter Extraction', async () => {
-        test.skip(!fc.weldParameterExtraction, "Weld Parameter Extraction disabled.");
-
-        const info = test.info();
-        const inputFile = project.weldParamsInputFile;
-
-        if (!inputFile) {
-            assertion.log(
-                'Weld Parameter Extraction',
-                'Skipped',
-                'weldParamsInputFile missing',
-                'SKIP',
-                '',
-                info
-            );
-            return;
-        }
-
-        console.log(`📄 Converting Weld Parameter file: ${inputFile}`);
-
-        let status = 'FAIL';
-        let expected = `Excel from ${path.basename(inputFile)}`;
-
-        try {
-            if (inputFile.toLowerCase().endsWith('.csv')) {
-                const converter = new WeldParametersCsvToExcel(inputFile);
-                excelPath = await converter.run();
-            } else if (inputFile.toLowerCase().endsWith('.xml')) {
-                const converter = new WeldParametersXmlToExcel(inputFile);
-                excelPath = await converter.run();
-            }
-
-            if (excelPath && fs.existsSync(excelPath)) {
-                status = 'PASS';
-
-                await info.attach('Weld Parameter Excel', {
-                    path: excelPath,
-                    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                });
-
-                console.log(`✅ Weld Parameter Excel saved: ${excelPath}`);
-            } else {
-                throw new Error('No valid Excel path returned');
-            }
-
-        } catch (err) {
-            console.error('❌ Weld Parameter Excel generation failed:', err.message);
-        }
-
-        assertion.log(
-            'Weld Parameter Extraction',
-            excelPath || 'Failed',
-            expected,
-            status,
-            excelPath ? `Path: ${excelPath}` : 'Unknown error',
-            info
-        );
-    });
-
     // ═════════════════════════════════════════════════════════════════════
     // DYNAMIC SLOPE COMBINATIONS
     // ═════════════════════════════════════════════════════════════════════
@@ -435,15 +323,13 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             const info = test.info();
 
             try {
-                const extractor = new BoltDBTxtFileTOExcel();
-                const statusConfigPath = project.statusConfigPath ?
-                    path.join(process.cwd(), project.statusConfigPath) : null;
-                const weldParamsPath = project.weldParamsPath ?
-                    path.join(process.cwd(), project.weldParamsPath) : null;
+                const extractor        = new BoltDBTxtFileTOExcel();
+                const statusConfigPath = project.statusConfigPath
+                    ? path.join(process.cwd(), project.statusConfigPath) : null;
+                const weldParamsPath   = project.weldParamsPath
+                    ? path.join(process.cwd(), project.weldParamsPath) : null;
 
-                const {
-                    outputPath
-                } = await extractor.run(
+                const { outputPath } = await extractor.run(
                     slope.slopeIn, slope.slopeOut,
                     project.projectName, project.sourceFile,
                     fc.BoltDBExcel, statusConfigPath, weldParamsPath,
@@ -474,7 +360,6 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
         });
 
         // ── Status Configuration ──────────────────────────────────────────
-
         test(`Step: ⚙️ Status Configuration (In: ${slope.slopeIn}, Out: ${slope.slopeOut})`, async () => {
             test.skip(!fc.productionAnalysis, "Production Analysis is disabled in flowControl.");
             const info = test.info();
@@ -488,11 +373,9 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                     'PASS', '', info
                 );
 
-                if (fc.statusConfigUIExtraction) {
+                if (fc.statusConfigPass) {
                     const result = await statusConfigPass.run(project.projectName, slope.slopeIn, slope.slopeOut);
                     await statusConfigPass.goBackToProduction();
-                    statusConfigUIFilePath = result.filePath;
-                    console.log("status config us path---", result.filePath);
 
                     if (result.filePath) {
                         await info.attach('Status Config UI Data', {
@@ -507,124 +390,16 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                         result.filePath ? 'PASS' : 'FAIL',
                         '', info
                     );
-
                 }
-
             } catch (e) {
                 assertion.log(
                     `Status Configuration (In:${slope.slopeIn}, Out:${slope.slopeOut})`,
-                    e.message,
-                    'Status Configuration Applied',
-                    'FAIL',
-                    '',
-                    info
+                    e.message, 'Status Configuration Completed', 'FAIL', '', info
                 );
                 throw e;
             }
-
         });
 
-        //Status Config Comparison-------------------------------------------
-
-        test(`Step: 🔍 Status Configuration Comparison with Weld Parameters (In: ${slope.slopeIn}, Out: ${slope.slopeOut})`, async () => {
-            test.skip(!fc.statusConfigComparison, "StatusConfig Comparison disabled.");
-
-            const info = test.info();
-
-            let comparePath;
-            let testFailed = false;
-
-            const stepName = `StatusConfig Comparison (In:${slope.slopeIn}, Out:${slope.slopeOut})`;
-
-            // ─────────────────────────────────────────────
-            // CASE 1 — Weld file not obtained
-            // ─────────────────────────────────────────────
-            if (!excelPath || !fs.existsSync(excelPath)) {
-                assertion.log(stepName, 'Weld file not found', 'Weld file should exist', 'FAIL', '', info);
-                testFailed = true;
-            } else {
-                assertion.log(stepName, 'Weld file found', 'Weld file should exist', 'PASS', '', info);
-            }
-
-            // ─────────────────────────────────────────────
-            // CASE 2 — UI file not obtained
-            // ─────────────────────────────────────────────
-            if (!statusConfigUIFilePath || !fs.existsSync(statusConfigUIFilePath)) {
-                assertion.log(stepName, 'UI file not found', 'UI file should exist', 'FAIL', '', info);
-                testFailed = true;
-            } else {
-                assertion.log(stepName, 'UI file found', 'UI file should exist', 'PASS', '', info);
-            }
-
-            // ─────────────────────────────────────────────
-            // RUN COMPARISON ONLY IF ABOVE PASSED
-            // ─────────────────────────────────────────────
-            if (!testFailed) {
-                try {
-                    const comparer = new StatusConfigCompare(excelPath, statusConfigUIFilePath);
-                    comparePath = await comparer.run();
-                } catch (e) {
-                    console.warn("Comparison execution failed:", e.message);
-                }
-            }
-
-            // ─────────────────────────────────────────────
-            // CASE 5 — Comparison file not obtained
-            // ─────────────────────────────────────────────
-            if (!comparePath || !fs.existsSync(comparePath)) {
-                assertion.log(stepName, 'Comparison file not generated', 'Comparison file should exist', 'FAIL', '', info);
-                testFailed = true;
-            } else {
-                assertion.log(stepName, `Comparison file generated`, 'Comparison file should exist', 'PASS', '', info);
-
-                await info.attach('StatusConfig Comparison', {
-                    path: comparePath,
-                    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                });
-
-                // ─────────────────────────────────────────────
-                // CASE 3 & 4 — Check RED cells (mismatch)
-                // ─────────────────────────────────────────────
-                let hasMismatch = false;
-
-                const workbook = new ExcelJS.Workbook();
-                await workbook.xlsx.readFile(comparePath);
-
-                workbook.eachSheet(sheet => {
-                    sheet.eachRow(row => {
-                        row.eachCell(cell => {
-                            const fill = cell.fill;
-
-                            // Detect RED fill (mismatch)
-                            if (fill && fill.fgColor && fill.fgColor.argb) {
-                                const color = fill.fgColor.argb.toUpperCase();
-
-                                if (color.includes('FFFFC7CE')) { // RED
-                                    hasMismatch = true;
-                                }
-                            }
-                        });
-                    });
-                });
-
-                // CASE 3 — mismatch exists
-                if (hasMismatch) {
-                    assertion.log(stepName, 'Mismatch found (red cells)', 'No mismatches expected', 'FAIL', '', info);
-                    testFailed = true;
-                }
-                // CASE 4 — no mismatch
-                else {
-                    assertion.log(stepName, 'No mismatch found', 'All values should match', 'PASS', '', info);
-                }
-            }
-
-            // ─────────────────────────────────────────────
-            // FINAL ASSERTION (FAIL TEST IF ANY CASE FAILED)
-            // ─────────────────────────────────────────────
-            if (testFailed) {
-    console.warn(`❌ ${stepName} FAILED — continuing execution...`);
-}
-        });
         // ── UI Production Analysis ────────────────────────────────────────
         test(`Step: 📊 UI Analysis (In: ${slope.slopeIn}, Out: ${slope.slopeOut})`, async () => {
             test.skip(!fc.productionAnalysis, "Production Analysis is disabled in flowControl.");
@@ -660,18 +435,14 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             }
         });
 
-        // ── Comparison ────────────────────────────────────────────────────
+        // ── Comparison  ────────────────────────────────────────────────────
         test(`Step: ⚖️ Comparison Report (In: ${slope.slopeIn}, Out: ${slope.slopeOut})`, async () => {
             test.skip(!fc.comparison, "Comparison disabled.");
             const info = test.info();
 
             try {
-                const {
-                    hasFailure,
-                    reportPath,
-                    dashboardPath
-                } =
-                await compare.runAutoCompare(project.projectName, targetWeldId);
+                const { hasFailure, reportPath, dashboardPath } =
+                    await compare.runAutoCompare(project.projectName, targetWeldId);
 
                 if (reportPath) {
                     await info.attach('Comparison Excel Report', {
@@ -707,6 +478,251 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             }
         });
     }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // INDEPENDENT STATUS CONFIG COMPARE FLOW
+    // Uses ONLY config/StatusConfigCompareFlow.json for cases/flags.
+    // Controlled by Combinations.flowControl.statusConfigCompareFlowAtEnd.
+    // ═════════════════════════════════════════════════════════════════════
+    test('Step: 🧪 StatusConfig Compare Flow (p600z → p625)', async () => {
+        test.skip(!fc.statusConfigCompareFlowAtEnd, "Independent StatusConfig compare flow is disabled.");
+        const info = test.info();
+
+        const scCfg = readStatusCompareConfig();
+        if (!scCfg) {
+            assertion.log(
+                'StatusConfig Compare Flow (End)',
+                'StatusConfigCompareFlow.json is missing/invalid',
+                'Valid config file',
+                'FAIL', '', info
+            );
+            return;
+        }
+
+        const scFc = scCfg.flowControl || {};
+        const scCases = scCfg.cases || {};
+        const scCompareCfg = scCfg.statusConfigCompare || {};
+
+        // Optional clean-up based on the independent flow config.
+        if (scFc.cleanExports) {
+            const exportsDir = path.join(process.cwd(), 'exports');
+            const legacyDirs = [
+                'StatusConfig UI',
+                'WeldParametersXmlToExcel',
+                'WeldParametersCsvToExcel',
+                'StatusConfig Compared with WeldParam',
+                'StatusConfigCompareFlow'
+            ];
+            for (const dir of legacyDirs) {
+                const fullPath = path.join(exportsDir, dir);
+                if (fs.existsSync(fullPath)) fs.rmSync(fullPath, { recursive: true, force: true });
+            }
+            for (const [_, cfg] of Object.entries(scCases)) {
+                if (cfg?.projectName) {
+                    const projDir = path.join(exportsDir, sanitizeFolderName(cfg.projectName));
+                    if (fs.existsSync(projDir)) fs.rmSync(projDir, { recursive: true, force: true });
+                }
+            }
+        }
+
+        // IMPORTANT: this end block runs inside production-flow after earlier steps already
+        // authenticated. Do NOT trigger login again; start directly from project search.
+        const goToProjectsDashboard = async () => {
+            const searchInput = page.locator('input[placeholder*="Search"]').first();
+            const projectControls = [
+                page.getByRole('button', { name: /^Projects$/i }).first(),
+                page.getByRole('link', { name: /^Projects$/i }).first(),
+                page.locator('header').getByText('Projects', { exact: true }).first(),
+                page.getByText('Projects', { exact: true }).first()
+            ];
+
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    for (const ctrl of projectControls) {
+                        if (await ctrl.isVisible().catch(() => false)) {
+                            await ctrl.click({ timeout: 5000 }).catch(() => {});
+                            break;
+                        }
+                    }
+                } catch (_) {
+                    // ignore and retry
+                }
+
+                await page.waitForLoadState('networkidle').catch(() => {});
+                await page.waitForSelector('text=/Projects/i', { state: 'visible', timeout: 8000 }).catch(() => {});
+                const visible = await searchInput.isVisible().catch(() => false);
+                if (visible) return;
+                await page.waitForTimeout(500).catch(() => {});
+            }
+
+            await searchInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+        };
+
+        const runCase = async (caseKey, cfg) => {
+            if (!cfg?.enabled) return;
+
+            const result = { caseKey, enabled: !!cfg?.enabled, passed: true, failures: [] };
+            const projectName = cfg.projectName;
+            const inputFile = cfg.weldParameterInputFile || '';
+            const slopeIn = Number(cfg.slopeIn ?? 0);
+            const slopeOut = Number(cfg.slopeOut ?? 0);
+            const calcMethod = cfg.calculationMethod || scCompareCfg.calculationMethod || null;
+
+            let uiPath = null;
+            let weldPath = null;
+            let comparePath = null;
+            let caseFinalized = false;
+            const fail = (stage, message, extra = '') => {
+                result.passed = false;
+                result.failures.push({ stage, message, extra });
+                assertion.log(`${caseKey}: ${stage}`, message, 'No failure expected', 'FAIL', extra, info);
+            };
+            const passLog = (stage, message, extra = '') => {
+                assertion.log(`${caseKey}: ${stage}`, message, 'Success', 'PASS', extra, info);
+            };
+            const finalizeCase = () => {
+                if (caseFinalized) return;
+                caseFinalized = true;
+                assertion.log(
+                    `${caseKey}: Overall Case Result`,
+                    result.passed ? 'PASS' : 'FAIL',
+                    'PASS',
+                    result.passed ? 'PASS' : 'FAIL',
+                    result.passed ? 'All assertions in this case passed' : 'At least one assertion failed in this case',
+                    info
+                );
+            };
+
+            // Project open + production tab (best effort, no throw)
+            try {
+                await goToProjectsDashboard();
+                await helper.selectProject(projectName);
+                passLog('Login/Navigation', `Project opened: ${projectName}`);
+            } catch (e) {
+                fail('Login/Navigation', e?.message || String(e));
+                finalizeCase();
+                return;
+            }
+
+            // Weld extraction
+            try {
+                if (!scFc.weldParameterExtraction) {
+                    fail('Weld Conversion', 'Disabled in StatusConfigCompareFlow.flowControl');
+                    finalizeCase();
+                    return;
+                }
+                if (!inputFile) {
+                    fail('Weld Conversion', 'weldParameterInputFile is missing');
+                    finalizeCase();
+                    return;
+                }
+                const opts = projectName ? { projectName } : {};
+                if (inputFile.toLowerCase().endsWith('.csv')) {
+                    weldPath = await new WeldParametersCsvToExcel(inputFile, opts).run();
+                } else if (inputFile.toLowerCase().endsWith('.xml')) {
+                    weldPath = await new WeldParametersXmlToExcel(inputFile, opts).run();
+                } else {
+                    fail('Weld Conversion', `Unsupported file type: ${inputFile}`);
+                    finalizeCase();
+                    return;
+                }
+                if (!weldPath || !fs.existsSync(weldPath)) {
+                    fail('Weld Conversion', `Weld Excel missing: ${weldPath || 'empty path'}`);
+                    finalizeCase();
+                    return;
+                }
+                passLog('Weld Excel Generated', weldPath, `Input: ${inputFile}\nOutput: ${weldPath}`);
+            } catch (e) {
+                fail('Weld Conversion', e?.message || String(e));
+                finalizeCase();
+                return;
+            }
+
+            // Status config apply + UI extraction
+            let uiResult = { filePath: null };
+            try {
+                await status.applyStatusConfiguration(slopeIn, slopeOut);
+                passLog('Apply Slope', `Applied In:${slopeIn}, Out:${slopeOut}`);
+
+                if (!scFc.statusConfigUIExtraction) {
+                    fail('UI Extraction', 'Disabled in StatusConfigCompareFlow.flowControl');
+                    finalizeCase();
+                    return;
+                }
+
+                uiResult = await statusConfigPass.run(projectName, slopeIn, slopeOut, calcMethod);
+                await statusConfigPass.goBackToProduction();
+                uiPath = uiResult?.filePath || null;
+
+                if (!uiPath || !fs.existsSync(uiPath)) {
+                    fail('UI Extraction', `UI Excel missing: ${uiPath || 'empty path'}`);
+                    finalizeCase();
+                    return;
+                }
+                passLog('UI Excel Generated', uiPath);
+            } catch (e) {
+                fail('UI Extraction', e?.message || String(e));
+                finalizeCase();
+                return;
+            }
+
+            // Compare
+            try {
+                if (!scFc.statusConfigComparison) {
+                    passLog('Comparison Skipped', 'statusConfigComparison=false');
+                    finalizeCase();
+                    return;
+                }
+                passLog('Comparison Inputs', `weld=${weldPath}`, `ui=${uiPath}`);
+
+                const comparer = new StatusConfigCompare(
+                    weldPath,
+                    uiPath,
+                    scCompareCfg.weldSheetName || null,
+                    uiResult?.weldDetails?.['Job Number'] ?? null,
+                    projectName
+                );
+                comparePath = await comparer.run();
+                if (!comparePath || !fs.existsSync(comparePath)) {
+                    fail('Comparison Output', `Comparison Excel missing: ${comparePath || 'empty path'}`);
+                    finalizeCase();
+                    return;
+                }
+
+                let hasMismatch = false;
+                const wb = new ExcelJS.Workbook();
+                await wb.xlsx.readFile(comparePath);
+                wb.eachSheet(sheet => {
+                    sheet.eachRow(row => {
+                        row.eachCell(cell => {
+                            if (cell.fill?.fgColor?.argb?.includes('FFFFC7CE')) hasMismatch = true;
+                        });
+                    });
+                });
+
+                if (hasMismatch) {
+                    fail(
+                        'StatusConfig vs WeldParam Comparison',
+                        'Mismatch found',
+                        `WeldExcel: ${weldPath}\nUIExcel: ${uiPath}\nCompare: ${comparePath}`
+                    );
+                } else {
+                    passLog(
+                        'StatusConfig vs WeldParam Comparison',
+                        'No mismatches detected',
+                        `WeldExcel: ${weldPath}\nUIExcel: ${uiPath}\nCompare: ${comparePath}`
+                    );
+                }
+            } catch (e) {
+                fail('StatusConfigCompare.run()', e?.message || String(e));
+            }
+            finalizeCase();
+        };
+
+        // Keep order as requested: CSVp600z first, then p625.
+        await runCase('p600z', scCases.p600z);
+        await runCase('p625', scCases.p625);
+    });
 
     // ═════════════════════════════════════════════════════════════════════
     // FINAL

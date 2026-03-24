@@ -1,30 +1,39 @@
 const ExcelJS = require('exceljs');
 const path = require('path');
 const fs = require('fs');
-const workbook = new ExcelJS.Workbook();
+const { sanitizeExcelSheetName, sanitizeFileSegment, sanitizeFolderName } = require('../Helper/excelNaming.util.js');
 
 class StatusConfigCompare {
-    constructor(weldParamExcelPath, statusPassExcelPath, weldSheetName = null) {
+    /**
+     * @param {string} weldParamExcelPath
+     * @param {string} statusPassExcelPath
+     * @param {string|null} weldSheetName
+     * @param {string|null} jobNumber — UI Job Number; drives output filename + UI worksheet lookup
+     * @param {string|null} projectName — output folder `exports/<projectName>/` (legacy: `StatusConfig Compared with WeldParam` if omitted)
+     */
+    constructor(weldParamExcelPath, statusPassExcelPath, weldSheetName = null, jobNumber = null, projectName = null) {
         this.weldParamExcelPath = weldParamExcelPath;
         this.statusPassExcelPath = statusPassExcelPath;
         this.weldSheetName = weldSheetName; // ✅ Save sheet name
+        this.jobNumber = jobNumber;
+        this.projectName = projectName;
 
         this.baseExportDir = path.join(process.cwd(), 'exports');
     }
 
     initializeExportDir() {
-        this.exportDir = path.join(
-            this.baseExportDir,
-            'StatusConfig Compared with WeldParam'
-        );
+        this.exportDir = this.projectName
+            ? path.join(this.baseExportDir, sanitizeFolderName(this.projectName))
+            : path.join(this.baseExportDir, 'StatusConfig Compared with WeldParam');
 
         if (!fs.existsSync(this.exportDir)) {
             fs.mkdirSync(this.exportDir, { recursive: true });
         }
 
+        const jobPart = sanitizeFileSegment(this.jobNumber, 'Job');
         this.outputPath = path.join(
             this.exportDir,
-            `StatusConfigCompare_${Date.now()}.xlsx`
+            `StatusConfigCompare_${jobPart}_${Date.now()}.xlsx`
         );
     }
 
@@ -53,6 +62,11 @@ class StatusConfigCompare {
             this.initializeExportDir();
             console.log(`🚀 StatusConfigCompare - Weld: ${this.weldParamExcelPath}`);
             console.log(`   UI: ${this.statusPassExcelPath}`);
+
+            // IMPORTANT: Create a fresh workbook per run.
+            // Reusing a module-level workbook causes worksheet name collisions
+            // when the test runs p600z and then p625.
+            const workbook = new ExcelJS.Workbook();
 
             // ✅ Validate input files exist
             if (!fs.existsSync(this.weldParamExcelPath)) {
@@ -88,8 +102,14 @@ class StatusConfigCompare {
                 throw new Error('❌ No valid Weld sheet found');
             }
 
-            // ✅ FIXED: Flexible UI sheet detection
-            let uiSheet = uiWorkbook.getWorksheet('Status_Config_UI');
+            // ✅ UI sheet: primary name = Job Number (sanitized), same as StatusConfigPass.writeToExcel
+            let uiSheet = null;
+            if (this.jobNumber != null && String(this.jobNumber).trim() !== '') {
+                uiSheet = uiWorkbook.getWorksheet(sanitizeExcelSheetName(this.jobNumber));
+            }
+            if (!uiSheet) {
+                uiSheet = uiWorkbook.getWorksheet('Status_Config_UI');
+            }
             if (!uiSheet) {
                 uiSheet = uiWorkbook.worksheets.find(ws =>
                     ws.name.toLowerCase().includes('ui') ||

@@ -7,7 +7,8 @@ const {
 
 const { expect } = require('@playwright/test');
 const assertion = require('../Helper/AssertionHelper.js');
- 
+const { sanitizeExcelSheetName, sanitizeFileSegment, sanitizeFolderName } = require('../Helper/excelNaming.util.js');
+
 class StatusConfigPass {
     constructor(page) {
         this.page = page;
@@ -15,45 +16,56 @@ class StatusConfigPass {
     }
 
     async applyCalculationMethod(method) {
-        if (!method || method === "Instantaneous") {
-            console.log("ℹ️ Using default Status Calculation Method: Instantaneous");
-            return;
-        }
-
-        console.log(`⚙️ Setting Status Calculation Method → ${method}`);
+        if (!method) return;
 
         const dropdown = this.page
             .locator('label:has-text("Status Calculation Method")')
             .locator('xpath=following::button[@role="combobox"][1]');
 
         await dropdown.waitFor({ state: 'visible', timeout: 15000 });
+
+        // Read current selected value (skip re-setting if already correct)
+        let current = '';
+        try {
+            current = (await dropdown.locator('span').first().innerText()).trim();
+        } catch (e) {
+            // ignore; we'll try setting anyway
+        }
+
+        if (current && current.toLowerCase().trim() === method.toLowerCase().trim()) {
+            console.log(`ℹ️ Status Calculation Method already set: ${current}`);
+            return;
+        }
+
+        console.log(`⚙️ Setting Status Calculation Method → ${method}`);
         await dropdown.click();
 
         const option = this.page.locator(`div[role="option"]:has-text("${method}")`);
-
         await option.waitFor({ state: 'visible', timeout: 10000 });
         await option.click();
 
         console.log(`✅ Selected ${method}`);
 
         const saveBtn = this.page.getByRole('button', { name: /Save/i });
-
         await saveBtn.waitFor({ state: 'visible', timeout: 10000 });
         await saveBtn.click();
 
         console.log("💾 Status Calculation Method saved");
-
         await this.page.waitForLoadState('networkidle');
         await this.page.waitForTimeout(1500);
     }
  
-    async initializeExportDir() {
+    /**
+     * @param {string} [projectName] — UI export folder: `exports/<projectName>/` (falls back to legacy `StatusConfig UI` if omitted)
+     */
+    async initializeExportDir(projectName) {
         if (!fs.existsSync(this.baseExportDir)) {
             fs.mkdirSync(this.baseExportDir, { recursive: true });
         }
- 
-        this.exportDir = path.join(this.baseExportDir, 'StatusConfig UI');
- 
+
+        const folder = projectName ? sanitizeFolderName(projectName) : 'StatusConfig UI';
+        this.exportDir = path.join(this.baseExportDir, folder);
+
         if (!fs.existsSync(this.exportDir)) {
             fs.mkdirSync(this.exportDir, { recursive: true });
         }
@@ -81,9 +93,12 @@ class StatusConfigPass {
         console.log('✅ Status Configuration Loaded');
     }
  
-    async run(projectName, slopeIn, slopeOut) {
+    async run(projectName, slopeIn, slopeOut, calculationMethod = null) {
         await this.navigateToStatusConfig();
  
+        // If config asks for a specific calculation method, ensure UI matches it
+        await this.applyCalculationMethod(calculationMethod);
+
         console.log('🔎 Extracting Weld Details...');
         const weldDetails = await this.extractWeldDetails();
  
@@ -187,8 +202,8 @@ class StatusConfigPass {
  
         console.log("✅ UI Data Extracted");
        
-        await this.initializeExportDir();
-       
+        await this.initializeExportDir(projectName);
+
         const filePath = await this.writeToExcel(projectName, weldDetails, gridData);
  
         console.log(`StatusConfigPass filePath generated: ${filePath}`);
@@ -281,11 +296,17 @@ class StatusConfigPass {
     }
  
     async writeToExcel(projectName, weldDetails, gridData) {
- 
-        const filePath = path.join(this.exportDir, `${projectName}_StatusConfig_UI.xlsx`);
- 
+        const jobRaw = weldDetails['Job Number'];
+        const hasJob = jobRaw != null && String(jobRaw).trim() !== '';
+        const sheetName = sanitizeExcelSheetName(hasJob ? jobRaw : null);
+        const fileBase = hasJob
+            ? `${sanitizeFileSegment(jobRaw)}_StatusConfig_UI`
+            : `${sanitizeFileSegment(projectName, projectName)}_StatusConfig_UI`;
+
+        const filePath = path.join(this.exportDir, `${fileBase}.xlsx`);
+
         const workbook = new ExcelJS.Workbook();
-        const sheet = workbook.addWorksheet('Status_Config_UI');
+        const sheet = workbook.addWorksheet(sheetName);
  
         let rowIndex = 1;
  

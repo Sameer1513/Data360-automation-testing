@@ -3,13 +3,20 @@ const path = require('path');
 const ExcelJS = require('exceljs');
 const xml2js = require('xml2js');
 const { parse } = require('csv-parse/sync');
+const { sanitizeFolderName } = require('../Helper/excelNaming.util.js');
 
 class WeldParametersCsvToExcel {
-  constructor(inputFile) {
+  /**
+   * @param {string} inputFile
+   * @param {{ projectName?: string }} [options]
+   * When `options.projectName` is provided, exports to `exports/<projectName>/WeldParameters_Converted.xlsx`
+   */
+  constructor(inputFile, options = {}) {
   this.csvPath = path.join(process.cwd(), inputFile);
 
   // Base exports directory
   this.baseExportDir = path.join(process.cwd(), 'exports');
+  this.projectFolder = options.projectName ? sanitizeFolderName(options.projectName) : null;
 }
 
   // Initialize export directory only when needed
@@ -19,15 +26,17 @@ class WeldParametersCsvToExcel {
       fs.mkdirSync(this.baseExportDir, { recursive: true });
     }
 
-    // 🔹 Create WeldParametersCsvToExcel subfolder
-    this.exportDir = path.join(this.baseExportDir, 'WeldParametersCsvToExcel');
-
-    if (!fs.existsSync(this.exportDir)) {
-      fs.mkdirSync(this.exportDir, { recursive: true });
+    if (this.projectFolder) {
+      // Project-scoped output
+      this.exportDir = path.join(this.baseExportDir, this.projectFolder);
+      this.outputPath = path.join(this.exportDir, 'WeldParameters_Converted.xlsx');
+    } else {
+      // Legacy output (kept for backwards compatibility)
+      this.exportDir = path.join(this.baseExportDir, 'WeldParametersCsvToExcel');
+      this.outputPath = path.join(this.exportDir, 'WeldParametersCsvToExcel.xlsx');
     }
 
-    // Output file inside that folder
-    this.outputPath = path.join(this.exportDir, 'WeldParametersCsvToExcel.xlsx');
+    if (!fs.existsSync(this.exportDir)) fs.mkdirSync(this.exportDir, { recursive: true });
   }
 
   async run() {
@@ -472,30 +481,35 @@ class WeldParametersCsvToExcel {
 
 class WeldParametersXmlToExcel {
 
-    constructor(inputFile) {
-
+    /**
+     * @param {string} inputFile
+     * @param {{ projectName?: string }} [options]
+     * When `options.projectName` is provided, exports to `exports/<projectName>/WeldParameters_Converted.xlsx`
+     */
+    constructor(inputFile, options = {}) {
         this.xmlPath = path.join(process.cwd(), inputFile);
 
         // Base exports folder
         this.baseExportDir = path.join(process.cwd(), 'exports');
+        this.projectFolder = options.projectName ? sanitizeFolderName(options.projectName) : null;
 
         if (!fs.existsSync(this.baseExportDir)) {
-            fs.mkdirSync(this.baseExportDir, {
-                recursive: true
-            });
+            fs.mkdirSync(this.baseExportDir, { recursive: true });
         }
 
-        // 🔹 XML specific folder
-        this.exportDir = path.join(this.baseExportDir, 'WeldParametersXmlToExcel');
+        if (this.projectFolder) {
+            // Project-scoped output
+            this.exportDir = path.join(this.baseExportDir, this.projectFolder);
+            this.outputPath = path.join(this.exportDir, 'WeldParameters_Converted.xlsx');
+        } else {
+            // Legacy output (kept for backwards compatibility)
+            this.exportDir = path.join(this.baseExportDir, 'WeldParametersXmlToExcel');
+            this.outputPath = path.join(this.exportDir, 'WeldParametersXmlToExcel.xlsx');
+        }
 
         if (!fs.existsSync(this.exportDir)) {
-            fs.mkdirSync(this.exportDir, {
-                recursive: true
-            });
+            fs.mkdirSync(this.exportDir, { recursive: true });
         }
-
-        // Output Excel file
-        this.outputPath = path.join(this.exportDir, 'WeldParametersXmlToExcel.xlsx');
     }
 
     async run() {

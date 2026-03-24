@@ -1,18 +1,16 @@
 {
   "flowControl": {
     "cleanExports": true,
-    "checkSourceFile": false,
+    "checkSourceFile": true,
     "runExtraction": false,
     "BoltDBExcel": false,
-    "weldParameterExtraction": true,
     "login": true,
     "createProject": false,
     "deviceRegistration": false,
     "setup": false,
     "deviceSync": false,
-    "productionAnalysis": true,
-    "statusConfigUIExtraction": true,
-    "statusConfigComparison": true,
+    "productionAnalysis": false,
+    "statusConfigCompareFlowAtEnd": true,
     "comparison": false,
     "specification": false
   },
@@ -78,7 +76,7 @@
     "endDate": "20-Feb-2026",
     "projectStatus": "Initiated",
     "projectType": "Pipeline",
-    "weldParamsInputFile": "test-data/WeldParameters.WPa.xml",
+    "weldParamsInputFile": "Input/p600z_example.csv",
     "pipelineFeatures": [
       "Welding"
     ],
@@ -92,18 +90,9 @@
       "M-500"
     ],
     "sourceFile": "bolt_station2_cw.txt",
-    "weldIds": [
-      "123",
-      "124",
-      "125",
-      "126",
-      "127"
-    ],
-    "weldParamsInputFile": "Input/p600z_example.csv",
-    "sourceFile": "bolt.txt",
     "weldIds": "152",
     "statusConfigPath": "exports/StatusConfig UI/XML_StatusConfig_UI.xlsx",
-    "weldParamsPath": "exports/StatusConfig UI/WeldParametersCsvToExcel.xlsx",
+    "weldParamsPath": "exports/CSVp600z/WeldParameters_Converted.xlsx",
     "slopeCombinations": [
       {
         "slopeIn": 0,

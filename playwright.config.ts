@@ -44,7 +44,18 @@ export default defineConfig({
         // ── Status formatter ──────────────────────────────────────────────
         const statusCol = defaultColumns.find((c: any) => c.id === 'status');
         if (statusCol) {
-          statusCol.formatter = (value: any) => {
+          statusCol.formatter = (value: any, rowItem: any) => {
+            const hasFailAnnotation = Array.isArray(rowItem?.annotations)
+              && rowItem.annotations.some((a: any) =>
+                String(a?.type || '').toUpperCase().includes('FAIL')
+              );
+
+            // Annotation-driven override:
+            // if any assertion annotation is FAIL, display Failed in Status
+            // even when Playwright test status is "passed".
+            if (hasFailAnnotation) {
+              return '<span style="color:#dc2626;font-weight:700">❌ Failed</span>';
+            }
             if (value === 'passed') return '<span style="color:#16a34a;font-weight:700">✅ Passed</span>';
             if (value === 'failed') return '<span style="color:#dc2626;font-weight:700">❌ Failed</span>';
             if (value === 'skipped') return '<span style="color:#64748b;font-weight:600">⏭ Not Executed</span>';
@@ -66,7 +77,15 @@ export default defineConfig({
         // ── Outcome column — show "Failed" not "unexpected" ───────────────
         const outcomeCol = defaultColumns.find((c: any) => c.id === 'outcome');
         if (outcomeCol) {
-          outcomeCol.formatter = (value: any) => {
+          outcomeCol.formatter = (value: any, rowItem: any) => {
+            const hasFailAnnotation = Array.isArray(rowItem?.annotations)
+              && rowItem.annotations.some((a: any) =>
+                String(a?.type || '').toUpperCase().includes('FAIL')
+              );
+
+            // Keep flow non-blocking but reflect assertion failure in Outcome column.
+            if (hasFailAnnotation) return '<span style="color:#dc2626;font-weight:700">Failed</span>';
+
             if (value === 'expected')   return '<span style="color:#16a34a;font-weight:700">Pass</span>';
             if (value === 'unexpected') return '<span style="color:#dc2626;font-weight:700">Failed</span>';
             if (value === 'skipped')    return '<span style="color:#64748b;font-weight:600">Skipped</span>';

@@ -1,0 +1,32 @@
+{
+  "flowControl": {
+    "cleanExports": true,
+    "checkSourceFile": true,
+    "login": true,
+    "productionTab": true,
+    "weldParameterExtraction": true,
+    "statusConfigUIExtraction": true,
+    "statusConfigComparison": true
+  },
+  "statusConfigCompare": {
+    "weldSheetName": null
+  },
+  "cases": {
+    "p600z": {
+      "enabled": true,
+      "projectName": "CSVp600z",
+      "weldParameterInputFile": "Input/p600z_example.csv",
+      "slopeIn": 0,
+      "slopeOut": 0,
+      "calculationMethod": "Average Pass" 
+    },
+    "p625": {
+      "enabled": true,
+      "projectName": "XMLp625",
+      "weldParameterInputFile": "test-data/WeldParameters.WPa.xml",
+      "slopeIn": 0,
+      "slopeOut": 0,
+      "calculationMethod": "Average Zone"
+    }
+  }
+}
