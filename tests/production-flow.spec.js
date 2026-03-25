@@ -18,17 +18,14 @@ const BoltDBTxtFileTOExcel   = require('../pages/BoltDBTxtFileTOExcel.page');
 const ComparePage            = require('../pages/compare.page');
 const CommonHelper           = require('../Helper/CommonHelper');
 const assertion              = require('../Helper/AssertionHelper.js');
-const { sanitizeFolderName } = require('../Helper/excelNaming.util.js');
 const LoginAssertion         = require('../Assertions/LoginAssertion');
 const ProductionTabAssertion = require('../Assertions/ProductionTabAssertion');
-const {
-    clearProductionFlowTerminalSyncGate,
-    markProductionFlowTerminalSyncDone
-} = require('./helpers/production-flow-terminal-gate');
+const { sanitizeFolderName } = require('../Helper/excelNaming.util.js');
 
 // Config
 const configPath  = path.join(__dirname, '../config/Combinations.json');
 const flowConfig  = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+const statusCompareConfigPath = path.join(__dirname, '../config/StatusConfigCompareFlow.json');
 
 test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
 
@@ -43,19 +40,8 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
     let derivedSetup = null;
     let deviceId     = null;
 
-    const statusCompareConfigPath = path.join(__dirname, '../config/StatusConfigCompareFlow.json');
-    const readStatusCompareConfig = () => {
-        try {
-            return JSON.parse(fs.readFileSync(statusCompareConfigPath, 'utf-8'));
-        } catch {
-            return null;
-        }
-    };
-
     // ── Before All ────────────────────────────────────────────────────────
     test.beforeAll(async () => {
-        clearProductionFlowTerminalSyncGate();
-
         if (fc.cleanExports) {
             const exportsDir   = path.join(process.cwd(), 'exports');
             const dirsToClean  = ['ActualData', 'ProductionData', 'ComparedData'];
@@ -67,6 +53,25 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                     console.log(`   🗑️ Deleted: ${dir}`);
                 }
             }
+
+            // Project folders under exports/ from StatusConfigCompareFlow.json (same as StatusConfig-compare.spec.js)
+            try {
+                const scCfg = JSON.parse(fs.readFileSync(statusCompareConfigPath, 'utf-8'));
+                const seen = new Set();
+                for (const cfg of Object.values(scCfg.cases || {})) {
+                    if (!cfg?.projectName) continue;
+                    const folder = sanitizeFolderName(cfg.projectName);
+                    if (seen.has(folder)) continue;
+                    seen.add(folder);
+                    const projectExportPath = path.join(exportsDir, folder);
+                    if (fs.existsSync(projectExportPath)) {
+                        fs.rmSync(projectExportPath, { recursive: true, force: true });
+                        console.log(`   🗑️ Deleted: ${folder} (StatusConfig compare / project exports)`);
+                    }
+                }
+            } catch (e) {
+                console.warn(`⚠️ Could not clean StatusConfigCompareFlow project folders: ${e.message}`);
+            }
         }
 
         if (fc.checkSourceFile) {
@@ -77,43 +82,51 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             ).toBe(true);
         }
 
-        // NOTE: These cannot run in parallel.
-        // runExtraction reads weldParamsPath while weldParameterExtraction writes the same XLSX.
-        // Parallel execution intermittently causes "Corrupted zip" while opening the file.
+        const parallelTasks = [];
+
         if (fc.weldParameterExtraction) {
-            const inputFile = project.weldParamsInputFile;
-            if (inputFile) {
-                console.log(`⚡ Running Weld Parameter Extraction for ${inputFile}...`);
-                if (inputFile.toLowerCase().endsWith('.csv')) {
-                    await new WeldParametersCsvToExcel(inputFile).run();
-                } else if (inputFile.toLowerCase().endsWith('.xml')) {
-                    await new WeldParametersXmlToExcel(inputFile).run();
+            const extractParams = async () => {
+                const inputFile = project.weldParamsInputFile;
+                if (inputFile) {
+                    console.log(`⚡ Running Weld Parameter Extraction in parallel for ${inputFile}...`);
+                    if (inputFile.toLowerCase().endsWith('.csv')) {
+                        await new WeldParametersCsvToExcel(inputFile).run();
+                    } else if (inputFile.toLowerCase().endsWith('.xml')) {
+                        await new WeldParametersXmlToExcel(inputFile).run();
+                    }
+                } else {
+                    console.warn("⚠️ 'weldParamsInputFile' is missing in project config. Skipping parameter extraction.");
                 }
-            } else {
-                console.warn("⚠️ 'weldParamsInputFile' is missing in project config. Skipping parameter extraction.");
-            }
+            };
+            parallelTasks.push(extractParams());
         }
 
         if (fc.runExtraction) {
-            const extractor = new BoltDBTxtFileTOExcel();
-            console.log("⚡ Running extractor once to derive setup data...");
-            const statusConfigPath = project.statusConfigPath
-                ? path.join(process.cwd(), project.statusConfigPath) : null;
-            const weldParamsPath = project.weldParamsPath
-                ? path.join(process.cwd(), project.weldParamsPath) : null;
-            const { setupData } = await extractor.run(
-                0, 0, project.projectName, project.sourceFile, false,
-                statusConfigPath, weldParamsPath, project.unitConfig || null
-            );
-            derivedSetup = setupData;
+            const extractBoltDB = async () => {
+                const extractor = new BoltDBTxtFileTOExcel();
+                console.log("⚡ Running extractor once to derive setup data...");
+                const statusConfigPath = project.statusConfigPath
+                    ? path.join(process.cwd(), project.statusConfigPath) : null;
+                const weldParamsPath = project.weldParamsPath
+                    ? path.join(process.cwd(), project.weldParamsPath) : null;
+                const { setupData } = await extractor.run(
+                    0, 0, project.projectName, project.sourceFile, false,
+                    statusConfigPath, weldParamsPath, project.unitConfig || null
+                );
+                derivedSetup = setupData;
+            };
+            parallelTasks.push(extractBoltDB());
         }
+
+        await Promise.all(parallelTasks);
     });
 
     // ── Before Each ───────────────────────────────────────────────────────
     // Only open a browser page if at least one browser-dependent step is enabled.
     const needsBrowser = fc.login || fc.createProject || fc.deviceRegistration ||
                          fc.setup || fc.specification || fc.deviceSync ||
-                         fc.productionAnalysis || fc.statusConfigPass || fc.comparison;
+                         fc.productionAnalysis || fc.statusConfigPass || fc.comparison ||
+                         fc.statusConfigCompareFlowAtEnd;
 
     test.beforeEach(async ({ browser }) => {
         if (!needsBrowser) return;
@@ -288,13 +301,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
     test('Step 7: 🖥️ Run Device Sync', async () => {
         const isDeviceRegConfigured = flowConfig.deviceRegistration && flowConfig.deviceRegistration.enabled !== false;
         const isMultiBrowser        = flowConfig.mode === 'multiBrowser';
-        const shouldRunSync         = isDeviceRegConfigured && !isMultiBrowser && fc.deviceSync;
-
-        // Release modular spec gate when sync step is not in this run (so create-device-register-assign-sync does not hang).
-        if (!shouldRunSync) {
-            markProductionFlowTerminalSyncDone();
-            test.skip();
-        }
+        test.skip(!(isDeviceRegConfigured && !isMultiBrowser && fc.deviceSync), "Device Sync is disabled.");
 
         const info = test.info();
         const scriptPath = path.join(__dirname, '..', 'terminal_execution_files', 'device_register.js');
@@ -307,9 +314,6 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
 
         assertion.log('Step 7: Device Sync', 'Sync Script Completed', 'Device Sync Completed', 'PASS', '', info);
         expect("Device Sync Completed Successfully").toBe("Device Sync Completed Successfully");
-
-        // Terminal device sync finished — modular spec can start (parallel with Step 8+ UI in this file).
-        markProductionFlowTerminalSyncDone();
     });
 
     // ═════════════════════════════════════════════════════════════════════
@@ -443,7 +447,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             }
         });
 
-        // ── Comparison  ────────────────────────────────────────────────────
+        // ── Comparison ────────────────────────────────────────────────────
         test(`Step: ⚖️ Comparison Report (In: ${slope.slopeIn}, Out: ${slope.slopeOut})`, async () => {
             test.skip(!fc.comparison, "Comparison disabled.");
             const info = test.info();
@@ -488,249 +492,238 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
     }
 
     // ═════════════════════════════════════════════════════════════════════
-    // INDEPENDENT STATUS CONFIG COMPARE FLOW
-    // Uses ONLY config/StatusConfigCompareFlow.json for cases/flags.
-    // Controlled by Combinations.flowControl.statusConfigCompareFlowAtEnd.
+    // OPTIONAL END BLOCK — INDEPENDENT STATUS CONFIG COMPARE FLOW
+    // Runs after all existing production-flow steps.
+    // Controlled by Combinations.flowControl.statusConfigCompareFlowAtEnd
+    // Uses ONLY config/StatusConfigCompareFlow.json
     // ═════════════════════════════════════════════════════════════════════
-    // test('Step: 🧪 StatusConfig Compare Flow (p600z → p625)', async () => {
-    //     test.skip(!fc.statusConfigCompareFlowAtEnd, "Independent StatusConfig compare flow is disabled.");
-    //     const info = test.info();
+    test('Step: 🧪 StatusConfig Compare Flow (p600z → p625)', async () => {
+        test.skip(!fc.statusConfigCompareFlowAtEnd, "Independent StatusConfig compare flow is disabled.");
+        const info = test.info();
 
-    //     const scCfg = readStatusCompareConfig();
-    //     if (!scCfg) {
-    //         assertion.log(
-    //             'StatusConfig Compare Flow (End)',
-    //             'StatusConfigCompareFlow.json is missing/invalid',
-    //             'Valid config file',
-    //             'FAIL', '', info
-    //         );
-    //         return;
-    //     }
+        let scCfg;
+        try {
+            scCfg = JSON.parse(fs.readFileSync(statusCompareConfigPath, 'utf-8'));
+        } catch (e) {
+            assertion.log(
+                'StatusConfig Compare Flow',
+                e?.message || String(e),
+                'StatusConfigCompareFlow.json should be readable',
+                'FAIL',
+                '',
+                info
+            );
+            return;
+        }
 
-    //     const scFc = scCfg.flowControl || {};
-    //     const scCases = scCfg.cases || {};
-    //     const scCompareCfg = scCfg.statusConfigCompare || {};
+        const scFc = scCfg.flowControl || {};
+        const scCases = scCfg.cases || {};
+        const scCompareCfg = scCfg.statusConfigCompare || {};
 
-    //     // Optional clean-up based on the independent flow config.
-    //     if (scFc.cleanExports) {
-    //         const exportsDir = path.join(process.cwd(), 'exports');
-    //         const legacyDirs = [
-    //             'StatusConfig UI',
-    //             'WeldParametersXmlToExcel',
-    //             'WeldParametersCsvToExcel',
-    //             'StatusConfig Compared with WeldParam',
-    //             'StatusConfigCompareFlow'
-    //         ];
-    //         for (const dir of legacyDirs) {
-    //             const fullPath = path.join(exportsDir, dir);
-    //             if (fs.existsSync(fullPath)) fs.rmSync(fullPath, { recursive: true, force: true });
-    //         }
-    //         for (const [_, cfg] of Object.entries(scCases)) {
-    //             if (cfg?.projectName) {
-    //                 const projDir = path.join(exportsDir, sanitizeFolderName(cfg.projectName));
-    //                 if (fs.existsSync(projDir)) fs.rmSync(projDir, { recursive: true, force: true });
-    //             }
-    //         }
-    //     }
+        const goToProjectsPage = async (targetProjectName = null) => {
+            const searchInput = page.locator('input[placeholder*="Search"]').first();
+            const targetTile = targetProjectName
+                ? page.getByText(new RegExp(`^${targetProjectName}$`, 'i')).first()
+                : null;
 
-    //     // IMPORTANT: this end block runs inside production-flow after earlier steps already
-    //     // authenticated. Do NOT trigger login again; start directly from project search.
-    //     const goToProjectsDashboard = async () => {
-    //         const searchInput = page.locator('input[placeholder*="Search"]').first();
-    //         const projectControls = [
-    //             page.getByRole('button', { name: /^Projects$/i }).first(),
-    //             page.getByRole('link', { name: /^Projects$/i }).first(),
-    //             page.locator('header').getByText('Projects', { exact: true }).first(),
-    //             page.getByText('Projects', { exact: true }).first()
-    //         ];
+            const projectControls = [
+                page.getByRole('button', { name: /^Projects$/i }).first(),
+                page.getByRole('link', { name: /^Projects$/i }).first(),
+                page.locator('header').getByText('Projects', { exact: true }).first(),
+                page.getByText('Projects', { exact: true }).first()
+            ];
 
-    //         for (let attempt = 0; attempt < 3; attempt++) {
-    //             try {
-    //                 for (const ctrl of projectControls) {
-    //                     if (await ctrl.isVisible().catch(() => false)) {
-    //                         await ctrl.click({ timeout: 5000 }).catch(() => {});
-    //                         break;
-    //                     }
-    //                 }
-    //             } catch (_) {
-    //                 // ignore and retry
-    //             }
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    for (const ctrl of projectControls) {
+                        if (await ctrl.isVisible().catch(() => false)) {
+                            await ctrl.click({ timeout: 5000 }).catch(() => {});
+                            break;
+                        }
+                    }
+                } catch (_) {}
 
-    //             await page.waitForLoadState('networkidle').catch(() => {});
-    //             await page.waitForSelector('text=/Projects/i', { state: 'visible', timeout: 8000 }).catch(() => {});
-    //             const visible = await searchInput.isVisible().catch(() => false);
-    //             if (visible) return;
-    //             await page.waitForTimeout(500).catch(() => {});
-    //         }
+                await page.waitForLoadState('networkidle').catch(() => {});
+                await page.waitForSelector('text=/Projects/i', { state: 'visible', timeout: 8000 }).catch(() => {});
+                await searchInput.waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
 
-    //         await searchInput.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
-    //     };
+                if (!targetTile) return;
+                const visible = await targetTile.isVisible().catch(() => false);
+                if (visible) return;
+                await page.waitForTimeout(500).catch(() => {});
+            }
 
-    //     const runCase = async (caseKey, cfg) => {
-    //         if (!cfg?.enabled) return;
+            if (targetTile) await targetTile.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+        };
 
-    //         const result = { caseKey, enabled: !!cfg?.enabled, passed: true, failures: [] };
-    //         const projectName = cfg.projectName;
-    //         const inputFile = cfg.weldParameterInputFile || '';
-    //         const slopeIn = Number(cfg.slopeIn ?? 0);
-    //         const slopeOut = Number(cfg.slopeOut ?? 0);
-    //         const calcMethod = cfg.calculationMethod || scCompareCfg.calculationMethod || null;
+        const runCase = async (caseKey, cfg) => {
+            if (!cfg?.enabled) return;
 
-    //         let uiPath = null;
-    //         let weldPath = null;
-    //         let comparePath = null;
-    //         let caseFinalized = false;
-    //         const fail = (stage, message, extra = '') => {
-    //             result.passed = false;
-    //             result.failures.push({ stage, message, extra });
-    //             assertion.log(`${caseKey}: ${stage}`, message, 'No failure expected', 'FAIL', extra, info);
-    //         };
-    //         const passLog = (stage, message, extra = '') => {
-    //             assertion.log(`${caseKey}: ${stage}`, message, 'Success', 'PASS', extra, info);
-    //         };
-    //         const finalizeCase = () => {
-    //             if (caseFinalized) return;
-    //             caseFinalized = true;
-    //             assertion.log(
-    //                 `${caseKey}: Overall Case Result`,
-    //                 result.passed ? 'PASS' : 'FAIL',
-    //                 'PASS',
-    //                 result.passed ? 'PASS' : 'FAIL',
-    //                 result.passed ? 'All assertions in this case passed' : 'At least one assertion failed in this case',
-    //                 info
-    //             );
-    //         };
+            const result = { caseKey, enabled: !!cfg?.enabled, passed: true, failures: [] };
+            const projectName = cfg.projectName;
+            const weldParameterInputFile = cfg.weldParameterInputFile || '';
+            const slopeIn = Number(cfg.slopeIn ?? 0);
+            const slopeOut = Number(cfg.slopeOut ?? 0);
+            const calcMethod = cfg.calculationMethod || scCompareCfg.calculationMethod || null;
 
-    //         // Project open + production tab (best effort, no throw)
-    //         try {
-    //             await goToProjectsDashboard();
-    //             await helper.selectProject(projectName);
-    //             passLog('Login/Navigation', `Project opened: ${projectName}`);
-    //         } catch (e) {
-    //             fail('Login/Navigation', e?.message || String(e));
-    //             finalizeCase();
-    //             return;
-    //         }
+            let weldPath = null;
+            let uiResult = { filePath: null, weldDetails: {} };
+            let uiPath = null;
+            let comparePath = null;
 
-    //         // Weld extraction
-    //         try {
-    //             if (!scFc.weldParameterExtraction) {
-    //                 fail('Weld Conversion', 'Disabled in StatusConfigCompareFlow.flowControl');
-    //                 finalizeCase();
-    //                 return;
-    //             }
-    //             if (!inputFile) {
-    //                 fail('Weld Conversion', 'weldParameterInputFile is missing');
-    //                 finalizeCase();
-    //                 return;
-    //             }
-    //             const opts = projectName ? { projectName } : {};
-    //             if (inputFile.toLowerCase().endsWith('.csv')) {
-    //                 weldPath = await new WeldParametersCsvToExcel(inputFile, opts).run();
-    //             } else if (inputFile.toLowerCase().endsWith('.xml')) {
-    //                 weldPath = await new WeldParametersXmlToExcel(inputFile, opts).run();
-    //             } else {
-    //                 fail('Weld Conversion', `Unsupported file type: ${inputFile}`);
-    //                 finalizeCase();
-    //                 return;
-    //             }
-    //             if (!weldPath || !fs.existsSync(weldPath)) {
-    //                 fail('Weld Conversion', `Weld Excel missing: ${weldPath || 'empty path'}`);
-    //                 finalizeCase();
-    //                 return;
-    //             }
-    //             passLog('Weld Excel Generated', weldPath, `Input: ${inputFile}\nOutput: ${weldPath}`);
-    //         } catch (e) {
-    //             fail('Weld Conversion', e?.message || String(e));
-    //             finalizeCase();
-    //             return;
-    //         }
+            const fail = (stage, message, extra = '') => {
+                result.passed = false;
+                result.failures.push({ stage, message, extra });
+                assertion.log(`${caseKey}: ${stage}`, message, 'No failure expected', 'FAIL', extra, info);
+            };
+            const passLog = (stage, message, extra = '') => {
+                assertion.log(`${caseKey}: ${stage}`, message, 'Success', 'PASS', extra, info);
+            };
+            const finalizeCase = () => {
+                assertion.log(
+                    `${caseKey}: Overall Case Result`,
+                    result.passed ? 'PASS' : 'FAIL',
+                    'PASS',
+                    result.passed ? 'PASS' : 'FAIL',
+                    result.passed ? 'All assertions in this case passed' : 'At least one assertion failed in this case',
+                    info
+                );
+            };
 
-    //         // Status config apply + UI extraction
-    //         let uiResult = { filePath: null };
-    //         try {
-    //             await status.applyStatusConfiguration(slopeIn, slopeOut);
-    //             passLog('Apply Slope', `Applied In:${slopeIn}, Out:${slopeOut}`);
+            try {
+                await goToProjectsPage(projectName);
+                await helper.selectProject(projectName);
+                passLog('Login/Navigation', `Project opened: ${projectName}`);
+            } catch (e) {
+                fail('Login/Navigation', e?.message || String(e));
+                finalizeCase();
+                return;
+            }
 
-    //             if (!scFc.statusConfigUIExtraction) {
-    //                 fail('UI Extraction', 'Disabled in StatusConfigCompareFlow.flowControl');
-    //                 finalizeCase();
-    //                 return;
-    //             }
+            try {
+                if (!scFc.weldParameterExtraction) {
+                    fail('Weld Conversion', 'statusConfigCompareFlow.flowControl.weldParameterExtraction=false');
+                    finalizeCase();
+                    return;
+                }
+                if (!weldParameterInputFile) {
+                    fail('Weld Conversion', 'weldParameterInputFile is required');
+                    finalizeCase();
+                    return;
+                }
+                const opts = { projectName };
+                if (weldParameterInputFile.toLowerCase().endsWith('.csv')) {
+                    weldPath = await new WeldParametersCsvToExcel(weldParameterInputFile, opts).run();
+                } else if (weldParameterInputFile.toLowerCase().endsWith('.xml')) {
+                    weldPath = await new WeldParametersXmlToExcel(weldParameterInputFile, opts).run();
+                } else {
+                    fail('Weld Conversion', `Unsupported weld parameter file type: ${weldParameterInputFile}`);
+                    finalizeCase();
+                    return;
+                }
+                if (!weldPath || !fs.existsSync(weldPath)) {
+                    fail('Weld Conversion', `Weld Excel does not exist: ${weldPath || 'empty path'}`);
+                    finalizeCase();
+                    return;
+                }
+                passLog('Weld Excel Generated', weldPath, `Input: ${weldParameterInputFile}\nOutput: ${weldPath}`);
+            } catch (e) {
+                fail('Weld Conversion', e?.message || String(e));
+                finalizeCase();
+                return;
+            }
 
-    //             uiResult = await statusConfigPass.run(projectName, slopeIn, slopeOut, calcMethod);
-    //             await statusConfigPass.goBackToProduction();
-    //             uiPath = uiResult?.filePath || null;
+            try {
+                await status.applyStatusConfiguration(slopeIn, slopeOut);
+                passLog('Apply Slope', `Applied In:${slopeIn}, Out:${slopeOut}`);
 
-    //             if (!uiPath || !fs.existsSync(uiPath)) {
-    //                 fail('UI Extraction', `UI Excel missing: ${uiPath || 'empty path'}`);
-    //                 finalizeCase();
-    //                 return;
-    //             }
-    //             passLog('UI Excel Generated', uiPath);
-    //         } catch (e) {
-    //             fail('UI Extraction', e?.message || String(e));
-    //             finalizeCase();
-    //             return;
-    //         }
+                if (!scFc.statusConfigUIExtraction) {
+                    fail('UI Extraction', 'statusConfigCompareFlow.flowControl.statusConfigUIExtraction=false');
+                    finalizeCase();
+                    return;
+                }
 
-    //         // Compare
-    //         try {
-    //             if (!scFc.statusConfigComparison) {
-    //                 passLog('Comparison Skipped', 'statusConfigComparison=false');
-    //                 finalizeCase();
-    //                 return;
-    //             }
-    //             passLog('Comparison Inputs', `weld=${weldPath}`, `ui=${uiPath}`);
+                uiResult = await statusConfigPass.run(projectName, slopeIn, slopeOut, calcMethod);
+                await statusConfigPass.goBackToProduction();
+                uiPath = uiResult?.filePath || null;
+                if (!uiPath || !fs.existsSync(uiPath)) {
+                    fail('UI Extraction', `UI Excel does not exist: ${uiPath || 'empty path'}`);
+                    finalizeCase();
+                    return;
+                }
+                passLog('UI Excel Generated', uiPath);
+            } catch (e) {
+                fail('UI Extraction', e?.message || String(e));
+                finalizeCase();
+                return;
+            }
 
-    //             const comparer = new StatusConfigCompare(
-    //                 weldPath,
-    //                 uiPath,
-    //                 scCompareCfg.weldSheetName || null,
-    //                 uiResult?.weldDetails?.['Job Number'] ?? null,
-    //                 projectName
-    //             );
-    //             comparePath = await comparer.run();
-    //             if (!comparePath || !fs.existsSync(comparePath)) {
-    //                 fail('Comparison Output', `Comparison Excel missing: ${comparePath || 'empty path'}`);
-    //                 finalizeCase();
-    //                 return;
-    //             }
+            if (!scFc.statusConfigComparison) {
+                passLog('Comparison Skipped', 'statusConfigComparison=false');
+                finalizeCase();
+                return;
+            }
 
-    //             let hasMismatch = false;
-    //             const wb = new ExcelJS.Workbook();
-    //             await wb.xlsx.readFile(comparePath);
-    //             wb.eachSheet(sheet => {
-    //                 sheet.eachRow(row => {
-    //                     row.eachCell(cell => {
-    //                         if (cell.fill?.fgColor?.argb?.includes('FFFFC7CE')) hasMismatch = true;
-    //                     });
-    //                 });
-    //             });
+            passLog('Comparison Inputs', `weld=${weldPath}`, `ui=${uiPath}`);
 
-    //             if (hasMismatch) {
-    //                 fail(
-    //                     'StatusConfig vs WeldParam Comparison',
-    //                     'Mismatch found',
-    //                     `WeldExcel: ${weldPath}\nUIExcel: ${uiPath}\nCompare: ${comparePath}`
-    //                 );
-    //             } else {
-    //                 passLog(
-    //                     'StatusConfig vs WeldParam Comparison',
-    //                     'No mismatches detected',
-    //                     `WeldExcel: ${weldPath}\nUIExcel: ${uiPath}\nCompare: ${comparePath}`
-    //                 );
-    //             }
-    //         } catch (e) {
-    //             fail('StatusConfigCompare.run()', e?.message || String(e));
-    //         }
-    //         finalizeCase();
-    //     };
+            try {
+                const comparer = new StatusConfigCompare(
+                    weldPath,
+                    uiPath,
+                    scCompareCfg.weldSheetName || null,
+                    uiResult?.weldDetails?.['Job Number'] ?? null,
+                    projectName
+                );
+                comparePath = await comparer.run();
+            } catch (e) {
+                fail('StatusConfigCompare.run()', e?.message || String(e));
+                finalizeCase();
+                return;
+            }
 
-    //     // Keep order as requested: CSVp600z first, then p625.
-    //     await runCase('p600z', scCases.p600z);
-    //     await runCase('p625', scCases.p625);
-    // });
+            if (!comparePath || !fs.existsSync(comparePath)) {
+                fail('Comparison Output', `Comparison Excel does not exist: ${comparePath || 'empty path'}`);
+                finalizeCase();
+                return;
+            }
+
+            try {
+                let hasMismatch = false;
+                const wb = new ExcelJS.Workbook();
+                await wb.xlsx.readFile(comparePath);
+                wb.eachSheet(sheet => {
+                    sheet.eachRow(row => {
+                        row.eachCell(cell => {
+                            if (cell.fill?.fgColor?.argb?.includes('FFFFC7CE')) hasMismatch = true;
+                        });
+                    });
+                });
+
+                if (hasMismatch) {
+                    fail(
+                        'StatusConfig vs WeldParam Comparison',
+                        'Mismatch found',
+                        `WeldExcel: ${weldPath}\nUIExcel: ${uiPath}\nCompare: ${comparePath}`
+                    );
+                } else {
+                    passLog(
+                        'StatusConfig vs WeldParam Comparison',
+                        'No mismatches detected',
+                        `WeldExcel: ${weldPath}\nUIExcel: ${uiPath}\nCompare: ${comparePath}`
+                    );
+                }
+            } catch (e) {
+                fail('Mismatch Detection', e?.message || String(e), `comparePath=${comparePath}`);
+            }
+
+            finalizeCase();
+            await goToProjectsPage();
+        };
+
+        // Keep the same order as the dedicated status compare spec.
+        await runCase('p600z', scCases.p600z);
+        await runCase('p625', scCases.p625);
+    });
 
     // ═════════════════════════════════════════════════════════════════════
     // FINAL
