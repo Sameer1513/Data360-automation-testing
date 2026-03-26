@@ -256,6 +256,7 @@ test.describe.serial('Device Register, Assign and Sync', () => {
   }, {});
 
   test('singleProject-Assign-SingleDataSync', async ({ browser }) => {
+    test.setTimeout(60000);
     const c = byId.test1;
     test.skip(!c?.enabled, 'test1 disabled in json');
     await runCaseWithBrowser(browser, c);

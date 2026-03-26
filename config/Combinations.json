@@ -5,12 +5,12 @@
     "runExtraction": true,
     "BoltDBExcel": true,
     "login": true,
-    "createProject": false,
-    "deviceRegistration": false,
+    "createProject": true,
+    "deviceRegistration": true,
     "setup": true,
     "deviceSync": true,
     "productionAnalysis": true,
-    "statusConfigCompareFlowAtEnd": false,
+    "statusConfigCompareFlowAtEnd": true,
     "comparison": true
   },
   "createProjectData": {
@@ -44,8 +44,8 @@
       "enabled": true,
       "files": [
         {
-          "exe": "data360-serial-win.exe",
-          "db": "bolt_station2_cw.db",
+          "exe": "",
+          "db": "mergep600ccwtimesorted.db",
           "param": "p600z_example.csv"
         }
       ]
@@ -67,7 +67,7 @@
     }
   },
   "singleProject": {
-    "projectName": "statusConfig-2",
+    "projectName": "EtoEAllSpecFile",
     "projectNumber": "152",
     "location": "ANDORRA",
     "customer": "advanced engg",
@@ -75,7 +75,7 @@
     "endDate": "20-Feb-2026",
     "projectStatus": "Initiated",
     "projectType": "Pipeline",
-    "weldParamsInputFile": "Input/p600z_example.csv",
+    "weldParamsInputFile": "Input/WeldParameters.WPa.xml",
     "pipelineFeatures": [
       "Welding"
     ],
@@ -88,8 +88,8 @@
       "P-625",
       "M-500"
     ],
-    "sourceFile": "bolt_station2_cw.txt",
-    "weldIds": "152",
+    "sourceFile": "bolt_station3_cw.txt",
+    "weldIds": "145",
     "statusConfigPath": "exports/StatusConfig UI/XML_StatusConfig_UI.xlsx",
     "weldParamsPath": "exports/CSVp600z/WeldParameters_Converted.xlsx",
     "slopeCombinations": [
@@ -122,7 +122,7 @@
           "Voltage": 1,
           "Current": 1,
           "Wire Speed": 0,
-          "Oscillation Width": 3,
+          "Oscillation Width": 2,
           "Target": 0,
           "Horizontal Bias": 2,
           "Frequency": 0,
@@ -317,5 +317,5 @@
       }
     }
   ],
-  "capturedDeviceId": "DESKTOP-32QBMO9"
+  "capturedDeviceId": "DESKTOP-22BSEM2"
 }

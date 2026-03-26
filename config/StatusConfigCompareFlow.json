@@ -14,8 +14,8 @@
   "cases": {
     "p600z": {
       "enabled": true,
-      "projectName": "CSV1",
-      "weldParameterInputFile": "Input/p600z_example.csv",
+      "projectName": "CSV5",
+      "weldParameterInputFile": "Input/p600z_exampleE.csv",
       "slopeIn": 0,
       "slopeOut": 0,
       "calculationMethod": "Average Pass" 
