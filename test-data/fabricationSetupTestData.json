@@ -1,0 +1,365 @@
+{
+  "project": {
+    "expectedTitle": "Setup Project Test cases"
+  },
+  "pipefitter": {
+    "toeSeamSeparationMinMm": 200,
+    "seamCapWidthMaxMm": 22,
+    "sixOclockExclusionDeg": 60,
+    "highlightType": "Tolerance (min / max)",
+    "nominalId": 10.5,
+    "idTolerance": 0.1,
+    "odTolerance": 0.1,
+    "hiloWpsLimitMm": 1,
+    "excessiveHiloLengthLimitDeg": 10,
+    "hiloPreferredLimitTopMm": 1,
+    "hiloPreferredLimitMiddleMm": 1,
+    "hiloPreferredLimitLowerMm": 1,
+    "nominalPipeLength": 120,
+    "targetNumberOfPipes": 2,
+    "targetPipelineLength": 240,
+    "weldSeamExclusionDeg": 10,
+    "nominalOd": 12,
+    "pipeMaterial": "Carbon Steel",
+    "nominalOdMin": 11,
+    "nominalOdMax": 13,
+    "nominalIdMin": 10,
+    "nominalIdMax": 11,
+    "pipeType": "Seamless",
+    "pipeMode": "Double Joint",
+    "pipeSequence": "Individual",
+    "pipeRotation": "ClockWise"
+  },
+  "fabrication": {
+    "buckleArrestor": {
+      "numberOfPipeSizes": 1,
+      "pipe1": {
+        "pipeSize": 10,
+        "wallThickness": 1.2,
+        "numberOfPipes": 1,
+        "pipeLength": 120,
+        "buckleArrestors": 2,
+        "numberOfForges": 1,
+        "outputAssemblyLength": 300,
+        "assemblyNamePrefix": "Assy",
+        "manufacturer": "American",
+        "wpsNumber1": "WPS-BA-001"
+      }
+    },
+    "pipeInPipe": {
+      "numberOfPipeSizes": 1,
+      "pipe1": {
+        "pipeSize": 10,
+        "wallThickness": 1.2,
+        "numberOfPipes": 1,
+        "pipeLength": 120,
+        "numberOfForges": 1,
+        "outputAssemblyLength": 300,
+        "assemblyNamePrefix": "Assy",
+        "manufacturer": "American",
+        "wpsNumber1": "WPS-PIP-001"
+      }
+    },
+    "bulkHead": {
+      "numberOfPipeSizes": 1,
+      "pipe1": {
+        "pipeSize": 10,
+        "wallThickness": 1.2,
+        "numberOfPipes": 1,
+        "pipeLength": 120,
+        "buckleArrestors": 1,
+        "outputAssemblyLength": 300,
+        "assemblyNamePrefix": "Assy",
+        "manufacturer": "American",
+        "wpsNumber1": "WPS-BH-001"
+      }
+    }
+  },
+  "pipefitterEdit": {
+    "toeSeamSeparationMinMm": 180,
+    "seamCapWidthMaxMm": 20,
+    "sixOclockExclusionDeg": 55,
+    "highlightType": "Tolerance (min / max)",
+    "nominalId": 11.2,
+    "idTolerance": 0.1,
+    "odTolerance": 0.1,
+    "hiloWpsLimitMm": 2,
+    "excessiveHiloLengthLimitDeg": 9,
+    "hiloPreferredLimitTopMm": 2,
+    "hiloPreferredLimitMiddleMm": 2,
+    "hiloPreferredLimitLowerMm": 2,
+    "nominalPipeLength": 140,
+    "targetNumberOfPipes": 3,
+    "targetPipelineLength": 420,
+    "weldSeamExclusionDeg": 12,
+    "nominalOd": 13,
+    "pipeMaterial": "Alloy Steel",
+    "nominalOdMin": 12,
+    "nominalOdMax": 14,
+    "nominalIdMin": 10.8,
+    "nominalIdMax": 11.6,
+    "pipeType": "Seam",
+    "pipeMode": "Double Jointing",
+    "pipeSequence": "Sequence",
+    "pipeRotation": "Anti-ClockWise"
+  },
+  "fabricationEdit": {
+    "buckleArrestor": {
+      "numberOfPipeSizes": 1,
+      "pipe1": {
+        "pipeSize": 12,
+        "wallThickness": 1.5,
+        "numberOfPipes": 2,
+        "pipeLength": 140,
+        "buckleArrestors": 3,
+        "numberOfForges": 2,
+        "outputAssemblyLength": 340,
+        "assemblyNamePrefix": "AssyEditBA",
+        "manufacturer": "Berg Pipe",
+        "wpsNumber1": "WPS-BA-101"
+      }
+    },
+    "pipeInPipe": {
+      "numberOfPipeSizes": 1,
+      "pipe1": {
+        "pipeSize": 12,
+        "wallThickness": 1.5,
+        "numberOfPipes": 2,
+        "pipeLength": 140,
+        "numberOfForges": 2,
+        "outputAssemblyLength": 340,
+        "assemblyNamePrefix": "AssyEditPIP",
+        "manufacturer": "Cimtas",
+        "wpsNumber1": "WPS-PIP-101"
+      }
+    },
+    "bulkHead": {
+      "numberOfPipeSizes": 1,
+      "pipe1": {
+        "pipeSize": 12,
+        "wallThickness": 1.5,
+        "numberOfPipes": 2,
+        "pipeLength": 140,
+        "buckleArrestors": 2,
+        "outputAssemblyLength": 340,
+        "assemblyNamePrefix": "AssyEditBH",
+        "manufacturer": "Campipe",
+        "wpsNumber1": "WPS-BH-101"
+      }
+    }
+  },
+  "pipefitterMultiPipe": {
+    "toeSeamSeparationMinMm": 175,
+    "seamCapWidthMaxMm": 19,
+    "sixOclockExclusionDeg": 50,
+    "highlightType": "Tolerance (min / max)",
+    "nominalId": 11.3,
+    "idTolerance": 0.1,
+    "odTolerance": 0.1,
+    "hiloWpsLimitMm": 2,
+    "excessiveHiloLengthLimitDeg": 8,
+    "hiloPreferredLimitTopMm": 2,
+    "hiloPreferredLimitMiddleMm": 2,
+    "hiloPreferredLimitLowerMm": 2,
+    "nominalPipeLength": 145,
+    "targetNumberOfPipes": 3,
+    "targetPipelineLength": 435,
+    "weldSeamExclusionDeg": 11,
+    "nominalOd": 13,
+    "pipeMaterial": "Alloy Steel",
+    "nominalOdMin": 12,
+    "nominalOdMax": 14,
+    "nominalIdMin": 10.9,
+    "nominalIdMax": 11.7,
+    "pipeType": "Seam",
+    "pipeMode": "Double Jointing",
+    "pipeSequence": "Sequence",
+    "pipeRotation": "Anti-ClockWise"
+  },
+  "fabricationMultiPipe": {
+    "buckleArrestor": {
+      "numberOfPipeSizes": 2,
+      "pipe2": {
+        "pipeSize": 14,
+        "wallThickness": 1.6,
+        "numberOfPipes": 3,
+        "pipeLength": 150,
+        "buckleArrestors": 4,
+        "numberOfForges": 2,
+        "outputAssemblyLength": 360,
+        "assemblyNamePrefix": "BAMulti2",
+        "manufacturer": "Cimtas",
+        "numberOfWps": 2,
+        "wpsNumbers": ["WPS-BA-M3", "WPS-BA-M4"]
+      }
+    },
+    "pipeInPipe": {
+      "numberOfPipeSizes": 3,
+      "pipe2": {
+        "pipeSize": 14,
+        "wallThickness": 1.6,
+        "numberOfPipes": 3,
+        "pipeLength": 150,
+        "numberOfForges": 3,
+        "outputAssemblyLength": 360,
+        "assemblyNamePrefix": "PIPMulti2",
+        "manufacturer": "Cimtas",
+        "numberOfWps": 3,
+        "wpsNumbers": ["WPS-PIP-M4", "WPS-PIP-M5", "WPS-PIP-M6"]
+      },
+      "pipe3": {
+        "pipeSize": 16,
+        "wallThickness": 1.8,
+        "numberOfPipes": 4,
+        "pipeLength": 170,
+        "numberOfForges": 3,
+        "outputAssemblyLength": 390,
+        "assemblyNamePrefix": "PIPMulti3",
+        "manufacturer": "Campipe",
+        "numberOfWps": 3,
+        "wpsNumbers": ["WPS-PIP-M7", "WPS-PIP-M8", "WPS-PIP-M9"]
+      }
+    },
+    "bulkHead": {
+      "numberOfPipeSizes": 2,
+      "pipe2": {
+        "pipeSize": 14,
+        "wallThickness": 1.6,
+        "numberOfPipes": 3,
+        "pipeLength": 150,
+        "buckleArrestors": 3,
+        "outputAssemblyLength": 360,
+        "assemblyNamePrefix": "BHMulti2",
+        "manufacturer": "Campipe",
+        "numberOfWps": 4,
+        "wpsNumbers": ["WPS-BH-M5", "WPS-BH-M6", "WPS-BH-M7", "WPS-BH-M8"]
+      }
+    }
+  },
+  "pipefitterMultiPipeEdit": {
+    "toeSeamSeparationMinMm": 170,
+    "seamCapWidthMaxMm": 18,
+    "sixOclockExclusionDeg": 48,
+    "highlightType": "Tolerance (min / max)",
+    "nominalId": 12.6,
+    "idTolerance": 0.1,
+    "odTolerance": 0.1,
+    "hiloWpsLimitMm": 3,
+    "excessiveHiloLengthLimitDeg": 7,
+    "hiloPreferredLimitTopMm": 3,
+    "hiloPreferredLimitMiddleMm": 3,
+    "hiloPreferredLimitLowerMm": 3,
+    "nominalPipeLength": 155,
+    "targetNumberOfPipes": 4,
+    "targetPipelineLength": 620,
+    "weldSeamExclusionDeg": 13,
+    "nominalOd": 15,
+    "pipeMaterial": "Stainless Steel",
+    "nominalOdMin": 14,
+    "nominalOdMax": 16,
+    "nominalIdMin": 12.2,
+    "nominalIdMax": 13.1,
+    "pipeType": "Seamless",
+    "pipeMode": "Double Joint",
+    "pipeSequence": "Individual",
+    "pipeRotation": "ClockWise"
+  },
+  "fabricationMultiPipeEdit": {
+    "buckleArrestor": {
+      "numberOfPipeSizes": 2,
+      "pipe1": {
+        "pipeSize": 13,
+        "wallThickness": 1.7,
+        "numberOfPipes": 2,
+        "pipeLength": 150,
+        "buckleArrestors": 3,
+        "numberOfForges": 2,
+        "outputAssemblyLength": 350,
+        "assemblyNamePrefix": "BAEdit1",
+        "manufacturer": "Euro Pipe",
+        "numberOfWps": 2,
+        "wpsNumbers": ["WPS-BA-E1", "WPS-BA-E2"]
+      },
+      "pipe2": {
+        "pipeSize": 15,
+        "wallThickness": 1.9,
+        "numberOfPipes": 4,
+        "pipeLength": 165,
+        "buckleArrestors": 5,
+        "numberOfForges": 3,
+        "outputAssemblyLength": 380,
+        "assemblyNamePrefix": "BAEdit2",
+        "manufacturer": "Tenaris",
+        "numberOfWps": 2,
+        "wpsNumbers": ["WPS-BA-E3", "WPS-BA-E4"]
+      }
+    },
+    "pipeInPipe": {
+      "numberOfPipeSizes": 3,
+      "pipe1": {
+        "pipeSize": 13,
+        "wallThickness": 1.7,
+        "numberOfPipes": 2,
+        "pipeLength": 150,
+        "numberOfForges": 2,
+        "outputAssemblyLength": 350,
+        "assemblyNamePrefix": "PIPEdit1",
+        "manufacturer": "Campipe",
+        "numberOfWps": 2,
+        "wpsNumbers": ["WPS-PIP-E1", "WPS-PIP-E2"]
+      },
+      "pipe2": {
+        "pipeSize": 15,
+        "wallThickness": 1.9,
+        "numberOfPipes": 4,
+        "pipeLength": 165,
+        "numberOfForges": 4,
+        "outputAssemblyLength": 380,
+        "assemblyNamePrefix": "PIPEdit2",
+        "manufacturer": "British Steel",
+        "numberOfWps": 3,
+        "wpsNumbers": ["WPS-PIP-E3", "WPS-PIP-E4", "WPS-PIP-E5"]
+      },
+      "pipe3": {
+        "pipeSize": 17,
+        "wallThickness": 2,
+        "numberOfPipes": 5,
+        "pipeLength": 185,
+        "numberOfForges": 4,
+        "outputAssemblyLength": 410,
+        "assemblyNamePrefix": "PIPEdit3",
+        "manufacturer": "Kawasaki",
+        "numberOfWps": 3,
+        "wpsNumbers": ["WPS-PIP-E6", "WPS-PIP-E7", "WPS-PIP-E8"]
+      }
+    },
+    "bulkHead": {
+      "numberOfPipeSizes": 2,
+      "pipe1": {
+        "pipeSize": 13,
+        "wallThickness": 1.7,
+        "numberOfPipes": 2,
+        "pipeLength": 150,
+        "buckleArrestors": 2,
+        "outputAssemblyLength": 350,
+        "assemblyNamePrefix": "BHEdit1",
+        "manufacturer": "Cimtas",
+        "numberOfWps": 2,
+        "wpsNumbers": ["WPS-BH-E1", "WPS-BH-E2"]
+      },
+      "pipe2": {
+        "pipeSize": 15,
+        "wallThickness": 1.9,
+        "numberOfPipes": 4,
+        "pipeLength": 165,
+        "buckleArrestors": 4,
+        "outputAssemblyLength": 380,
+        "assemblyNamePrefix": "BHEdit2",
+        "manufacturer": "Wellspun",
+        "numberOfWps": 4,
+        "wpsNumbers": ["WPS-BH-E3", "WPS-BH-E4", "WPS-BH-E5", "WPS-BH-E6"]
+      }
+    }
+  }
+}
+

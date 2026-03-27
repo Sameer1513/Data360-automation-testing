@@ -1,0 +1,752 @@
+{
+  "projectId": null,
+  "projectName": "Setup Project Test cases",
+  "projectNumber": "ST1",
+  "location": "INDIA",
+  "customer": "Logycent",
+  "unit": "in",
+  "startDate": "2026-03-17",
+  "endDate": "2026-03-24",
+  "createdBy": "Chandu",
+  "createdFromApp": "Data-360-Platform",
+  "progress": "Active",
+  "projectTypes": {
+    "pipeline": {
+      "enabled": true,
+      "features": {
+        "materialTraceability": {
+          "enabled": true,
+          "machines": {}
+        },
+        "pipeFitter": {
+          "enabled": true,
+          "machines": {}
+        },
+        "welding": {
+          "enabled": true,
+          "machines": {
+            "IWM": {
+              "enabled": true,
+              "category": "CRCE",
+              "feature": "WELDING"
+            },
+            "P625": {
+              "enabled": true,
+              "category": "CRCE",
+              "feature": "WELDING"
+            },
+            "P600Z": {
+              "enabled": true,
+              "category": "CRCE",
+              "feature": "WELDING"
+            },
+            "M500": {
+              "enabled": true,
+              "category": "CRCE",
+              "feature": "WELDING"
+            },
+            "Manual": {
+              "enabled": false,
+              "category": "NonCRCE",
+              "feature": "WELDING",
+              "nonCRCMachines": {
+                "enabled": false,
+                "machines": {}
+              }
+            },
+            "competitorMachine": {
+              "enabled": false,
+              "category": "NonCRCE",
+              "feature": "WELDING",
+              "nonCRCMachines": {
+                "enabled": false,
+                "machines": {}
+              }
+            }
+          }
+        },
+        "ndt": {
+          "enabled": false,
+          "machines": {}
+        },
+        "coating": {
+          "enabled": false,
+          "machines": {}
+        }
+      },
+      "options": {
+        "buckleArrestor": {
+          "selected": false,
+          "features": {
+            "materialTraceability": {
+              "enabled": false,
+              "machines": {}
+            },
+            "pipeFitter": {
+              "enabled": false,
+              "machines": {}
+            },
+            "welding": {
+              "enabled": false,
+              "machines": {
+                "IWM": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P625": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P600Z": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "M500": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "Manual": {
+                  "enabled": false,
+                  "category": "NonCRCE",
+                  "feature": "WELDING",
+                  "nonCRCMachines": {
+                    "enabled": false,
+                    "machines": {}
+                  }
+                },
+                "competitorMachine": {
+                  "enabled": false,
+                  "category": "NonCRCE",
+                  "feature": "WELDING",
+                  "nonCRCMachines": {
+                    "enabled": false,
+                    "machines": {}
+                  }
+                }
+              }
+            },
+            "ndt": {
+              "enabled": false,
+              "machines": {}
+            },
+            "coating": {
+              "enabled": false,
+              "machines": {}
+            }
+          },
+          "isDocumentAvailable": false,
+          "isPipeAvailable": false
+        },
+        "pipeInPipe": {
+          "selected": false,
+          "features": {
+            "materialTraceability": {
+              "enabled": false,
+              "machines": {}
+            },
+            "pipeFitter": {
+              "enabled": false,
+              "machines": {}
+            },
+            "welding": {
+              "enabled": false,
+              "machines": {
+                "IWM": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P625": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P600Z": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "M500": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "Manual": {
+                  "enabled": false,
+                  "category": "NonCRCE",
+                  "feature": "WELDING",
+                  "nonCRCMachines": {
+                    "enabled": false,
+                    "machines": {}
+                  }
+                },
+                "competitorMachine": {
+                  "enabled": false,
+                  "category": "NonCRCE",
+                  "feature": "WELDING",
+                  "nonCRCMachines": {
+                    "enabled": false,
+                    "machines": {}
+                  }
+                }
+              }
+            },
+            "ndt": {
+              "enabled": false,
+              "machines": {}
+            },
+            "coating": {
+              "enabled": false,
+              "machines": {}
+            }
+          },
+          "isDocumentAvailable": false,
+          "isPipeAvailable": false
+        },
+        "bulkhead": {
+          "selected": false,
+          "features": {
+            "materialTraceability": {
+              "enabled": false,
+              "machines": {}
+            },
+            "pipeFitter": {
+              "enabled": false,
+              "machines": {}
+            },
+            "welding": {
+              "enabled": false,
+              "machines": {
+                "IWM": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P625": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P600Z": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "M500": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "Manual": {
+                  "enabled": false,
+                  "category": "NonCRCE",
+                  "feature": "WELDING",
+                  "nonCRCMachines": {
+                    "enabled": false,
+                    "machines": {}
+                  }
+                },
+                "competitorMachine": {
+                  "enabled": false,
+                  "category": "NonCRCE",
+                  "feature": "WELDING",
+                  "nonCRCMachines": {
+                    "enabled": false,
+                    "machines": {}
+                  }
+                }
+              }
+            },
+            "ndt": {
+              "enabled": false,
+              "machines": {}
+            },
+            "coating": {
+              "enabled": false,
+              "machines": {}
+            }
+          },
+          "isDocumentAvailable": false,
+          "isPipeAvailable": false
+        }
+      },
+      "isDocumentAvailable": false,
+      "isPipeAvailable": false
+    },
+    "fabrication": {
+      "enabled": true,
+      "features": {
+        "materialTraceability": {
+          "enabled": false,
+          "machines": {}
+        },
+        "pipeFitter": {
+          "enabled": false,
+          "machines": {}
+        },
+        "welding": {
+          "enabled": false,
+          "machines": {
+            "IWM": {
+              "enabled": false,
+              "category": "CRCE",
+              "feature": "WELDING"
+            },
+            "P625": {
+              "enabled": false,
+              "category": "CRCE",
+              "feature": "WELDING"
+            },
+            "P600Z": {
+              "enabled": false,
+              "category": "CRCE",
+              "feature": "WELDING"
+            },
+            "M500": {
+              "enabled": false,
+              "category": "CRCE",
+              "feature": "WELDING"
+            },
+            "Manual": {
+              "enabled": false,
+              "category": "NonCRCE",
+              "feature": "WELDING",
+              "nonCRCMachines": {
+                "enabled": false,
+                "machines": {}
+              }
+            },
+            "competitorMachine": {
+              "enabled": false,
+              "category": "NonCRCE",
+              "feature": "WELDING",
+              "nonCRCMachines": {
+                "enabled": false,
+                "machines": {}
+              }
+            }
+          }
+        },
+        "ndt": {
+          "enabled": false,
+          "machines": {}
+        },
+        "coating": {
+          "enabled": false,
+          "machines": {}
+        }
+      },
+      "options": {
+        "buckleArrestor": {
+          "selected": true,
+          "features": {
+            "materialTraceability": {
+              "enabled": true,
+              "machines": {}
+            },
+            "pipeFitter": {
+              "enabled": true,
+              "machines": {}
+            },
+            "welding": {
+              "enabled": true,
+              "machines": {
+                "IWM": {
+                  "enabled": true,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P625": {
+                  "enabled": true,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P600Z": {
+                  "enabled": true,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "M500": {
+                  "enabled": true,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                }
+              }
+            },
+            "ndt": {
+              "enabled": false,
+              "machines": {}
+            },
+            "coating": {
+              "enabled": false,
+              "machines": {}
+            }
+          }
+        },
+        "pipeInPipe": {
+          "selected": true,
+          "features": {
+            "materialTraceability": {
+              "enabled": true,
+              "machines": {}
+            },
+            "pipeFitter": {
+              "enabled": true,
+              "machines": {}
+            },
+            "welding": {
+              "enabled": true,
+              "machines": {
+                "IWM": {
+                  "enabled": true,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P625": {
+                  "enabled": true,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P600Z": {
+                  "enabled": true,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "M500": {
+                  "enabled": true,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                }
+              }
+            },
+            "ndt": {
+              "enabled": false,
+              "machines": {}
+            },
+            "coating": {
+              "enabled": false,
+              "machines": {}
+            }
+          }
+        },
+        "bulkhead": {
+          "selected": true,
+          "features": {
+            "materialTraceability": {
+              "enabled": true,
+              "machines": {}
+            },
+            "pipeFitter": {
+              "enabled": true,
+              "machines": {}
+            },
+            "welding": {
+              "enabled": true,
+              "machines": {
+                "IWM": {
+                  "enabled": true,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P625": {
+                  "enabled": true,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P600Z": {
+                  "enabled": true,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "M500": {
+                  "enabled": true,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                }
+              }
+            },
+            "ndt": {
+              "enabled": false,
+              "machines": {}
+            },
+            "coating": {
+              "enabled": false,
+              "machines": {}
+            }
+          }
+        }
+      }
+    },
+    "others": {
+      "enabled": true,
+      "features": {
+        "materialTraceability": {
+          "enabled": true,
+          "machines": {}
+        },
+        "pipeFitter": {
+          "enabled": true,
+          "machines": {}
+        },
+        "welding": {
+          "enabled": true,
+          "machines": {
+            "IWM": {
+              "enabled": true,
+              "category": "CRCE",
+              "feature": "WELDING"
+            },
+            "P625": {
+              "enabled": true,
+              "category": "CRCE",
+              "feature": "WELDING"
+            },
+            "P600Z": {
+              "enabled": true,
+              "category": "CRCE",
+              "feature": "WELDING"
+            },
+            "M500": {
+              "enabled": true,
+              "category": "CRCE",
+              "feature": "WELDING"
+            },
+            "Manual": {
+              "enabled": false,
+              "category": "NonCRCE",
+              "feature": "WELDING",
+              "nonCRCMachines": {
+                "enabled": false,
+                "machines": {}
+              }
+            },
+            "competitorMachine": {
+              "enabled": false,
+              "category": "NonCRCE",
+              "feature": "WELDING",
+              "nonCRCMachines": {
+                "enabled": false,
+                "machines": {}
+              }
+            }
+          }
+        },
+        "ndt": {
+          "enabled": false,
+          "machines": {}
+        },
+        "coating": {
+          "enabled": false,
+          "machines": {}
+        }
+      },
+      "options": {
+        "buckleArrestor": {
+          "selected": false,
+          "features": {
+            "materialTraceability": {
+              "enabled": false,
+              "machines": {}
+            },
+            "pipeFitter": {
+              "enabled": false,
+              "machines": {}
+            },
+            "welding": {
+              "enabled": false,
+              "machines": {
+                "IWM": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P625": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P600Z": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "M500": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "Manual": {
+                  "enabled": false,
+                  "category": "NonCRCE",
+                  "feature": "WELDING",
+                  "nonCRCMachines": {
+                    "enabled": false,
+                    "machines": {}
+                  }
+                },
+                "competitorMachine": {
+                  "enabled": false,
+                  "category": "NonCRCE",
+                  "feature": "WELDING",
+                  "nonCRCMachines": {
+                    "enabled": false,
+                    "machines": {}
+                  }
+                }
+              }
+            },
+            "ndt": {
+              "enabled": false,
+              "machines": {}
+            },
+            "coating": {
+              "enabled": false,
+              "machines": {}
+            }
+          },
+          "isDocumentAvailable": false,
+          "isPipeAvailable": false
+        },
+        "pipeInPipe": {
+          "selected": false,
+          "features": {
+            "materialTraceability": {
+              "enabled": false,
+              "machines": {}
+            },
+            "pipeFitter": {
+              "enabled": false,
+              "machines": {}
+            },
+            "welding": {
+              "enabled": false,
+              "machines": {
+                "IWM": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P625": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P600Z": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "M500": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "Manual": {
+                  "enabled": false,
+                  "category": "NonCRCE",
+                  "feature": "WELDING",
+                  "nonCRCMachines": {
+                    "enabled": false,
+                    "machines": {}
+                  }
+                },
+                "competitorMachine": {
+                  "enabled": false,
+                  "category": "NonCRCE",
+                  "feature": "WELDING",
+                  "nonCRCMachines": {
+                    "enabled": false,
+                    "machines": {}
+                  }
+                }
+              }
+            },
+            "ndt": {
+              "enabled": false,
+              "machines": {}
+            },
+            "coating": {
+              "enabled": false,
+              "machines": {}
+            }
+          },
+          "isDocumentAvailable": false,
+          "isPipeAvailable": false
+        },
+        "bulkhead": {
+          "selected": false,
+          "features": {
+            "materialTraceability": {
+              "enabled": false,
+              "machines": {}
+            },
+            "pipeFitter": {
+              "enabled": false,
+              "machines": {}
+            },
+            "welding": {
+              "enabled": false,
+              "machines": {
+                "IWM": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P625": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "P600Z": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "M500": {
+                  "enabled": false,
+                  "category": "CRCE",
+                  "feature": "WELDING"
+                },
+                "Manual": {
+                  "enabled": false,
+                  "category": "NonCRCE",
+                  "feature": "WELDING",
+                  "nonCRCMachines": {
+                    "enabled": false,
+                    "machines": {}
+                  }
+                },
+                "competitorMachine": {
+                  "enabled": false,
+                  "category": "NonCRCE",
+                  "feature": "WELDING",
+                  "nonCRCMachines": {
+                    "enabled": false,
+                    "machines": {}
+                  }
+                }
+              }
+            },
+            "ndt": {
+              "enabled": false,
+              "machines": {}
+            },
+            "coating": {
+              "enabled": false,
+              "machines": {}
+            }
+          },
+          "isDocumentAvailable": false,
+          "isPipeAvailable": false
+        }
+      },
+      "isDocumentAvailable": false,
+      "isPipeAvailable": false
+    }
+  }
+}
+
