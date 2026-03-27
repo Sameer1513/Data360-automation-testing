@@ -7,25 +7,44 @@ class StatusConfigPage {
     this.page = page;
   }
 
+  async openStatusConfigWithRetry() {
+    const tryOpen = async () => {
+      await locators.productionTab(this.page).click({ timeout: 15000 });
+      await locators.statusConfigBtn(this.page).click({ timeout: 15000 });
+      await locators.inInput(this.page).first().waitFor({ state: 'visible', timeout: 20000 });
+      await locators.outInput(this.page).first().waitFor({ state: 'visible', timeout: 20000 });
+    };
+
+    try {
+      await tryOpen();
+    } catch (e) {
+      console.warn(`StatusConfig open failed (attempt 1). Retrying... ${e.message}`);
+      await this.page.keyboard.press('Escape').catch(() => {});
+      await this.page.waitForTimeout(300);
+      await tryOpen();
+    }
+  }
+
   async applyStatusConfiguration(slopeIn = 0, slopeOut = 0) {
-    if (slopeIn > 0 || slopeOut > 0) {
-      console.log(`⚙️ Applying Slopes: In ${slopeIn}s | Out ${slopeOut}s`);
+    if (Number(slopeIn) === 0 && Number(slopeOut) === 0) {
+      console.log('⏭️ Skipping Status Configuration: both slopeIn and slopeOut are 0.');
+      assertion.log(
+        `Status Config (In:${slopeIn}, Out:${slopeOut})`,
+        'Skipped (both slopes are 0)',
+        'Status Configuration Applied',
+        'PASS'
+      );
+      return;
+    }
 
-      await locators.productionTab(this.page).click();
-      await locators.statusConfigBtn(this.page).click();
+    console.log(`⚙️ Applying Slopes (always saves): In ${slopeIn}s | Out ${slopeOut}s`);
 
-      // Handle empty state: "No Status Configuration Data Available"
-      // Return to Production so the production-flow keeps moving.
-      const emptyState = this.page.getByText(/No Status Configuration Data/i).first();
-      const isEmptyVisible = await emptyState.isVisible().catch(() => false);
-      if (isEmptyVisible) {
-        console.warn('⚠️ No Status Configuration Data Available — waiting 5s then backing to Production');
-        await this.page.waitForTimeout(5000).catch(() => {});
-        const backArrow = locators.backBtn(this.page);
-        await backArrow.click({ timeout: 10000 }).catch(() => {});
-        await locators.tableRows(this.page).first().waitFor({ state: 'visible', timeout: 15000 });
-        return;
-      }
+    // Always navigate into Status Configuration, apply values (including 0), click Save,
+    // then return to Production so downstream extraction starts from a stable state.
+    await this.openStatusConfigWithRetry();
+
+    await locators.inInput(this.page).first().fill(slopeIn.toString(), { timeout: 30000 });
+    await locators.outInput(this.page).first().fill(slopeOut.toString(), { timeout: 30000 });
 
       await locators.inInput(this.page).fill(slopeIn.toString());
       await locators.outInput(this.page).fill(slopeOut.toString());

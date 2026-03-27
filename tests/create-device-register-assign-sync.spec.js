@@ -6,9 +6,11 @@ const { spawn } = require('child_process');
 const LoginAndProjectPage = require('../pages/loginAndProject.page');
 const CreateProjectPage = require('../pages/createproject.page');
 const DeviceAssigningPage = require('../pages/DeviceAssigning.page');
+const { ProjectsPage } = require('../Locators/ProjectsPage');
 const CommonHelper = require('../Helper/CommonHelper');
 const LoginAssertion = require('../Assertions/LoginAssertion');
 const CreateDeviceRegisterAssignSyncAssertion = require('../Assertions/create-device-register-assign-sync-assertion');
+const { cleanupProjectByFirstTile } = require('../utils/projectCleanup.util');
 const { waitForProductionFlowTerminalSyncDone } = require('./helpers/production-flow-terminal-gate');
 
 const baseConfigPath = path.join(process.cwd(), 'config/Combinations.json');
@@ -46,6 +48,19 @@ async function runDeviceRegisterStep(step) {
     });
 
     let output = '';
+    const hardTimeoutMs = Number(process.env.DEVICE_REGISTER_STEP_TIMEOUT_MS || 10 * 60 * 1000);
+    const timer = setTimeout(() => {
+      try {
+        child.kill();
+      } catch (_) {
+        // ignore kill errors
+      }
+      resolve({
+        ok: false,
+        exitCode: null,
+        output: `${output}\n[timeout] device_register step ${step} exceeded ${hardTimeoutMs}ms`
+      });
+    }, hardTimeoutMs);
 
     const collect = (chunk, isErr) => {
       const s = chunk.toString();
@@ -59,17 +74,21 @@ async function runDeviceRegisterStep(step) {
     child.stderr.on('data', (d) => collect(d, true));
 
     child.on('close', (code) => {
+      clearTimeout(timer);
       resolve({ ok: code === 0, exitCode: code, output });
     });
 
     child.on('error', (err) => {
+      clearTimeout(timer);
       resolve({ ok: false, exitCode: null, output: `${output}\n${String(err?.message || err)}` });
     });
   });
 }
 
-async function runCaseWithBrowser(browser, caseDef) {
+async function runCaseWithBrowser(browser, caseDef, options = {}) {
   const originalBaseConfig = deepClone(JSON.parse(fs.readFileSync(baseConfigPath, 'utf-8')));
+  const cleanupCreatedProjects = options.cleanupCreatedProjects === true;
+  const createdProjectNames = [];
 
   const baseConfigLive = deepClone(originalBaseConfig);
   delete baseConfigLive.capturedDeviceId;
@@ -107,7 +126,6 @@ async function runCaseWithBrowser(browser, caseDef) {
     await new LoginAssertion(login).run(test.info());
 
     const baseProjectNumber = Number(caseDef.createProjectData?.projectNumber || 0);
-    const createdProjectNames = [];
 
     const step2Runs = [];
     let deviceAssignedProjects = null;
@@ -236,6 +254,17 @@ async function runCaseWithBrowser(browser, caseDef) {
       expect(step2OkAll, `${caseDef.id}: data sync step2 not completed (SYNC COMPLETE marker missing)`).toBeTruthy();
     }
   } finally {
+    if (cleanupCreatedProjects && page) {
+      try {
+        const projectsPage = new ProjectsPage(page);
+        for (const projectName of [...createdProjectNames].reverse()) {
+          await cleanupProjectByFirstTile(projectsPage, projectName);
+        }
+      } catch (e) {
+        console.warn(`Cleanup warning (${caseDef?.id || 'unknown-case'}): ${e.message}`);
+      }
+    }
+
     // Restore original config
     fs.writeFileSync(baseConfigPath, JSON.stringify(originalBaseConfig, null, 2));
     await page?.close();
@@ -248,6 +277,7 @@ test.describe.serial('Device Register, Assign and Sync', () => {
   });
 
   const specCfg = loadSpecConfig();
+  const cleanupCreatedProjects = specCfg?.cleanup?.deleteProjectsAfterEachTest === true;
   const cases = Array.isArray(specCfg.cases) ? specCfg.cases : [];
 
   const byId = cases.reduce((acc, c) => {
@@ -259,18 +289,18 @@ test.describe.serial('Device Register, Assign and Sync', () => {
     test.setTimeout(60000);
     const c = byId.test1;
     test.skip(!c?.enabled, 'test1 disabled in json');
-    await runCaseWithBrowser(browser, c);
+    await runCaseWithBrowser(browser, c, { cleanupCreatedProjects });
   });
 
   test('multiProj-Assign-SingleDataSyn', async ({ browser }) => {
     const c = byId.test2;
     test.skip(!c?.enabled, 'test2 disabled in json');
-    await runCaseWithBrowser(browser, c);
+    await runCaseWithBrowser(browser, c, { cleanupCreatedProjects });
   });
 
   test('singleProj-Assign-MultipleDBSyn', async ({ browser }) => {
     const c = byId.test3;
     test.skip(!c?.enabled, 'test3 disabled in json');
-    await runCaseWithBrowser(browser, c);
+    await runCaseWithBrowser(browser, c, { cleanupCreatedProjects });
   });
 });

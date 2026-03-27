@@ -5,6 +5,9 @@
     "deviceRegistration": true,
     "deviceSync": true
   },
+  "cleanup": {
+    "deleteProjectsAfterEachTest": true
+  },
   "cases": [
     {
       "id": "test1",

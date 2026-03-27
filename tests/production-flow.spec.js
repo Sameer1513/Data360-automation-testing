@@ -13,7 +13,6 @@ const StatusConfigPage       = require('../pages/statusConfig.page');
 const StatusConfigPass       = require('../pages/StatusConfigPass.page.js');
 const ProductionTabWeldData  = require('../pages/ProductionTabWeldData.page');
 const { WeldParametersCsvToExcel, WeldParametersXmlToExcel } = require('../pages/WeldParameterFileToExcel.page.js');
-const StatusConfigCompare    = require('../pages/statusConfigCompare.page.js');
 const BoltDBTxtFileTOExcel   = require('../pages/BoltDBTxtFileTOExcel.page');
 const ComparePage            = require('../pages/compare.page');
 const CommonHelper           = require('../Helper/CommonHelper');
@@ -301,7 +300,13 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
     test('Step 7: 🖥️ Run Device Sync', async () => {
         const isDeviceRegConfigured = flowConfig.deviceRegistration && flowConfig.deviceRegistration.enabled !== false;
         const isMultiBrowser        = flowConfig.mode === 'multiBrowser';
-        test.skip(!(isDeviceRegConfigured && !isMultiBrowser && fc.deviceSync), "Device Sync is disabled.");
+        const shouldRunSync         = isDeviceRegConfigured && !isMultiBrowser && fc.deviceSync;
+
+        // Release modular gate even when sync step is skipped in this run.
+        if (!shouldRunSync) {
+            markProductionFlowTerminalSyncDone();
+            test.skip("Device Sync is disabled.");
+        }
 
         const info = test.info();
         const scriptPath = path.join(__dirname, '..', 'terminal_execution_files', 'device_register.js');
@@ -314,6 +319,9 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
 
         assertion.log('Step 7: Device Sync', 'Sync Script Completed', 'Device Sync Completed', 'PASS', '', info);
         expect("Device Sync Completed Successfully").toBe("Device Sync Completed Successfully");
+
+        // Unblock create-device-register-assign-sync after terminal sync completes.
+        markProductionFlowTerminalSyncDone();
     });
 
     // ═════════════════════════════════════════════════════════════════════

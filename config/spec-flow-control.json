@@ -1,10 +1,20 @@
 {
-  "LoginPage.spec.js": false,
-
-  "create-device-register-assign-sync.spec.js": false,
-
-  "CreateProject.spec.js": false,
-
-  "production-flow.spec.js": true,
-  "StatusConfig-compare.spec.js": false
+  "enabled": {
+    "LoginPage.spec.js": true,
+    "create-device-register-assign-sync.spec.js": true,
+    "CreateProject.spec.js": true,
+    "production-flow.spec.js": true,
+    "StatusConfig-compare.spec.js": true
+  },
+  "execution": {
+    "serial": [
+      "production-flow.spec.js"
+      ,"create-device-register-assign-sync.spec.js"
+    ],
+    "parallel": [
+      "LoginPage.spec.js",
+      "CreateProject.spec.js",
+      "StatusConfig-compare.spec.js"
+    ]
+  }
 }

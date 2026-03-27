@@ -37,7 +37,11 @@ function isProductionFlowSpecDisabledInFlowControl() {
     const p = path.join(process.cwd(), 'config', 'spec-flow-control.json');
     if (!fs.existsSync(p)) return false;
     const j = JSON.parse(fs.readFileSync(p, 'utf-8'));
-    return j['production-flow.spec.js'] === false;
+    const enabledMap =
+      j && typeof j.enabled === 'object' && j.enabled !== null
+        ? j.enabled
+        : j;
+    return enabledMap['production-flow.spec.js'] === false;
   } catch (_) {
     return false;
   }

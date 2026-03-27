@@ -9,12 +9,20 @@ const chromeProjectUse = {
 
 const MODULAR_SPEC = 'create-device-register-assign-sync.spec.js';
 
-/** Per-spec enable/disable (same idea as flowControl). false = that spec file is skipped. */
-function loadSpecFlowControl(): Record<string, boolean> {
+type SpecFlowFile = {
+  enabled?: Record<string, boolean>;
+  execution?: {
+    serial?: string[];
+    parallel?: string[];
+  };
+} & Record<string, unknown>;
+
+/** Per-spec enable/disable + execution grouping (serial/parallel). */
+function loadSpecFlowControl(): SpecFlowFile {
   const file = path.join(process.cwd(), 'config', 'spec-flow-control.json');
   if (!fs.existsSync(file)) return {};
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf-8')) as Record<string, boolean>;
+    return JSON.parse(fs.readFileSync(file, 'utf-8')) as SpecFlowFile;
   } catch {
     return {};
   }
@@ -22,17 +30,68 @@ function loadSpecFlowControl(): Record<string, boolean> {
 
 const specFlow = loadSpecFlowControl();
 
-function isSpecEnabled(filename: string): boolean {
-  if (!(filename in specFlow)) return true;
-  return specFlow[filename] !== false;
+function getEnabledMap(): Record<string, boolean> {
+  // Backward compatibility:
+  // old format => { "A.spec.js": true, "B.spec.js": false }
+  if (specFlow.enabled && typeof specFlow.enabled === 'object') return specFlow.enabled;
+
+  const out: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(specFlow)) {
+    if (typeof v === 'boolean') out[k] = v;
+  }
+  return out;
 }
 
-// Everything except modular (separate project); plus any spec-flow false. production-flow stays here — modular waits on terminal gate file after Step 7, not on whole file.
-const chromeOthersIgnore: string[] = [
+function getExecutionList(mode: 'serial' | 'parallel'): string[] {
+  const list = specFlow.execution?.[mode];
+  if (!Array.isArray(list)) return [];
+  return list.filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
+}
+
+const enabledMap = getEnabledMap();
+const serialSpecs = Array.from(new Set(getExecutionList('serial')));
+const parallelSpecs = Array.from(new Set(getExecutionList('parallel')));
+
+function isSpecEnabled(filename: string): boolean {
+  if (!(filename in enabledMap)) return true;
+  return enabledMap[filename] !== false;
+}
+
+const disabledSpecs = Object.entries(enabledMap)
+  .filter(([, v]) => v === false)
+  .map(([name]) => name);
+
+const enabledSerialSpecs = serialSpecs
+  .filter((name) => isSpecEnabled(name) && name !== MODULAR_SPEC);
+
+const serialSpecSet = new Set(enabledSerialSpecs);
+const parallelSpecsThatAreAlsoSerial = parallelSpecs.filter((name) => serialSpecSet.has(name));
+const enabledParallelSpecs = parallelSpecs
+  .filter((name) => isSpecEnabled(name) && name !== MODULAR_SPEC && !serialSpecSet.has(name));
+
+// Default parallel bucket: all specs not explicitly serial, not modular, not disabled.
+const chromeParallelIgnore: string[] = [
   `**/${MODULAR_SPEC}`,
-  ...Object.entries(specFlow)
-    .filter(([, v]) => v === false)
-    .map(([name]) => `**/${name}`),
+  ...disabledSpecs.map((name) => `**/${name}`),
+  ...enabledSerialSpecs.map((name) => `**/${name}`),
+];
+
+// Explicit parallel bucket: only run listed parallel specs (if provided).
+const explicitParallelEnabled = enabledParallelSpecs.length > 0;
+const explicitParallelMatch = enabledParallelSpecs.map((name) => `**/${name}`);
+
+// Serial bucket: run listed serial specs with 1 worker.
+const serialEnabled = enabledSerialSpecs.length > 0;
+const serialMatch = enabledSerialSpecs.map((name) => `**/${name}`);
+
+if (parallelSpecsThatAreAlsoSerial.length > 0) {
+  console.warn(
+    `[spec-flow-control] serial takes precedence; removed from parallel: ${parallelSpecsThatAreAlsoSerial.join(', ')}`
+  );
+}
+
+const serialIgnoreFromDisabled = [
+  ...disabledSpecs.map((name) => `**/${name}`),
 ];
 
 const modularEnabled = isSpecEnabled(MODULAR_SPEC);
@@ -199,10 +258,21 @@ export default defineConfig({
   // Chrome-others: includes production-flow + all other specs (parallel workers). Modular runs in parallel but blocks in beforeAll until Step 7 terminal gate file exists.
   projects: [
     {
-      name: 'Chrome-others',
-      testIgnore: chromeOthersIgnore,
+      name: 'Chrome-parallel',
+      ...(explicitParallelEnabled
+        ? { testMatch: explicitParallelMatch }
+        : { testIgnore: chromeParallelIgnore }),
       use: chromeProjectUse,
     },
+    {
+      name: 'Chrome-serial',
+      testMatch: serialEnabled ? serialMatch : '**/__no_serial_specs__.spec.js',
+      testIgnore: serialIgnoreFromDisabled,
+      workers: 1,
+      fullyParallel: false,
+      use: chromeProjectUse,
+    },
+    // Modular runs separately and can coordinate with production flow through terminal gate file.
     {
       name: 'Chrome-device-sync-modular',
       testMatch: modularEnabled ? `**/${MODULAR_SPEC}` : '**/__spec_flow_disabled__.spec.js',
