@@ -139,7 +139,7 @@ async fillPipeRow(container, pipe, index) {
 
     // 4. WPS ENTRY WITH RETRY
     const wpsList = Array.isArray(pipe.wps) ? pipe.wps : [pipe.wps];
-    const placeholderText = "Enter WPS Number 1"; 
+    const placeholderText = "Enter Job Number 1"; 
     const firstWpsInput = locators.wpsInput(container, placeholderText);
 
     let wpsFilled = false;

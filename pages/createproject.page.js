@@ -57,20 +57,44 @@ class CreateProjectPage {
     }
 
     await locators.createProjectBtn(this.page).waitFor({ state: 'visible', timeout: 15000 });
-    const clickAndWaitForForm = async (attempt) => {
-      await locators.createProjectBtn(this.page).click({ force: true });
+    const ensureProjectsContext = async () => {
+      const current = (this.page.url() || '').toLowerCase();
+      if (!current.includes('/projects')) {
+        await this.page.goto('/Projects').catch(() => {});
+        await this.page.waitForURL(/.*\/projects/i, { timeout: 15000 }).catch(() => {});
+      }
+    };
+
+    const clickCreateButtonRobust = async () => {
+      const btn = locators.createProjectBtn(this.page);
+      await btn.waitFor({ state: 'visible', timeout: 10000 });
+      await btn.scrollIntoViewIfNeeded();
+      await this.closeToastIfVisible();
+      try {
+        await btn.click({ timeout: 5000 });
+      } catch {
+        // Overlay/intercept fallback
+        await btn.click({ force: true, timeout: 5000 });
+      }
+    };
+
+    const clickAndWaitForForm = async (attempt, formVisibleTimeoutMs) => {
+      await ensureProjectsContext();
+      await clickCreateButtonRobust();
       await this.waitForLoader().catch(() => {});
       await this.page.waitForTimeout(400);
-      await locators.projectNameInput(this.page).waitFor({ state: 'visible', timeout: 30000 });
+      await locators.projectNameInput(this.page).waitFor({ state: 'visible', timeout: formVisibleTimeoutMs });
     };
 
     try {
-      await clickAndWaitForForm(1);
+      // Keep first attempt short so retry starts quickly if UI is flaky.
+      await clickAndWaitForForm(1, 7000);
     } catch (e) {
       console.warn(`openCreateProject: form not visible after first click (attempt 1). Retrying...`);
       try { await this.page.keyboard.press('Escape'); } catch (err) { /* ignore */ }
       await this.page.waitForTimeout(600);
-      await clickAndWaitForForm(2);
+      // Give the second attempt a full timeout.
+      await clickAndWaitForForm(2, 30000);
     }
   }
 
