@@ -67,7 +67,7 @@
     }
   },
   "singleProject": {
-    "projectName": "EtoEAllSpecFile",
+    "projectName": "F",
     "projectNumber": "152",
     "location": "ANDORRA",
     "customer": "advanced engg",
@@ -89,7 +89,7 @@
       "M-500"
     ],
     "sourceFile": "bolt_station3_cw.txt",
-    "weldIds": "145",
+    "weldIds": "",
     "statusConfigPath": "exports/StatusConfig UI/XML_StatusConfig_UI.xlsx",
     "weldParamsPath": "exports/CSVp600z/WeldParameters_Converted.xlsx",
     "slopeCombinations": [

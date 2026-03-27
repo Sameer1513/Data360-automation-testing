@@ -94,7 +94,7 @@ class ProductionTabWeldDataLocators {
 
   // ── Empty state ───────────────────────────────────────────────────────────
   noWeldDataText() {
-    return this.page.getByText('No weld data available');
+    return this.page.getByText('No weld data available').first();
   }
 }
 

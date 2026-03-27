@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { test, expect } = require('@playwright/test');
 const { execSync, spawn } = require('child_process');
-
+ 
 // Page Objects
 const LoginAndProjectPage    = require('../pages/loginAndProject.page');
 const CreateProjectPage      = require('../pages/createproject.page');
@@ -20,25 +20,29 @@ const assertion              = require('../Helper/AssertionHelper.js');
 const LoginAssertion         = require('../Assertions/LoginAssertion');
 const ProductionTabAssertion = require('../Assertions/ProductionTabAssertion');
 const { sanitizeFolderName } = require('../Helper/excelNaming.util.js');
-
+const {
+    markProductionFlowTerminalSyncDone,
+    clearProductionFlowTerminalSyncGate,
+} = require('./helpers/production-flow-terminal-gate');
+ 
 // Config
 const configPath  = path.join(__dirname, '../config/Combinations.json');
 const flowConfig  = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 const statusCompareConfigPath = path.join(__dirname, '../config/StatusConfigCompareFlow.json');
-
+ 
 test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
-
+ 
     // ── Shared state ──────────────────────────────────────────────────────
     let page, helper, login, createPage, specPage, deviceAssign,
         setupPage, status, statusConfigPass, analysis, compare;
-
+ 
     const project      = flowConfig.singleProject;
     const fc           = flowConfig.flowControl || {};
     const targetWeldId = new CommonHelper(null).resolveTargetWelds(project.weldIds);
-
+ 
     let derivedSetup = null;
     let deviceId     = null;
-
+ 
     // ── Before All ────────────────────────────────────────────────────────
     test.beforeAll(async () => {
         if (fc.cleanExports) {
@@ -52,7 +56,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                     console.log(`   🗑️ Deleted: ${dir}`);
                 }
             }
-
+ 
             // Project folders under exports/ from StatusConfigCompareFlow.json (same as StatusConfig-compare.spec.js)
             try {
                 const scCfg = JSON.parse(fs.readFileSync(statusCompareConfigPath, 'utf-8'));
@@ -72,7 +76,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                 console.warn(`⚠️ Could not clean StatusConfigCompareFlow project folders: ${e.message}`);
             }
         }
-
+ 
         if (fc.checkSourceFile) {
             const sourceFilePath = path.join(process.cwd(), 'Input', project.sourceFile);
             expect(
@@ -80,9 +84,9 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                 `❌ Source file '${project.sourceFile}' not found in Input directory.`
             ).toBe(true);
         }
-
+ 
         const parallelTasks = [];
-
+ 
         if (fc.weldParameterExtraction) {
             const extractParams = async () => {
                 const inputFile = project.weldParamsInputFile;
@@ -99,7 +103,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             };
             parallelTasks.push(extractParams());
         }
-
+ 
         if (fc.runExtraction) {
             const extractBoltDB = async () => {
                 const extractor = new BoltDBTxtFileTOExcel();
@@ -116,17 +120,17 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             };
             parallelTasks.push(extractBoltDB());
         }
-
+ 
         await Promise.all(parallelTasks);
     });
-
+ 
     // ── Before Each ───────────────────────────────────────────────────────
     // Only open a browser page if at least one browser-dependent step is enabled.
     const needsBrowser = fc.login || fc.createProject || fc.deviceRegistration ||
                          fc.setup || fc.specification || fc.deviceSync ||
                          fc.productionAnalysis || fc.statusConfigPass || fc.comparison ||
                          fc.statusConfigCompareFlowAtEnd;
-
+ 
     test.beforeEach(async ({ browser }) => {
         if (!needsBrowser) return;
         if (page) return;
@@ -142,11 +146,11 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
         analysis         = new ProductionTabWeldData(page, flowConfig.scanConfig);
         compare          = new ComparePage();
     });
-
+ 
     // ── After All ─────────────────────────────────────────────────────────
     test.afterAll(async () => {
         await page?.close();
-
+ 
         // Generate and attach the assertion dashboard
         const dashboardPath = assertion.generateDashboard();
         if (fs.existsSync(dashboardPath)) {
@@ -156,7 +160,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             });
         }
     });
-
+ 
     // ═════════════════════════════════════════════════════════════════════
     // STEP 1 — LOGIN
     // ═════════════════════════════════════════════════════════════════════
@@ -164,14 +168,14 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
         test.skip(!fc.login, "Login is disabled in flowControl.");
         await new LoginAssertion(login).run(test.info());
     });
-
+ 
     // ═════════════════════════════════════════════════════════════════════
     // STEP 2 — CREATE PROJECT
     // ═════════════════════════════════════════════════════════════════════
     test('Step 2: 🏗️ Create Project', async () => {
         test.skip(!fc.createProject, "Create Project is disabled in flowControl.");
         const info = test.info();
-
+ 
         try {
             await createPage.createProject({
                 ...flowConfig.createProjectData,
@@ -188,7 +192,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             throw e;
         }
     });
-
+ 
     // ═════════════════════════════════════════════════════════════════════
     // STEP 3 & 4 — DEVICE REGISTRATION & ASSIGNMENT
     // ═════════════════════════════════════════════════════════════════════
@@ -197,15 +201,15 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
         const isMultiBrowser        = flowConfig.mode === 'multiBrowser';
         const shouldRegister        = isDeviceRegConfigured && !isMultiBrowser && fc.deviceRegistration;
         test.skip(!shouldRegister, "Device Registration is disabled in flowControl or config.");
-
+ 
         const info = test.info();
-
+ 
         const resetConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
         delete resetConfig.capturedDeviceId;
         fs.writeFileSync(configPath, JSON.stringify(resetConfig, null, 2));
-
+ 
         const scriptPath = path.join(__dirname, '..', 'terminal_execution_files', 'device_register.js');
-
+ 
         await test.step('Run Device Register (Step 1)', async () => {
             await new Promise((resolve, reject) => {
                 const child = spawn('node', [scriptPath, '--step=1'], { stdio: 'inherit', shell: true });
@@ -214,14 +218,14 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             });
             assertion.log('Device Registration: Step 1', 'Script Completed', 'Script Completed', 'PASS', '', info);
         });
-
+ 
         deviceId = await test.step('Wait for Device ID', async () => {
             const id = await helper.waitForDeviceId(configPath);
             expect(id, 'Device ID should be generated').toBeTruthy();
             assertion.log('Device Registration: Capture ID', `Device ID: ${id}`, 'Device ID Generated', 'PASS', '', info);
             return id;
         });
-
+ 
         await test.step('Assign Device to Project', async () => {
             await deviceAssign.assignProjectToDevice(deviceId, project.projectName);
             assertion.log(
@@ -232,14 +236,14 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             );
         });
     });
-
+ 
     // ═════════════════════════════════════════════════════════════════════
     // STEP 5 — SETUP
     // ═════════════════════════════════════════════════════════════════════
     test('Step 5: ⚙️ Perform Project Setup', async () => {
         test.skip(!fc.setup, "Setup is disabled in flowControl.");
         const info = test.info();
-
+ 
         if (derivedSetup) {
             const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
             if (cfg.singleProject?.setupConfig?.pipes?.[0]) {
@@ -250,7 +254,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                 fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2));
             }
         }
-
+ 
         try {
             await setupPage.performSetup(project.projectName);
             assertion.log(
@@ -264,20 +268,20 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             throw e;
         }
     });
-
+ 
     // ═════════════════════════════════════════════════════════════════════
     // STEP 6 — SPECIFICATIONS
     // ═════════════════════════════════════════════════════════════════════
     test('Step 6: 📑 Configure Specifications', async () => {
         test.skip(!fc.specification, "Specification is disabled in flowControl.");
         const info = test.info();
-
+ 
         if (!project.specificationData) {
             console.log("⚠️ No specificationData in config. Skipping.");
             assertion.log('Step 6: Specifications', 'Skipped — no specificationData', 'N/A', 'PASS', '', info);
             return;
         }
-
+ 
         try {
             await specPage.navigateToSpecifications(project.projectName);
             if (project.specificationData.excelTemplate) {
@@ -293,7 +297,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             throw e;
         }
     });
-
+ 
     // ═════════════════════════════════════════════════════════════════════
     // STEP 7 — DEVICE SYNC
     // ═════════════════════════════════════════════════════════════════════
@@ -301,29 +305,30 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
         const isDeviceRegConfigured = flowConfig.deviceRegistration && flowConfig.deviceRegistration.enabled !== false;
         const isMultiBrowser        = flowConfig.mode === 'multiBrowser';
         const shouldRunSync         = isDeviceRegConfigured && !isMultiBrowser && fc.deviceSync;
-
+ 
         // Release modular gate even when sync step is skipped in this run.
         if (!shouldRunSync) {
             markProductionFlowTerminalSyncDone();
             test.skip("Device Sync is disabled.");
         }
-
+ 
         const info = test.info();
         const scriptPath = path.join(__dirname, '..', 'terminal_execution_files', 'device_register.js');
-
+ 
+        clearProductionFlowTerminalSyncGate();
         await new Promise((resolve, reject) => {
             const child = spawn('node', [scriptPath, '--step=2'], { stdio: 'inherit', shell: true });
             child.on('close', (code) => code === 0 ? resolve() : reject(new Error(`Step 2 failed: exit ${code}`)));
             child.on('error', (err) => reject(err));
         });
-
+ 
         assertion.log('Step 7: Device Sync', 'Sync Script Completed', 'Device Sync Completed', 'PASS', '', info);
         expect("Device Sync Completed Successfully").toBe("Device Sync Completed Successfully");
-
+ 
         // Unblock create-device-register-assign-sync after terminal sync completes.
         markProductionFlowTerminalSyncDone();
     });
-
+ 
     // ═════════════════════════════════════════════════════════════════════
     // STEP 8 & 9 — PRODUCTION TAB VERIFICATION
     // ═════════════════════════════════════════════════════════════════════
@@ -331,38 +336,38 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
         test.skip(!fc.productionAnalysis, "Production Analysis is disabled in flowControl.");
         await new ProductionTabAssertion(page, helper).run(project.projectName, test.info());
     });
-
+ 
     // ═════════════════════════════════════════════════════════════════════
     // DYNAMIC SLOPE COMBINATIONS
     // ═════════════════════════════════════════════════════════════════════
     for (const slope of project.slopeCombinations) {
-
+ 
         // ── BoltDB Extraction ─────────────────────────────────────────────
         test(`Step: 📄 BoltDB Extraction (In: ${slope.slopeIn}, Out: ${slope.slopeOut})`, async () => {
             test.skip(!fc.BoltDBExcel, "BoltDB Excel generation disabled in flowControl.");
             const info = test.info();
-
+ 
             try {
                 const extractor        = new BoltDBTxtFileTOExcel();
                 const statusConfigPath = project.statusConfigPath
                     ? path.join(process.cwd(), project.statusConfigPath) : null;
                 const weldParamsPath   = project.weldParamsPath
                     ? path.join(process.cwd(), project.weldParamsPath) : null;
-
+ 
                 const { outputPath } = await extractor.run(
                     slope.slopeIn, slope.slopeOut,
                     project.projectName, project.sourceFile,
                     fc.BoltDBExcel, statusConfigPath, weldParamsPath,
                     project.unitConfig || null
                 );
-
+ 
                 if (outputPath) {
                     await info.attach(`BoltDB Data (${slope.slopeIn}-${slope.slopeOut})`, {
                         path: outputPath,
                         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                     });
                 }
-
+ 
                 assertion.log(
                     `BoltDB Extraction (In:${slope.slopeIn}, Out:${slope.slopeOut})`,
                     outputPath ? `File Generated: ${path.basename(outputPath)}` : 'No Output Path',
@@ -378,12 +383,12 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                 throw e;
             }
         });
-
+ 
         // ── Status Configuration ──────────────────────────────────────────
         test(`Step: ⚙️ Status Configuration (In: ${slope.slopeIn}, Out: ${slope.slopeOut})`, async () => {
             test.skip(!fc.productionAnalysis, "Production Analysis is disabled in flowControl.");
             const info = test.info();
-
+ 
             try {
                 await status.applyStatusConfiguration(slope.slopeIn, slope.slopeOut);
                 assertion.log(
@@ -392,11 +397,11 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                     'Status Configuration Applied',
                     'PASS', '', info
                 );
-
+ 
                 if (fc.statusConfigPass) {
                     const result = await statusConfigPass.run(project.projectName, slope.slopeIn, slope.slopeOut);
                     await statusConfigPass.goBackToProduction();
-
+ 
                     if (result.filePath) {
                         await info.attach('Status Config UI Data', {
                             path: result.filePath,
@@ -419,16 +424,16 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                 throw e;
             }
         });
-
+ 
         // ── UI Production Analysis ────────────────────────────────────────
         test(`Step: 📊 UI Analysis (In: ${slope.slopeIn}, Out: ${slope.slopeOut})`, async () => {
             test.skip(!fc.productionAnalysis, "Production Analysis is disabled in flowControl.");
             const info = test.info();
-
+ 
             try {
                 const out = await analysis.runFlow(targetWeldId, null, project.projectName);
                 const prodFilePath = out && out.filepath ? out.filepath : null;
-
+ 
                 if (prodFilePath) {
                     await info.attach('Production Data', {
                         path: prodFilePath,
@@ -454,30 +459,30 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                 throw e;
             }
         });
-
+ 
         // ── Comparison ────────────────────────────────────────────────────
         test(`Step: ⚖️ Comparison Report (In: ${slope.slopeIn}, Out: ${slope.slopeOut})`, async () => {
             test.skip(!fc.comparison, "Comparison disabled.");
             const info = test.info();
-
+ 
             try {
                 const { hasFailure, reportPath, dashboardPath } =
                     await compare.runAutoCompare(project.projectName, targetWeldId);
-
+ 
                 if (reportPath) {
                     await info.attach('Comparison Excel Report', {
                         path: reportPath,
                         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                     });
                 }
-
+ 
                 if (dashboardPath) {
                     await info.attach('📊 Weld Comparison Dashboard', {
                         body: fs.readFileSync(dashboardPath),
                         contentType: 'text/html'
                     });
                 }
-
+ 
                 assertion.log(
                     `Comparison (In:${slope.slopeIn}, Out:${slope.slopeOut})`,
                     hasFailure ? '⚠️ Mismatches Found' : '✅ All Values Match',
@@ -498,7 +503,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             }
         });
     }
-
+ 
     // ═════════════════════════════════════════════════════════════════════
     // OPTIONAL END BLOCK — INDEPENDENT STATUS CONFIG COMPARE FLOW
     // Runs after all existing production-flow steps.
@@ -508,7 +513,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
     test('Step: 🧪 StatusConfig Compare Flow (p600z → p625)', async () => {
         test.skip(!fc.statusConfigCompareFlowAtEnd, "Independent StatusConfig compare flow is disabled.");
         const info = test.info();
-
+ 
         let scCfg;
         try {
             scCfg = JSON.parse(fs.readFileSync(statusCompareConfigPath, 'utf-8'));
@@ -523,24 +528,24 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             );
             return;
         }
-
+ 
         const scFc = scCfg.flowControl || {};
         const scCases = scCfg.cases || {};
         const scCompareCfg = scCfg.statusConfigCompare || {};
-
+ 
         const goToProjectsPage = async (targetProjectName = null) => {
             const searchInput = page.locator('input[placeholder*="Search"]').first();
             const targetTile = targetProjectName
                 ? page.getByText(new RegExp(`^${targetProjectName}$`, 'i')).first()
                 : null;
-
+ 
             const projectControls = [
                 page.getByRole('button', { name: /^Projects$/i }).first(),
                 page.getByRole('link', { name: /^Projects$/i }).first(),
                 page.locator('header').getByText('Projects', { exact: true }).first(),
                 page.getByText('Projects', { exact: true }).first()
             ];
-
+ 
             for (let attempt = 0; attempt < 3; attempt++) {
                 try {
                     for (const ctrl of projectControls) {
@@ -550,35 +555,35 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                         }
                     }
                 } catch (_) {}
-
+ 
                 await page.waitForLoadState('networkidle').catch(() => {});
                 await page.waitForSelector('text=/Projects/i', { state: 'visible', timeout: 8000 }).catch(() => {});
                 await searchInput.waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
-
+ 
                 if (!targetTile) return;
                 const visible = await targetTile.isVisible().catch(() => false);
                 if (visible) return;
                 await page.waitForTimeout(500).catch(() => {});
             }
-
+ 
             if (targetTile) await targetTile.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
         };
-
+ 
         const runCase = async (caseKey, cfg) => {
             if (!cfg?.enabled) return;
-
+ 
             const result = { caseKey, enabled: !!cfg?.enabled, passed: true, failures: [] };
             const projectName = cfg.projectName;
             const weldParameterInputFile = cfg.weldParameterInputFile || '';
             const slopeIn = Number(cfg.slopeIn ?? 0);
             const slopeOut = Number(cfg.slopeOut ?? 0);
             const calcMethod = cfg.calculationMethod || scCompareCfg.calculationMethod || null;
-
+ 
             let weldPath = null;
             let uiResult = { filePath: null, weldDetails: {} };
             let uiPath = null;
             let comparePath = null;
-
+ 
             const fail = (stage, message, extra = '') => {
                 result.passed = false;
                 result.failures.push({ stage, message, extra });
@@ -597,7 +602,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                     info
                 );
             };
-
+ 
             try {
                 await goToProjectsPage(projectName);
                 await helper.selectProject(projectName);
@@ -607,7 +612,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                 finalizeCase();
                 return;
             }
-
+ 
             try {
                 if (!scFc.weldParameterExtraction) {
                     fail('Weld Conversion', 'statusConfigCompareFlow.flowControl.weldParameterExtraction=false');
@@ -640,17 +645,17 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                 finalizeCase();
                 return;
             }
-
+ 
             try {
                 await status.applyStatusConfiguration(slopeIn, slopeOut);
                 passLog('Apply Slope', `Applied In:${slopeIn}, Out:${slopeOut}`);
-
+ 
                 if (!scFc.statusConfigUIExtraction) {
                     fail('UI Extraction', 'statusConfigCompareFlow.flowControl.statusConfigUIExtraction=false');
                     finalizeCase();
                     return;
                 }
-
+ 
                 uiResult = await statusConfigPass.run(projectName, slopeIn, slopeOut, calcMethod);
                 await statusConfigPass.goBackToProduction();
                 uiPath = uiResult?.filePath || null;
@@ -665,15 +670,15 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                 finalizeCase();
                 return;
             }
-
+ 
             if (!scFc.statusConfigComparison) {
                 passLog('Comparison Skipped', 'statusConfigComparison=false');
                 finalizeCase();
                 return;
             }
-
+ 
             passLog('Comparison Inputs', `weld=${weldPath}`, `ui=${uiPath}`);
-
+ 
             try {
                 const comparer = new StatusConfigCompare(
                     weldPath,
@@ -688,13 +693,13 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                 finalizeCase();
                 return;
             }
-
+ 
             if (!comparePath || !fs.existsSync(comparePath)) {
                 fail('Comparison Output', `Comparison Excel does not exist: ${comparePath || 'empty path'}`);
                 finalizeCase();
                 return;
             }
-
+ 
             try {
                 let hasMismatch = false;
                 const wb = new ExcelJS.Workbook();
@@ -706,7 +711,7 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
                         });
                     });
                 });
-
+ 
                 if (hasMismatch) {
                     fail(
                         'StatusConfig vs WeldParam Comparison',
@@ -723,16 +728,16 @@ test.describe.serial('🔥 COMPLETE END-TO-END FLOW', () => {
             } catch (e) {
                 fail('Mismatch Detection', e?.message || String(e), `comparePath=${comparePath}`);
             }
-
+ 
             finalizeCase();
             await goToProjectsPage();
         };
-
+ 
         // Keep the same order as the dedicated status compare spec.
         await runCase('p600z', scCases.p600z);
         await runCase('p625', scCases.p625);
     });
-
+ 
     // ═════════════════════════════════════════════════════════════════════
     // FINAL
     // ═════════════════════════════════════════════════════════════════════

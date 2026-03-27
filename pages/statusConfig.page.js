@@ -65,11 +65,6 @@ class StatusConfigPage {
       console.log('Returning to Production table...');
       const backArrow = locators.backBtn(this.page);
       await backArrow.click();
-    } else {
-      console.log('⏩ Slopes are 0. Navigating directly to Production tab.');
-      await locators.productionTab(this.page).click();
-    }
-
     // --- CRITICAL SYNC POINT ---
     console.log('⏳ Waiting for Production table to load rows...');
     await locators.tableRows(this.page).first().waitFor({ state: 'visible', timeout: 15000 });

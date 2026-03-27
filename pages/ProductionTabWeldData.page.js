@@ -20,6 +20,34 @@ class ProductionTabWeldData {
     this.scanConfig = scanConfig;
   }
 
+  async waitForProductionRows(idColIndex, timeoutMs = 90000) {
+    const started = Date.now();
+    const firstDataCell = this.locators.firstDataCellByColIndex(idColIndex);
+    const scroller = this.locators.tableScroller();
+
+    while (Date.now() - started < timeoutMs) {
+      if (await firstDataCell.first().isVisible().catch(() => false)) {
+        return true;
+      }
+
+      // Keep nudging the grid so lazy loading/refresh kicks in.
+      if (await scroller.isVisible().catch(() => false)) {
+        await scroller.evaluate(el => el.scrollTop = 200).catch(() => {});
+        await this.page.waitForTimeout(300);
+        await scroller.evaluate(el => el.scrollTop = 0).catch(() => {});
+      }
+
+      // If empty-state is visible, backend may still be ingesting: poll longer.
+      const noDataVisible = await this.locators.noWeldDataText().isVisible().catch(() => false);
+      if (noDataVisible) {
+        console.log('⏳ Production table still shows "No weld data available". Waiting for ingest...');
+      }
+      await this.page.waitForTimeout(1500);
+    }
+
+    return false;
+  }
+
 
     async runFlow(weldIds = [], prodLimit = null, projectName = 'Default') {
     const workbook = new ExcelJS.Workbook();
@@ -43,14 +71,23 @@ class ProductionTabWeldData {
 
       // 2. WAIT for any cell to have text (Dynamic wait instead of fixed time)
       const idColIndex = await this.getColumnIndexByName('Weld ID');
-      const firstDataCell = this.locators.firstDataCellByColIndex(idColIndex);
-
-      // This waits as long as needed for the network to finish
-      await firstDataCell.waitFor({ state: 'visible', timeout: 30000 });
+      const rowReady = await this.waitForProductionRows(idColIndex, 90000);
+      if (!rowReady) {
+        throw new Error(
+          'Production tab has no weld rows after successful sync (waited 90s). ' +
+          'Likely backend ingestion delay or project/device mapping mismatch.'
+        );
+      }
 
       // 3. Capture all IDs currently in view
       const idCells = await this.locators.allCellsByColIndex(idColIndex).allInnerTexts();
       targets = idCells.map(id => id.trim()).filter(id => id.length > 0);
+      if (targets.length === 0) {
+        throw new Error(
+          'Production tab has no weld IDs after rows became visible. ' +
+          'Cannot continue UI analysis.'
+        );
+      }
 
       console.log(`✅ Captured ${targets.length} welds after scroll: ${targets.join(', ')}`);
     }
